@@ -50,8 +50,6 @@ interface NewTemplateStore {
   setCellValue: (layer: LayerType, x: number, y: number, value: 0 | 1) => void;
   toggleCell: (layer: LayerType, x: number, y: number) => void;
   
-  // Layer management
-  setActiveLayer: (layer: LayerType) => void;
   
   // Drag operations
   startDrag: (layer: LayerType, x: number, y: number) => void;
@@ -77,27 +75,30 @@ interface NewTemplateStore {
   clearApiError: () => void;
 }
 
-export const useNewTemplateStore = create<NewTemplateStore>((set, get) => ({
-  template: createEmptyTemplate(20, 12),
-  uiState: {
-    activeLayer: 'ground',
-    dragState: {
-      isDragging: false,
-      activeLayer: 'ground',
-      dragMode: null,
-      lastProcessedCell: null,
+export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
+  const initialTemplate = createEmptyTemplate(20, 12);
+  const initialValidation = validateTemplate(initialTemplate);
+  
+  return {
+    template: initialTemplate,
+    uiState: {
+      dragState: {
+        isDragging: false,
+        dragLayer: null,
+        dragMode: null,
+        lastProcessedCell: null,
+      },
+      hoveredCell: null,
+      layerVisibility: {
+        ground: true,
+        static: true,
+        turret: true,
+        mobGround: true,
+        mobAir: true,
+      },
+      validationResult: initialValidation,
+      showErrors: true,
     },
-    hoveredCell: null,
-    layerVisibility: {
-      ground: true,
-      static: true,
-      turret: true,
-      mobGround: true,
-      mobAir: true,
-    },
-    validationResult: null,
-    showErrors: true,
-  },
   apiState: {
     isLoading: false,
     error: null,
@@ -160,19 +161,9 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => ({
     });
   },
 
-  setActiveLayer: (layer: LayerType) => {
-    set((state) => ({
-      uiState: {
-        ...state.uiState,
-        activeLayer: layer,
-      },
-    }));
-  },
 
   startDrag: (layer: LayerType, x: number, y: number) => {
-    const { uiState, template } = get();
-    
-    if (uiState.activeLayer !== layer) return;
+    const { template } = get();
     
     const currentValue = template[layer][y]?.[x];
     if (currentValue === undefined) return;
@@ -188,7 +179,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => ({
         ...state.uiState,
         dragState: {
           isDragging: true,
-          activeLayer: layer,
+          dragLayer: layer,
           dragMode,
           lastProcessedCell: { x, y },
         },
@@ -199,7 +190,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => ({
   dragToCell: (layer: LayerType, x: number, y: number) => {
     const { uiState, template } = get();
     
-    if (!uiState.dragState.isDragging || uiState.dragState.activeLayer !== layer) return;
+    if (!uiState.dragState.isDragging || uiState.dragState.dragLayer !== layer) return;
     
     // Check if this cell was already processed
     const lastCell = uiState.dragState.lastProcessedCell;
@@ -232,6 +223,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => ({
         dragState: {
           ...state.uiState.dragState,
           isDragging: false,
+          dragLayer: null,
           dragMode: null,
           lastProcessedCell: null,
         },
@@ -488,4 +480,4 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => ({
       },
     }));
   },
-}));
+};});

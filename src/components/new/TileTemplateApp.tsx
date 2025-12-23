@@ -25,13 +25,13 @@ const layerConfigs: Array<{
   {
     layer: 'turret',
     title: 'Turret (炮塔)',
-    color: '#FF6B6B',
+    color: '#4169E1',
     description: 'Turret placement (requires ground=1, static=0)'
   },
   {
     layer: 'mobGround',
     title: 'Mob Ground (地面怪)',
-    color: '#FFB6C1',
+    color: '#FFD700',
     description: 'Ground mob spawns (requires ground=1, static=0, turret=0)'
   },
   {
@@ -241,8 +241,8 @@ export const TileTemplateApp: React.FC = () => {
               )}
 
               <div style={{ marginBottom: '15px' }}>
-                <strong>Active Layer:</strong> {uiState.activeLayer}<br/>
-                <strong>Edit Mode:</strong> Click to toggle (0 ↔ 1)
+                <strong>Edit Mode:</strong> Click any cell to toggle (0 ↔ 1)<br/>
+                <strong>All layers:</strong> Directly editable
               </div>
 
               <div style={{ 
@@ -255,7 +255,7 @@ export const TileTemplateApp: React.FC = () => {
                   🎨 Usage Tips:
                 </h4>
                 <ul style={{ margin: 0, paddingLeft: '15px' }}>
-                  <li>Click layer headers to switch editing</li>
+                  <li>All layers are always editable</li>
                   <li>Click cells to toggle between 0 and 1</li>
                   <li>Drag to paint/erase multiple cells</li>
                   <li>Red borders indicate rule violations</li>

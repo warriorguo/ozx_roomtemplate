@@ -17,7 +17,7 @@ export type LayerType = "ground" | "static" | "turret" | "mobGround" | "mobAir";
 
 export interface DragState {
   isDragging: boolean;
-  activeLayer: LayerType;
+  dragLayer: LayerType | null;
   dragMode: 'set' | 'clear' | null;
   lastProcessedCell: { x: number; y: number } | null;
 }
@@ -44,7 +44,6 @@ export interface ValidationResult {
 }
 
 export interface UIState {
-  activeLayer: LayerType;
   dragState: DragState;
   hoveredCell: { x: number; y: number } | null;
   layerVisibility: Record<LayerType, boolean>;

@@ -7,6 +7,9 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+tile-backend/bin
+tile-backend/vendor
+
 node_modules
 dist
 dist-ssr

@@ -13,7 +13,6 @@ interface CellProps {
   y: number;
   value: CellValue;
   isValid: boolean;
-  isActive: boolean;
   isVisible: boolean;
   showErrors: boolean;
   layer: LayerType;
@@ -28,7 +27,6 @@ const Cell: React.FC<CellProps> = ({
   y,
   value,
   isValid,
-  isActive,
   isVisible,
   showErrors,
   layer,
@@ -39,17 +37,21 @@ const Cell: React.FC<CellProps> = ({
 }) => {
   const getCellStyle = (): React.CSSProperties => {
     const baseStyle: React.CSSProperties = {
-      width: '20px',
-      height: '20px',
+      width: '30px',
+      height: '30px',
       border: '1px solid #ddd',
-      cursor: isActive ? 'pointer' : 'default',
+      cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      fontSize: '10px',
+      fontSize: '15px',
       fontWeight: 'bold',
       opacity: isVisible ? 1 : 0.3,
       position: 'relative',
+      userSelect: 'none', // 禁用文本选择
+      WebkitUserSelect: 'none', // Safari
+      MozUserSelect: 'none', // Firefox
+      msUserSelect: 'none', // IE/Edge
     };
 
     // Background color based on value and layer
@@ -62,10 +64,10 @@ const Cell: React.FC<CellProps> = ({
           baseStyle.backgroundColor = '#FFA500'; // Orange
           break;
         case 'turret':
-          baseStyle.backgroundColor = '#FF6B6B'; // Red
+          baseStyle.backgroundColor = '#4169E1'; // Blue
           break;
         case 'mobGround':
-          baseStyle.backgroundColor = '#FFB6C1'; // Pink
+          baseStyle.backgroundColor = '#FFD700'; // Yellow
           break;
         case 'mobAir':
           baseStyle.backgroundColor = '#87CEEB'; // Sky blue
@@ -81,26 +83,21 @@ const Cell: React.FC<CellProps> = ({
       baseStyle.boxShadow = '0 0 3px rgba(255, 0, 0, 0.5)';
     }
 
-    // Active layer highlighting
-    if (isActive) {
-      baseStyle.border = '2px solid #007bff';
-    }
 
     return baseStyle;
   };
 
   const handleClick = () => {
-    if (!isActive) return;
     onCellClick(x, y);
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
-    if (!isActive || e.button !== 0) return;
+    if (e.button !== 0) return;
+    e.preventDefault(); // 阻止默认行为
     onCellMouseDown(x, y);
   };
 
   const handleMouseEnter = () => {
-    if (!isActive) return;
     onCellMouseEnter(x, y);
   };
 
@@ -111,6 +108,8 @@ const Cell: React.FC<CellProps> = ({
       onMouseDown={handleMouseDown}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={onCellMouseLeave}
+      onDragStart={(e) => e.preventDefault()} // 禁用拖拽
+      onSelectStart={(e) => e.preventDefault()} // 禁用选择
       title={`(${x}, ${y}) - ${layer}: ${value}${!isValid && value === 1 ? ' [INVALID]' : ''}`}
     >
       {value === 1 && isVisible ? '●' : ''}
@@ -123,7 +122,6 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
     template,
     uiState,
     toggleCell,
-    setActiveLayer,
     toggleLayerVisibility,
     setHoveredCell,
     clearHoveredCell,
@@ -132,11 +130,10 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
     endDrag,
   } = useNewTemplateStore();
 
-  const isActive = uiState.activeLayer === layer;
   const isVisible = uiState.layerVisibility[layer];
   const validationResult = uiState.validationResult;
 
-  // Handle global mouse up to end drag
+  // Handle global mouse up to end drag and prevent text selection during drag
   useEffect(() => {
     const handleMouseUp = () => {
       if (uiState.dragState.isDragging) {
@@ -144,8 +141,28 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
       }
     };
 
+    // Disable text selection during drag
+    if (uiState.dragState.isDragging) {
+      document.body.style.userSelect = 'none';
+      document.body.style.webkitUserSelect = 'none';
+      document.body.style.mozUserSelect = 'none';
+      document.body.style.msUserSelect = 'none';
+    } else {
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+      document.body.style.mozUserSelect = '';
+      document.body.style.msUserSelect = '';
+    }
+
     document.addEventListener('mouseup', handleMouseUp);
-    return () => document.removeEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+      // Cleanup: restore text selection
+      document.body.style.userSelect = '';
+      document.body.style.webkitUserSelect = '';
+      document.body.style.mozUserSelect = '';
+      document.body.style.msUserSelect = '';
+    };
   }, [uiState.dragState.isDragging, endDrag]);
 
   const handleCellClick = (x: number, y: number) => {
@@ -159,14 +176,11 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
 
   const handleCellMouseEnter = (x: number, y: number) => {
     setHoveredCell(x, y);
-    if (uiState.dragState.isDragging && isActive) {
+    if (uiState.dragState.isDragging && uiState.dragState.dragLayer === layer) {
       dragToCell(layer, x, y);
     }
   };
 
-  const handleSetActive = () => {
-    setActiveLayer(layer);
-  };
 
   const handleToggleVisibility = () => {
     toggleLayerVisibility(layer);
@@ -174,14 +188,18 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
 
   const gridStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${template.width}, 20px)`,
+    gridTemplateColumns: `repeat(${template.width}, 30px)`,
     gap: '1px',
     backgroundColor: '#f0f0f0',
     padding: '10px',
     borderRadius: '4px',
-    maxWidth: '600px',
-    maxHeight: '400px',
+    maxWidth: '900px',
+    maxHeight: '600px',
     overflow: 'auto',
+    userSelect: 'none', // 禁用文本选择
+    WebkitUserSelect: 'none', // Safari
+    MozUserSelect: 'none', // Firefox
+    msUserSelect: 'none', // IE/Edge
   };
 
   const headerStyle: React.CSSProperties = {
@@ -189,8 +207,8 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
     alignItems: 'center',
     gap: '10px',
     padding: '10px',
-    backgroundColor: isActive ? color : '#f8f9fa',
-    border: isActive ? `2px solid ${color}` : '1px solid #dee2e6',
+    backgroundColor: color + '20', // Add transparency
+    border: `1px solid ${color}`,
     borderRadius: '4px',
     marginBottom: '5px',
   };
@@ -198,20 +216,19 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
   return (
     <div style={{ marginBottom: '20px' }}>
       <div style={headerStyle}>
-        <button
-          onClick={handleSetActive}
+        <div
           style={{
             padding: '6px 12px',
-            backgroundColor: isActive ? color : '#fff',
-            color: isActive ? '#fff' : '#000',
+            backgroundColor: color,
+            color: '#fff',
             border: 'none',
             borderRadius: '4px',
-            cursor: 'pointer',
-            fontWeight: isActive ? 'bold' : 'normal',
+            fontWeight: 'bold',
+            fontSize: '14px',
           }}
         >
           {title}
-        </button>
+        </div>
         
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <input
@@ -221,14 +238,6 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
           />
           👁️ Show
         </label>
-        
-        <span style={{ 
-          fontSize: '12px', 
-          color: '#666',
-          marginLeft: 'auto' 
-        }}>
-          {isActive ? 'ACTIVE' : ''}
-        </span>
       </div>
 
       <div style={gridStyle}>
@@ -244,7 +253,6 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 y={y}
                 value={cellValue}
                 isValid={cellValid}
-                isActive={isActive}
                 isVisible={isVisible}
                 showErrors={uiState.showErrors}
                 layer={layer}

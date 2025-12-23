@@ -154,18 +154,21 @@ export const ToolBar: React.FC = () => {
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showSaveLoadPanel, setShowSaveLoadPanel] = useState(false);
   
-  const activeLayer = uiState.activeLayer;
   const validationResult = uiState.validationResult;
-  const canExport = validationResult?.isValid ?? false;
+  const canExport = validationResult?.isValid ?? true; // 默认允许导出
 
   const handleNewTemplate = (width: number, height: number) => {
     createNewTemplate(width, height);
   };
 
   const exportTemplate = () => {
-    if (!canExport) {
-      alert('Cannot export template with validation errors. Please fix all errors first.');
-      return;
+    // 允许导出即使有验证错误的模板，但给出警告
+    if (validationResult && !validationResult.isValid) {
+      const proceed = confirm(
+        `Template has ${validationResult.errors.length} validation error(s). ` +
+        'Do you want to export anyway?'
+      );
+      if (!proceed) return;
     }
 
     const jsonString = JSON.stringify(template, null, 2);
@@ -178,6 +181,26 @@ export const ToolBar: React.FC = () => {
     link.click();
     
     URL.revokeObjectURL(url);
+  };
+
+  const copyToClipboard = async () => {
+    // 允许复制即使有验证错误的模板，但给出警告
+    if (validationResult && !validationResult.isValid) {
+      const proceed = confirm(
+        `Template has ${validationResult.errors.length} validation error(s). ` +
+        'Do you want to copy anyway?'
+      );
+      if (!proceed) return;
+    }
+
+    try {
+      const jsonString = JSON.stringify(template, null, 2);
+      await navigator.clipboard.writeText(jsonString);
+      alert('Template JSON copied to clipboard!');
+    } catch (error) {
+      console.error('Failed to copy to clipboard:', error);
+      alert('Failed to copy to clipboard. Please try again.');
+    }
   };
 
   return (
@@ -245,6 +268,22 @@ export const ToolBar: React.FC = () => {
           </button>
 
           <button
+            onClick={copyToClipboard}
+            disabled={!canExport}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: canExport ? '#17A2B8' : '#ccc',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: canExport ? 'pointer' : 'not-allowed',
+              fontWeight: 'bold'
+            }}
+          >
+            📋 Copy JSON
+          </button>
+
+          <button
             onClick={() => validateTemplateWithBackend(true)}
             disabled={apiState.isLoading}
             style={{
@@ -275,11 +314,11 @@ export const ToolBar: React.FC = () => {
           
           <div style={{
             padding: '5px 10px',
-            backgroundColor: '#f3e5f5',
+            backgroundColor: '#e8f5e8',
             borderRadius: '4px',
             fontSize: '14px'
           }}>
-            Active: {activeLayer}
+            Multi-layer editing
           </div>
 
           <div style={{
