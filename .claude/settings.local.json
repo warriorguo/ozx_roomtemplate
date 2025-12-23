@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(mv:*)",
+      "Bash(true)",
+      "Bash(rmdir:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(rm:*)",
+      "Bash(npm run dev:*)",
+      "Bash(npm run build:*)",
+      "Bash(mkdir:*)",
+      "Bash(touch:*)",
+      "Bash(go mod:*)",
+      "Bash(go test:*)",
+      "Bash(go run:*)",
+      "Bash(go doc:*)",
+      "Bash(go build:*)"
+    ],
+    "deny": []
+  }
+}
