@@ -89,7 +89,7 @@ func loadConfig() *Config {
 	}
 
 	// Parse CORS origins
-	corsOrigins := getEnv("CORS_ALLOWED_ORIGINS", "")
+	corsOrigins := getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8090,http://localhost:5174,http://127.0.0.1:5174")
 	if corsOrigins != "" {
 		config.CORSAllowedOrigins = strings.Split(corsOrigins, ",")
 		for i, origin := range config.CORSAllowedOrigins {

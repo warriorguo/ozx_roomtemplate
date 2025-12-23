@@ -76,12 +76,13 @@ func TestPostgreSQLTemplateStore_Create_Error(t *testing.T) {
 
 	// Mock a database error
 	mock.ExpectQuery(`INSERT INTO room_templates`).
+		WithArgs(template.ID, template.Name, template.Version, template.Width, template.Height, pgxmock.AnyArg()).
 		WillReturnError(assert.AnError)
 
 	_, err = store.Create(context.Background(), template)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create template")
+	assert.Contains(t, err.Error(), "failed to insert template")
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -92,8 +93,9 @@ func TestPostgreSQLTemplateStore_Get(t *testing.T) {
 
 	store := NewPostgreSQLTemplateStoreWithExecutor(mock)
 
-	templateID := uuid.New().String()
+	templateID := uuid.New()
 	now := time.Now()
+	payloadJSON := []byte(`{"ground":[[1,0],[0,1]],"static":[[0,1],[1,0]],"turret":[[0,0],[0,0]],"mobGround":[[0,0],[0,0]],"mobAir":[[1,0],[0,1]],"meta":{"name":"test-template","version":1,"width":2,"height":2}}`)
 
 	// Mock the SELECT query
 	mock.ExpectQuery(`SELECT (.+) FROM room_templates WHERE id = \$1`).
@@ -102,14 +104,14 @@ func TestPostgreSQLTemplateStore_Get(t *testing.T) {
 			"id", "name", "version", "width", "height", "payload", "created_at", "updated_at",
 		}).AddRow(
 			templateID, "test-template", 1, 10, 8,
-			`{"ground":[[1,0],[0,1]],"static":[[0,1],[1,0]],"turret":[[0,0],[0,0]],"mobGround":[[0,0],[0,0]],"mobAir":[[1,0],[0,1]],"meta":{"name":"test-template","version":1,"width":2,"height":2}}`,
+			payloadJSON,
 			now, now,
 		))
 
-	result, err := store.Get(context.Background(), templateID)
+	result, err := store.Get(context.Background(), templateID.String())
 
 	assert.NoError(t, err)
-	assert.Equal(t, templateID, result.ID.String())
+	assert.Equal(t, templateID, result.ID)
 	assert.Equal(t, "test-template", result.Name)
 	assert.Equal(t, 1, result.Version)
 	assert.Equal(t, 10, result.Width)
@@ -118,8 +120,8 @@ func TestPostgreSQLTemplateStore_Get(t *testing.T) {
 	assert.Equal(t, now, result.UpdatedAt)
 	
 	// Check payload was properly unmarshaled
-	assert.Equal(t, [][]int{{1, 0}, {0, 1}}, result.Payload.Ground)
-	assert.Equal(t, [][]int{{0, 1}, {1, 0}}, result.Payload.Static)
+	assert.Equal(t, model.Layer{{1, 0}, {0, 1}}, result.Payload.Ground)
+	assert.Equal(t, model.Layer{{0, 1}, {1, 0}}, result.Payload.Static)
 	assert.Equal(t, "test-template", result.Payload.Meta.Name)
 
 	assert.NoError(t, mock.ExpectationsWereMet())
@@ -132,7 +134,7 @@ func TestPostgreSQLTemplateStore_Get_NotFound(t *testing.T) {
 
 	store := NewPostgreSQLTemplateStoreWithExecutor(mock)
 
-	templateID := uuid.New().String()
+	templateID := uuid.New()
 
 	// Mock no rows returned
 	mock.ExpectQuery(`SELECT (.+) FROM room_templates WHERE id = \$1`).
@@ -141,7 +143,7 @@ func TestPostgreSQLTemplateStore_Get_NotFound(t *testing.T) {
 			"id", "name", "version", "width", "height", "payload", "created_at", "updated_at",
 		}))
 
-	_, err = store.Get(context.Background(), templateID)
+	_, err = store.Get(context.Background(), templateID.String())
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "not found")
@@ -162,7 +164,7 @@ func TestPostgreSQLTemplateStore_List(t *testing.T) {
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
 
 	// Mock list query
-	mock.ExpectQuery(`SELECT (.+) FROM room_templates (.+) ORDER BY created_at DESC LIMIT \$1 OFFSET \$2`).
+	mock.ExpectQuery(`SELECT (.+) FROM room_templates ORDER BY created_at DESC LIMIT \$1 OFFSET \$2`).
 		WithArgs(10, 0).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "name", "version", "width", "height", "created_at", "updated_at",
@@ -225,7 +227,7 @@ func TestPostgreSQLTemplateStore_List_EmptyResult(t *testing.T) {
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 
 	// Mock list query returning no rows
-	mock.ExpectQuery(`SELECT (.+) FROM room_templates (.+) ORDER BY created_at DESC LIMIT \$1 OFFSET \$2`).
+	mock.ExpectQuery(`SELECT (.+) FROM room_templates ORDER BY created_at DESC LIMIT \$1 OFFSET \$2`).
 		WithArgs(20, 0).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "name", "version", "width", "height", "created_at", "updated_at",
@@ -318,7 +320,7 @@ func TestPostgreSQLTemplateStore_Get_JSONUnmarshalError(t *testing.T) {
 
 	store := NewPostgreSQLTemplateStoreWithExecutor(mock)
 
-	templateID := uuid.New().String()
+	templateID := uuid.New()
 	now := time.Now()
 
 	// Mock the SELECT query with invalid JSON
@@ -328,11 +330,11 @@ func TestPostgreSQLTemplateStore_Get_JSONUnmarshalError(t *testing.T) {
 			"id", "name", "version", "width", "height", "payload", "created_at", "updated_at",
 		}).AddRow(
 			templateID, "test-template", 1, 10, 8,
-			`{"invalid": json}`, // Invalid JSON
+			[]byte(`{"invalid": json}`), // Invalid JSON as []byte
 			now, now,
 		))
 
-	_, err = store.Get(context.Background(), templateID)
+	_, err = store.Get(context.Background(), templateID.String())
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to unmarshal payload")
@@ -355,9 +357,13 @@ func TestPostgreSQLTemplateStore_Context_Cancellation(t *testing.T) {
 		Name: "test-template",
 	}
 
-	// Mock should not be called due to context cancellation
+	// Mock the query to return context canceled error
+	mock.ExpectQuery(`INSERT INTO room_templates`).
+		WithArgs(template.ID, template.Name, template.Version, template.Width, template.Height, pgxmock.AnyArg()).
+		WillReturnError(context.Canceled)
+
 	_, err = store.Create(ctx, template)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "context canceled")
+	assert.Contains(t, err.Error(), "failed to insert template")
 }

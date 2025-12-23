@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 	"tile-backend/internal/model"
 
 	"github.com/google/uuid"
@@ -64,7 +63,6 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		VALUES ($1, $2, $3, $4, $5, $6)
 		RETURNING created_at, updated_at`
 
-	var createdAt, updatedAt string
 	err = s.db.QueryRow(ctx, query,
 		template.ID,
 		template.Name,
@@ -72,21 +70,10 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		template.Width,
 		template.Height,
 		payloadJSON,
-	).Scan(&createdAt, &updatedAt)
+	).Scan(&template.CreatedAt, &template.UpdatedAt)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert template: %w", err)
-	}
-
-	// Parse timestamps
-	template.CreatedAt, err = parseTimestamp(createdAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse created_at: %w", err)
-	}
-
-	template.UpdatedAt, err = parseTimestamp(updatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse updated_at: %w", err)
 	}
 
 	return &template, nil
@@ -129,10 +116,9 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, n
 	}
 	defer rows.Close()
 
-	var templates []model.TemplateSummary
+	templates := []model.TemplateSummary{}
 	for rows.Next() {
 		var template model.TemplateSummary
-		var createdAt, updatedAt string
 
 		err := rows.Scan(
 			&template.ID,
@@ -140,22 +126,11 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, n
 			&template.Version,
 			&template.Width,
 			&template.Height,
-			&createdAt,
-			&updatedAt,
+			&template.CreatedAt,
+			&template.UpdatedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan template: %w", err)
-		}
-
-		// Parse timestamps
-		template.CreatedAt, err = parseTimestamp(createdAt)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to parse created_at: %w", err)
-		}
-
-		template.UpdatedAt, err = parseTimestamp(updatedAt)
-		if err != nil {
-			return nil, 0, fmt.Errorf("failed to parse updated_at: %w", err)
 		}
 
 		templates = append(templates, template)
@@ -183,7 +158,6 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 
 	var template model.Template
 	var payloadJSON []byte
-	var createdAt, updatedAt string
 
 	err = s.db.QueryRow(ctx, query, templateID).Scan(
 		&template.ID,
@@ -192,8 +166,8 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		&template.Width,
 		&template.Height,
 		&payloadJSON,
-		&createdAt,
-		&updatedAt,
+		&template.CreatedAt,
+		&template.UpdatedAt,
 	)
 
 	if err != nil {
@@ -209,27 +183,10 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
-	// Parse timestamps
-	template.CreatedAt, err = parseTimestamp(createdAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse created_at: %w", err)
-	}
-
-	template.UpdatedAt, err = parseTimestamp(updatedAt)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse updated_at: %w", err)
-	}
-
 	return &template, nil
 }
 
 // HealthCheck verifies the database connection
 func (s *PostgreSQLTemplateStore) HealthCheck(ctx context.Context) error {
 	return s.db.Ping(ctx)
-}
-
-// parseTimestamp is a helper function to parse timestamp strings
-func parseTimestamp(timestampStr string) (time.Time, error) {
-	// PostgreSQL returns timestamps in RFC3339 format
-	return time.Parse(time.RFC3339, timestampStr)
 }

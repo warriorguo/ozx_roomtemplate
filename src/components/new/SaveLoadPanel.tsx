@@ -347,7 +347,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
                     Found {templateList.total} template(s)
                   </div>
 
-                  {templateList.items.length === 0 ? (
+                  {(!templateList.items || templateList.items.length === 0) ? (
                     <div style={{
                       textAlign: 'center',
                       padding: '40px',
