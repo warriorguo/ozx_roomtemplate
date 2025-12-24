@@ -44,6 +44,7 @@ func SetupRouter(templateStore store.TemplateStore, logger *zap.Logger, corsOrig
 			r.Post("/", templateHandler.CreateTemplate)
 			r.Get("/", templateHandler.ListTemplates)
 			r.Get("/{id}", templateHandler.GetTemplate)
+			r.Delete("/{id}", templateHandler.DeleteTemplate)
 			r.Post("/validate", templateHandler.ValidateTemplate)
 		})
 	})

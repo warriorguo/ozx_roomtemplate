@@ -18,8 +18,9 @@ export type LayerType = "ground" | "static" | "turret" | "mobGround" | "mobAir";
 export interface DragState {
   isDragging: boolean;
   dragLayer: LayerType | null;
-  dragMode: 'set' | 'clear' | null;
+  dragMode: 'set' | 'clear' | 'brush' | null;
   lastProcessedCell: { x: number; y: number } | null;
+  brushTargetValue?: 0 | 1; // 笔刷模式下的目标值
 }
 
 export interface LayerValidation {
@@ -43,24 +44,23 @@ export interface ValidationResult {
   layerValidation: LayerValidation;
 }
 
+export interface BrushSize {
+  width: number;
+  height: number;
+}
+
 export interface UIState {
   dragState: DragState;
   hoveredCell: { x: number; y: number } | null;
   layerVisibility: Record<LayerType, boolean>;
   validationResult: ValidationResult | null;
   showErrors: boolean;
+  brushSize: BrushSize;
+  brushPreview: {
+    layer: LayerType | null;
+    x: number;
+    y: number;
+    visible: boolean;
+  };
 }
 
-// Ground auto-generation types
-export interface RoomSpec {
-  width: number;
-  height: number;
-  roomType: "rectangular" | "cross" | "custom";
-  wallThickness: number;
-  doorPositions: Array<{ x: number; y: number; direction: "north" | "south" | "east" | "west" }>;
-}
-
-export interface GenerationResult {
-  ground: Grid<CellValue>;
-  warnings: string[];
-}

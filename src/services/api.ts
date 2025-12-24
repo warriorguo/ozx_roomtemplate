@@ -10,6 +10,7 @@ export interface BackendTemplate {
   width: number;
   height: number;
   payload: BackendTemplatePayload;
+  thumbnail?: string; // Base64 encoded PNG
   created_at: string;
   updated_at: string;
 }
@@ -31,6 +32,7 @@ export interface BackendTemplatePayload {
 export interface BackendCreateRequest {
   name: string;
   payload: BackendTemplatePayload;
+  thumbnail?: string; // Base64 encoded PNG
 }
 
 export interface BackendCreateResponse {
@@ -48,6 +50,7 @@ export interface BackendListResponse {
     version: number;
     width: number;
     height: number;
+    thumbnail?: string; // Base64 encoded PNG
     created_at: string;
     updated_at: string;
   }>;
@@ -186,6 +189,15 @@ export class TemplateApiService {
    */
   async getTemplate(id: string): Promise<BackendTemplate> {
     return this.makeRequest<BackendTemplate>(`/templates/${id}`);
+  }
+
+  /**
+   * Delete a specific template by ID
+   */
+  async deleteTemplate(id: string): Promise<void> {
+    await this.makeRequest<void>(`/templates/${id}`, {
+      method: 'DELETE',
+    });
   }
 
   /**

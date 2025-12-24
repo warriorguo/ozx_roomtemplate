@@ -14,6 +14,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
     apiState, 
     saveTemplate, 
     loadTemplateFromBackend, 
+    deleteTemplateFromBackend,
     clearApiError 
   } = useNewTemplateStore();
 
@@ -80,6 +81,22 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
       await loadTemplateFromBackend(templateId);
       if (!apiState.error) {
         onClose();
+      }
+    } catch (error) {
+      // Error is handled by the store
+    }
+  };
+
+  const handleDelete = async (templateId: string, templateName: string) => {
+    // Confirm deletion
+    const confirmed = confirm(`Are you sure you want to delete "${templateName}"?\n\nThis action cannot be undone.`);
+    if (!confirmed) return;
+
+    try {
+      await deleteTemplateFromBackend(templateId);
+      // Reload the template list after successful deletion
+      if (!apiState.error) {
+        loadTemplateList();
       }
     } catch (error) {
       // Error is handled by the store
@@ -380,41 +397,118 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
                           >
                             <div style={{
                               display: 'flex',
-                              justifyContent: 'space-between',
+                              gap: '15px',
                               alignItems: 'flex-start',
-                              marginBottom: '8px',
                             }}>
-                              <div>
-                                <strong style={{ fontSize: '16px' }}>
-                                  {info.displayName}
-                                </strong>
+                              {/* Thumbnail */}
+                              {item.thumbnail ? (
                                 <div style={{
+                                  flexShrink: 0,
+                                  width: '60px',
+                                  height: '60px',
+                                  border: '1px solid #ddd',
+                                  borderRadius: '4px',
+                                  overflow: 'hidden',
+                                  backgroundColor: '#f8f9fa',
+                                }}>
+                                  <img
+                                    src={item.thumbnail}
+                                    alt={`${info.displayName} thumbnail`}
+                                    style={{
+                                      width: '100%',
+                                      height: '100%',
+                                      objectFit: 'cover',
+                                      backgroundColor: '#fff',
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <div style={{
+                                  flexShrink: 0,
+                                  width: '60px',
+                                  height: '60px',
+                                  border: '1px solid #ddd',
+                                  borderRadius: '4px',
+                                  backgroundColor: '#f0f0f0',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
                                   fontSize: '12px',
                                   color: '#666',
-                                  marginTop: '4px',
+                                  textAlign: 'center',
                                 }}>
-                                  {info.info} • {info.size} • Created {info.created}
+                                  No<br/>Preview
+                                </div>
+                              )}
+
+                              {/* Template Info */}
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'flex-start',
+                                  marginBottom: '8px',
+                                }}>
+                                  <div style={{ flex: 1, minWidth: 0 }}>
+                                    <strong style={{ 
+                                      fontSize: '16px',
+                                      display: 'block',
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                    }}>
+                                      {info.displayName}
+                                    </strong>
+                                    <div style={{
+                                      fontSize: '12px',
+                                      color: '#666',
+                                      marginTop: '4px',
+                                    }}>
+                                      {info.info} • {info.size} • Created {info.created}
+                                    </div>
+                                  </div>
+                                  <div style={{ display: 'flex', gap: '8px', marginLeft: '10px', flexShrink: 0 }}>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleLoad(item.id);
+                                      }}
+                                      disabled={apiState.isLoading}
+                                      style={{
+                                        padding: '6px 12px',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#28a745',
+                                        color: 'white',
+                                        cursor: apiState.isLoading ? 'not-allowed' : 'pointer',
+                                        fontSize: '12px',
+                                        opacity: apiState.isLoading ? 0.6 : 1,
+                                      }}
+                                    >
+                                      {apiState.isLoading ? 'Loading...' : 'Load'}
+                                    </button>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDelete(item.id, item.name);
+                                      }}
+                                      disabled={apiState.isLoading}
+                                      style={{
+                                        padding: '6px 12px',
+                                        border: 'none',
+                                        borderRadius: '4px',
+                                        backgroundColor: '#dc3545',
+                                        color: 'white',
+                                        cursor: apiState.isLoading ? 'not-allowed' : 'pointer',
+                                        fontSize: '12px',
+                                        opacity: apiState.isLoading ? 0.6 : 1,
+                                      }}
+                                    >
+                                      Delete
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleLoad(item.id);
-                                }}
-                                disabled={apiState.isLoading}
-                                style={{
-                                  padding: '6px 12px',
-                                  border: 'none',
-                                  borderRadius: '4px',
-                                  backgroundColor: '#28a745',
-                                  color: 'white',
-                                  cursor: apiState.isLoading ? 'not-allowed' : 'pointer',
-                                  fontSize: '12px',
-                                  opacity: apiState.isLoading ? 0.6 : 1,
-                                }}
-                              >
-                                {apiState.isLoading ? 'Loading...' : 'Load'}
-                              </button>
                             </div>
                           </div>
                         );

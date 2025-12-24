@@ -14,7 +14,8 @@ import type {
  */
 export function frontendToBackendCreateRequest(
   template: FrontendTemplate,
-  name: string
+  name: string,
+  thumbnail?: string
 ): BackendCreateRequest {
   return {
     name,
@@ -31,6 +32,7 @@ export function frontendToBackendCreateRequest(
         height: template.height,
       },
     },
+    thumbnail,
   };
 }
 

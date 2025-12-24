@@ -36,6 +36,7 @@ type Template struct {
 	Width     int             `json:"width"`
 	Height    int             `json:"height"`
 	Payload   TemplatePayload `json:"payload"`
+	Thumbnail *string         `json:"thumbnail,omitempty"` // Base64 encoded PNG
 	CreatedAt time.Time       `json:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at"`
 }
@@ -47,14 +48,16 @@ type TemplateSummary struct {
 	Version   int       `json:"version"`
 	Width     int       `json:"width"`
 	Height    int       `json:"height"`
+	Thumbnail *string   `json:"thumbnail,omitempty"` // Base64 encoded PNG
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // CreateTemplateRequest represents the request body for creating a template
 type CreateTemplateRequest struct {
-	Name    string          `json:"name"`
-	Payload TemplatePayload `json:"payload"`
+	Name      string          `json:"name"`
+	Payload   TemplatePayload `json:"payload"`
+	Thumbnail *string         `json:"thumbnail,omitempty"` // Base64 encoded PNG
 }
 
 // CreateTemplateResponse represents the response after creating a template

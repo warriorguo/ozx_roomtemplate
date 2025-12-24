@@ -217,8 +217,6 @@ export const ToolBar: React.FC = () => {
         gap: '20px',
         flexWrap: 'wrap'
       }}>
-        <h2 style={{ margin: 0, color: '#333' }}>Tile Template Editor</h2>
-        
         {/* Template Actions */}
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button

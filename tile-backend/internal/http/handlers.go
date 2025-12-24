@@ -53,12 +53,13 @@ func (h *TemplateHandler) CreateTemplate(w http.ResponseWriter, r *http.Request)
 
 	// Create template model
 	template := model.Template{
-		ID:      uuid.New(),
-		Name:    name,
-		Version: req.Payload.Meta.Version,
-		Width:   req.Payload.Meta.Width,
-		Height:  req.Payload.Meta.Height,
-		Payload: req.Payload,
+		ID:        uuid.New(),
+		Name:      name,
+		Version:   req.Payload.Meta.Version,
+		Width:     req.Payload.Meta.Width,
+		Height:    req.Payload.Meta.Height,
+		Payload:   req.Payload,
+		Thumbnail: req.Thumbnail,
 	}
 
 	// Save to database
@@ -145,6 +146,32 @@ func (h *TemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.respondJSON(w, http.StatusOK, template)
+}
+
+// DeleteTemplate handles DELETE /api/v1/templates/{id}
+func (h *TemplateHandler) DeleteTemplate(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	// Validate UUID format
+	if _, err := uuid.Parse(id); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid UUID format", err.Error())
+		return
+	}
+
+	// Delete from database
+	err := h.store.Delete(r.Context(), id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			h.respondError(w, http.StatusNotFound, "Template not found", "")
+			return
+		}
+		h.logger.Error("Failed to delete template", zap.String("id", id), zap.Error(err))
+		h.respondError(w, http.StatusInternalServerError, "Failed to delete template", err.Error())
+		return
+	}
+
+	// Return success with no content
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // ValidateTemplate handles POST /api/v1/templates/validate

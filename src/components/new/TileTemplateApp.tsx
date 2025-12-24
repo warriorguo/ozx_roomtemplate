@@ -1,6 +1,5 @@
 import { ToolBar } from './ToolBar';
 import { LayerEditor } from './LayerEditor';
-import { GroundGenerator } from './GroundGenerator';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
 
@@ -144,8 +143,6 @@ export const TileTemplateApp: React.FC = () => {
           <div>
             {layerConfigs.map(({ layer, title, color, description }) => (
               <div key={layer}>
-                {layer === 'ground' && <GroundGenerator />}
-                
                 <div style={{
                   backgroundColor: 'white',
                   border: '1px solid #dee2e6',
@@ -203,6 +200,40 @@ export const TileTemplateApp: React.FC = () => {
               <div style={{ marginBottom: '10px' }}>
                 <strong>Dimensions:</strong> {template.width} × {template.height}
               </div>
+
+              {/* Thumbnail */}
+              {apiState.lastSaved?.thumbnail && (
+                <div style={{ marginBottom: '15px' }}>
+                  <strong>Thumbnail:</strong><br/>
+                  <div style={{ 
+                    marginTop: '8px',
+                    padding: '8px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '6px',
+                    border: '1px solid #dee2e6',
+                    textAlign: 'center'
+                  }}>
+                    <img
+                      src={apiState.lastSaved.thumbnail}
+                      alt="Template Thumbnail"
+                      style={{
+                        width: '120px',
+                        height: '120px',
+                        border: '1px solid #ccc',
+                        borderRadius: '4px',
+                        backgroundColor: '#fff',
+                      }}
+                    />
+                    <div style={{ 
+                      fontSize: '11px', 
+                      color: '#666', 
+                      marginTop: '4px' 
+                    }}>
+                      {apiState.lastSaved.name}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* API Status */}
               <div style={{ marginBottom: '15px' }}>

@@ -83,13 +83,13 @@ func main() {
 // loadConfig loads configuration from environment variables
 func loadConfig() *Config {
 	config := &Config{
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://liuli@localhost:5432/postgres?sslmode=disable"),
+		DatabaseURL: getEnv("DATABASE_URL", "postgres://liuli@192.168.0.151:5432/postgres?sslmode=disable"),
 		Port:        getEnvInt("PORT", 8090),
 		LogLevel:    getEnv("LOG_LEVEL", "info"),
 	}
 
 	// Parse CORS origins
-	corsOrigins := getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:8090,http://localhost:5174,http://127.0.0.1:5174")
+	corsOrigins := getEnv("CORS_ALLOWED_ORIGINS", "")
 	if corsOrigins != "" {
 		config.CORSAllowedOrigins = strings.Split(corsOrigins, ",")
 		for i, origin := range config.CORSAllowedOrigins {

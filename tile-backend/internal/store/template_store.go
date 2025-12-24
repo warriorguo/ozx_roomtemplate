@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 	"tile-backend/internal/model"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -16,6 +18,7 @@ type TemplateStore interface {
 	Create(ctx context.Context, template model.Template) (*model.Template, error)
 	List(ctx context.Context, limit, offset int, nameLike string) ([]model.TemplateSummary, int, error)
 	Get(ctx context.Context, id string) (*model.Template, error)
+	Delete(ctx context.Context, id string) error
 	HealthCheck(ctx context.Context) error
 }
 
@@ -23,6 +26,7 @@ type TemplateStore interface {
 type DBExecutor interface {
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Ping(ctx context.Context) error
 }
 
@@ -59,8 +63,8 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 	}
 
 	query := `
-		INSERT INTO room_templates (id, name, version, width, height, payload)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO room_templates (id, name, version, width, height, payload, thumbnail)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING created_at, updated_at`
 
 	err = s.db.QueryRow(ctx, query,
@@ -70,6 +74,7 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		template.Width,
 		template.Height,
 		payloadJSON,
+		template.Thumbnail,
 	).Scan(&template.CreatedAt, &template.UpdatedAt)
 
 	if err != nil {
@@ -102,7 +107,7 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, n
 
 	// Get paginated results
 	listQuery := fmt.Sprintf(`
-		SELECT id, name, version, width, height, created_at, updated_at
+		SELECT id, name, version, width, height, thumbnail, created_at, updated_at
 		FROM room_templates %s
 		ORDER BY created_at DESC
 		LIMIT $%d OFFSET $%d`,
@@ -116,7 +121,7 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, n
 	}
 	defer rows.Close()
 
-	templates := []model.TemplateSummary{}
+	var templates []model.TemplateSummary
 	for rows.Next() {
 		var template model.TemplateSummary
 
@@ -126,6 +131,7 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, n
 			&template.Version,
 			&template.Width,
 			&template.Height,
+			&template.Thumbnail,
 			&template.CreatedAt,
 			&template.UpdatedAt,
 		)
@@ -152,7 +158,7 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 	}
 
 	query := `
-		SELECT id, name, version, width, height, payload, created_at, updated_at
+		SELECT id, name, version, width, height, payload, thumbnail, created_at, updated_at
 		FROM room_templates
 		WHERE id = $1`
 
@@ -166,6 +172,7 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		&template.Width,
 		&template.Height,
 		&payloadJSON,
+		&template.Thumbnail,
 		&template.CreatedAt,
 		&template.UpdatedAt,
 	)
@@ -186,7 +193,36 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 	return &template, nil
 }
 
+// Delete removes a template by ID
+func (s *PostgreSQLTemplateStore) Delete(ctx context.Context, id string) error {
+	// Validate UUID format
+	templateID, err := uuid.Parse(id)
+	if err != nil {
+		return fmt.Errorf("invalid UUID format: %w", err)
+	}
+
+	query := `DELETE FROM room_templates WHERE id = $1`
+	
+	result, err := s.db.Exec(ctx, query, templateID)
+	if err != nil {
+		return fmt.Errorf("failed to delete template: %w", err)
+	}
+
+	// Check if any rows were affected
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("template not found")
+	}
+
+	return nil
+}
+
 // HealthCheck verifies the database connection
 func (s *PostgreSQLTemplateStore) HealthCheck(ctx context.Context) error {
 	return s.db.Ping(ctx)
+}
+
+// parseTimestamp is a helper function to parse timestamp strings
+func parseTimestamp(timestampStr string) (time.Time, error) {
+	// PostgreSQL returns timestamps in RFC3339 format
+	return time.Parse(time.RFC3339, timestampStr)
 }

@@ -2,14 +2,12 @@ import { create } from 'zustand';
 import type { 
   Template, 
   LayerType, 
-  UIState, 
-  RoomSpec
+  UIState
 } from '../types/newTemplate';
 import { 
   createEmptyTemplate, 
   setCellValue, 
-  validateTemplate, 
-  generateGroundFromSpec
+  validateTemplate
 } from '../utils/newTemplateUtils';
 import { 
   templateApi, 
@@ -25,6 +23,7 @@ import {
   validateTemplateName,
   generateDefaultTemplateName
 } from '../services/templateConverter';
+import { generateDetailedThumbnail } from '../utils/thumbnailGenerator';
 
 // API state
 export interface ApiState {
@@ -34,6 +33,7 @@ export interface ApiState {
     id: string;
     name: string;
     savedAt: string;
+    thumbnail?: string; // Base64 encoded PNG
   };
 }
 
@@ -50,6 +50,15 @@ interface NewTemplateStore {
   setCellValue: (layer: LayerType, x: number, y: number, value: 0 | 1) => void;
   toggleCell: (layer: LayerType, x: number, y: number) => void;
   
+  // Brush functionality
+  setBrushSize: (width: number, height: number) => void;
+  applyBrush: (layer: LayerType, x: number, y: number) => void;
+  applyBrushWithTargetValue: (layer: LayerType, x: number, y: number, targetValue: 0 | 1) => void;
+  setBrushPreview: (layer: LayerType | null, x: number, y: number, visible: boolean) => void;
+  
+  // Ground special functionality
+  invertGroundLayer: () => void;
+  
   
   // Drag operations
   startDrag: (layer: LayerType, x: number, y: number) => void;
@@ -65,12 +74,10 @@ interface NewTemplateStore {
   // Validation
   validateTemplate: () => void;
   
-  // Ground generation
-  generateGround: (spec: RoomSpec) => void;
-  
   // API operations
   saveTemplate: (name: string) => Promise<void>;
   loadTemplateFromBackend: (id: string) => Promise<void>;
+  deleteTemplateFromBackend: (id: string) => Promise<void>;
   validateTemplateWithBackend: (strict?: boolean) => Promise<void>;
   clearApiError: () => void;
 }
@@ -98,6 +105,13 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       },
       validationResult: initialValidation,
       showErrors: true,
+      brushSize: { width: 1, height: 1 },
+      brushPreview: {
+        layer: null,
+        x: 0,
+        y: 0,
+        visible: false,
+      },
     },
   apiState: {
     isLoading: false,
@@ -163,28 +177,51 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
 
 
   startDrag: (layer: LayerType, x: number, y: number) => {
-    const { template } = get();
+    const { template, uiState } = get();
     
     const currentValue = template[layer][y]?.[x];
     if (currentValue === undefined) return;
     
-    // Determine drag mode based on current cell value
-    const dragMode = currentValue === 0 ? 'set' : 'clear';
+    // 检查是否是笔刷模式
+    const isBrushMode = uiState.brushSize.width > 1 || uiState.brushSize.height > 1;
     
-    // Toggle the starting cell
-    get().toggleCell(layer, x, y);
-    
-    set((state) => ({
-      uiState: {
-        ...state.uiState,
-        dragState: {
-          isDragging: true,
-          dragLayer: layer,
-          dragMode,
-          lastProcessedCell: { x, y },
+    if (isBrushMode) {
+      // 笔刷模式：应用笔刷并设置笔刷拖拽状态
+      const centerValue = template[layer][y]?.[x];
+      const targetValue = centerValue === 1 ? 0 : 1;
+      
+      get().applyBrush(layer, x, y);
+      
+      set((state) => ({
+        uiState: {
+          ...state.uiState,
+          dragState: {
+            isDragging: true,
+            dragLayer: layer,
+            dragMode: 'brush',
+            lastProcessedCell: { x, y },
+            brushTargetValue: targetValue,
+          },
         },
-      },
-    }));
+      }));
+    } else {
+      // 单格模式：原有逻辑
+      const dragMode = currentValue === 0 ? 'set' : 'clear';
+      
+      get().toggleCell(layer, x, y);
+      
+      set((state) => ({
+        uiState: {
+          ...state.uiState,
+          dragState: {
+            isDragging: true,
+            dragLayer: layer,
+            dragMode,
+            lastProcessedCell: { x, y },
+          },
+        },
+      }));
+    }
   },
 
   dragToCell: (layer: LayerType, x: number, y: number) => {
@@ -196,13 +233,17 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     const lastCell = uiState.dragState.lastProcessedCell;
     if (lastCell && lastCell.x === x && lastCell.y === y) return;
     
-    // Apply drag mode to the cell
-    const targetValue = uiState.dragState.dragMode === 'set' ? 1 : 0;
-    const currentValue = template[layer][y]?.[x];
-    
-    // Only update if the value would actually change
-    if (currentValue !== undefined && currentValue !== targetValue) {
-      get().setCellValue(layer, x, y, targetValue);
+    if (uiState.dragState.dragMode === 'brush') {
+      // 笔刷模式：应用笔刷到新位置
+      get().applyBrushWithTargetValue(layer, x, y, uiState.dragState.brushTargetValue!);
+    } else {
+      // 单格模式：原有逻辑
+      const targetValue = uiState.dragState.dragMode === 'set' ? 1 : 0;
+      const currentValue = template[layer][y]?.[x];
+      
+      if (currentValue !== undefined && currentValue !== targetValue) {
+        get().setCellValue(layer, x, y, targetValue);
+      }
     }
     
     set((state) => ({
@@ -282,30 +323,6 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     }));
   },
 
-  generateGround: (spec: RoomSpec) => {
-    const { template } = get();
-    const { ground, warnings } = generateGroundFromSpec(spec);
-    
-    const newTemplate = {
-      ...template,
-      ground,
-    };
-    
-    const validation = validateTemplate(newTemplate);
-    
-    set({
-      template: newTemplate,
-      uiState: {
-        ...get().uiState,
-        validationResult: validation,
-      },
-    });
-    
-    // Show warnings if any
-    if (warnings.length > 0) {
-      console.warn('Ground generation warnings:', warnings);
-    }
-  },
 
   // API operations
   saveTemplate: async (name: string) => {
@@ -333,7 +350,10 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     }));
 
     try {
-      const request = frontendToBackendCreateRequest(template, name);
+      // Generate thumbnail
+      const thumbnail = await generateDetailedThumbnail(template, 120);
+      
+      const request = frontendToBackendCreateRequest(template, name, thumbnail);
       const response = await templateApi.createTemplate(request);
       
       set((state) => ({
@@ -344,6 +364,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             id: response.id,
             name: response.name,
             savedAt: response.created_at,
+            thumbnail: thumbnail,
           },
         },
       }));
@@ -389,6 +410,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             id: backendTemplate.id,
             name: backendTemplate.name,
             savedAt: backendTemplate.updated_at,
+            thumbnail: backendTemplate.thumbnail,
           },
         },
       });
@@ -396,6 +418,39 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       const errorMessage = error instanceof ApiError 
         ? error.message 
         : 'Failed to load template';
+      
+      set((state) => ({
+        apiState: {
+          ...state.apiState,
+          isLoading: false,
+          error: errorMessage,
+        },
+      }));
+    }
+  },
+
+  deleteTemplateFromBackend: async (id: string) => {
+    set((state) => ({
+      apiState: {
+        ...state.apiState,
+        isLoading: true,
+        error: null,
+      },
+    }));
+
+    try {
+      await templateApi.deleteTemplate(id);
+      
+      set((state) => ({
+        apiState: {
+          ...state.apiState,
+          isLoading: false,
+        },
+      }));
+    } catch (error) {
+      const errorMessage = error instanceof ApiError 
+        ? error.message 
+        : 'Failed to delete template';
       
       set((state) => ({
         apiState: {
@@ -479,5 +534,124 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         error: null,
       },
     }));
+  },
+
+  // Brush functionality
+  setBrushSize: (width: number, height: number) => {
+    set((state) => ({
+      uiState: {
+        ...state.uiState,
+        brushSize: { width, height },
+      },
+    }));
+  },
+
+  applyBrush: (layer: LayerType, centerX: number, centerY: number) => {
+    const { template, uiState } = get();
+    const { brushSize } = uiState;
+    
+    // 计算笔刷的起始位置（以中心点为基准）
+    const startX = Math.max(0, centerX - Math.floor(brushSize.width / 2));
+    const startY = Math.max(0, centerY - Math.floor(brushSize.height / 2));
+    const endX = Math.min(template.width, startX + brushSize.width);
+    const endY = Math.min(template.height, startY + brushSize.height);
+    
+    // 判断笔刷模式：如果中心格子是1，则整个笔刷区域设为0，反之亦然
+    const centerValue = template[layer][centerY]?.[centerX];
+    if (centerValue === undefined) return;
+    
+    const targetValue = centerValue === 1 ? 0 : 1;
+    
+    let newTemplate = { ...template };
+    const newLayer = newTemplate[layer].map(row => [...row]);
+    
+    // 应用笔刷
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        if (y < template.height && x < template.width) {
+          newLayer[y][x] = targetValue;
+        }
+      }
+    }
+    
+    newTemplate[layer] = newLayer;
+    const validation = validateTemplate(newTemplate);
+    
+    set({
+      template: newTemplate,
+      uiState: {
+        ...get().uiState,
+        validationResult: validation,
+      },
+    });
+  },
+
+  applyBrushWithTargetValue: (layer: LayerType, centerX: number, centerY: number, targetValue: 0 | 1) => {
+    const { template, uiState } = get();
+    const { brushSize } = uiState;
+    
+    // 计算笔刷的起始位置（以中心点为基准）
+    const startX = Math.max(0, centerX - Math.floor(brushSize.width / 2));
+    const startY = Math.max(0, centerY - Math.floor(brushSize.height / 2));
+    const endX = Math.min(template.width, startX + brushSize.width);
+    const endY = Math.min(template.height, startY + brushSize.height);
+    
+    let newTemplate = { ...template };
+    const newLayer = newTemplate[layer].map(row => [...row]);
+    
+    // 应用笔刷，使用指定的目标值
+    for (let y = startY; y < endY; y++) {
+      for (let x = startX; x < endX; x++) {
+        if (y < template.height && x < template.width) {
+          newLayer[y][x] = targetValue;
+        }
+      }
+    }
+    
+    newTemplate[layer] = newLayer;
+    const validation = validateTemplate(newTemplate);
+    
+    set({
+      template: newTemplate,
+      uiState: {
+        ...get().uiState,
+        validationResult: validation,
+      },
+    });
+  },
+
+  setBrushPreview: (layer: LayerType | null, x: number, y: number, visible: boolean) => {
+    set((state) => ({
+      uiState: {
+        ...state.uiState,
+        brushPreview: {
+          layer,
+          x,
+          y,
+          visible,
+        },
+      },
+    }));
+  },
+
+  // Ground special functionality
+  invertGroundLayer: () => {
+    const { template } = get();
+    
+    let newTemplate = { ...template };
+    const newGround = template.ground.map(row => 
+      row.map(cell => cell === 1 ? 0 : 1)
+    );
+    
+    newTemplate.ground = newGround;
+    const validation = validateTemplate(newTemplate);
+    
+    set({
+      template: newTemplate,
+      uiState: {
+        ...get().uiState,
+        validationResult: validation,
+      },
+    });
   },
 };});
