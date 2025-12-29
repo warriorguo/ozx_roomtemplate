@@ -1,5 +1,6 @@
 import { ToolBar } from './ToolBar';
 import { LayerEditor } from './LayerEditor';
+import { CompositeLayerEditor } from './CompositeLayerEditor';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
 
@@ -171,7 +172,7 @@ export const TileTemplateApp: React.FC = () => {
                       {description}
                     </p>
                   </div>
-                  
+
                   <LayerEditor
                     layer={layer}
                     title={title}
@@ -180,6 +181,39 @@ export const TileTemplateApp: React.FC = () => {
                 </div>
               </div>
             ))}
+
+            {/* Composite Layer (总图层) */}
+            <div style={{
+              backgroundColor: 'white',
+              border: '2px solid #9C27B0',
+              borderRadius: '8px',
+              padding: '15px',
+              marginBottom: '20px',
+              boxShadow: '0 2px 4px rgba(156, 39, 176, 0.15)'
+            }}>
+              <div style={{
+                marginBottom: '10px',
+                paddingBottom: '10px',
+                borderBottom: '1px solid #eee'
+              }}>
+                <h3 style={{
+                  margin: '0 0 5px 0',
+                  color: '#9C27B0',
+                  fontSize: '18px'
+                }}>
+                  🗂️ Composite Layer (总图层)
+                </h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: '12px',
+                  color: '#6c757d'
+                }}>
+                  Read-only view showing all layers combined with priority: MobAir &gt; MobGround &gt; Turret &gt; Static &gt; Ground
+                </p>
+              </div>
+
+              <CompositeLayerEditor />
+            </div>
           </div>
 
           {/* Info sidebar */}

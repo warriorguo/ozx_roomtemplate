@@ -16,7 +16,9 @@
       "Bash(go test:*)",
       "Bash(go run:*)",
       "Bash(go doc:*)",
-      "Bash(go build:*)"
+      "Bash(go build:*)",
+      "Bash(test:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

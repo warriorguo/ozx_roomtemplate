@@ -70,6 +70,7 @@ interface NewTemplateStore {
   clearHoveredCell: () => void;
   toggleLayerVisibility: (layer: LayerType) => void;
   toggleErrorDisplay: () => void;
+  toggleCompositeView: () => void;
   
   // Validation
   validateTemplate: () => void;
@@ -112,6 +113,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         y: 0,
         visible: false,
       },
+      showCompositeView: true,  // 总图层默认打开
     },
   apiState: {
     isLoading: false,
@@ -307,6 +309,15 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       uiState: {
         ...state.uiState,
         showErrors: !state.uiState.showErrors,
+      },
+    }));
+  },
+
+  toggleCompositeView: () => {
+    set((state) => ({
+      uiState: {
+        ...state.uiState,
+        showCompositeView: !state.uiState.showCompositeView,
       },
     }));
   },

@@ -33,10 +33,17 @@ go mod tidy
 # Run server (port 8090)
 go run cmd/server/main.go
 
+# Run with hot-reload (requires air: go install github.com/air-verse/air@latest)
+make dev
+
 # Build binary
-make build
-# or manually:
-go build -o bin/server cmd/server/main.go
+make build              # Development build
+make build-prod         # Production build with optimizations
+
+# Code quality
+make fmt                # Format code
+make vet                # Run go vet
+make lint               # Run golangci-lint (requires golangci-lint)
 
 # Run tests
 make test              # All tests
@@ -46,9 +53,10 @@ make test-integration  # Integration tests (requires database)
 # Run with coverage report
 make test-coverage
 
-# Database setup
+# Database operations
 createdb tile_templates
 psql -d tile_templates -f migrations/001_create_room_templates.up.sql
+psql -d tile_templates -f migrations/002_add_thumbnail.up.sql
 ```
 
 ### Testing
@@ -111,7 +119,8 @@ internal/
 **Database**:
 - PostgreSQL with `room_templates` table
 - JSONB payload column for flexible template storage
-- Indexes on created_at, name, and GIN index on payload
+- Thumbnail column (TEXT) for base64-encoded preview images
+- Indexes on created_at, name, GIN index on payload, and conditional index on thumbnail
 - Connection pooling with pgx (MaxConns: 25, MinConns: 5)
 
 **Key Features**:
@@ -192,6 +201,53 @@ DATABASE_URL=postgres://user:password@localhost:5432/tile_templates?sslmode=disa
 PORT=8090
 LOG_LEVEL=info
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
+TEST_DATABASE_URL=postgres://user:password@localhost:5432/tile_templates_test?sslmode=disable
+TEST_INTEGRATION=0  # Set to 1 to run integration tests
+```
+
+**Note**: The .env.example file shows PORT=8080, but the actual configuration uses 8090. Make sure frontend VITE_API_BASE_URL matches the backend PORT.
+
+## Common Development Workflows
+
+### Running Full Stack Locally
+```bash
+# Terminal 1 - Backend
+cd tile-backend
+go run cmd/server/main.go
+
+# Terminal 2 - Frontend
+npm run dev
+```
+
+### Setting Up From Scratch
+```bash
+# 1. Clone repository and install dependencies
+npm install
+cd tile-backend && go mod tidy && cd ..
+
+# 2. Setup database
+createdb tile_templates
+psql -d tile_templates -f tile-backend/migrations/001_create_room_templates.up.sql
+psql -d tile_templates -f tile-backend/migrations/002_add_thumbnail.up.sql
+
+# 3. Configure environment
+cp .env.example .env
+cp tile-backend/.env.example tile-backend/.env
+# Edit both .env files with your database settings
+
+# 4. Start services (see "Running Full Stack Locally" above)
+```
+
+### Running Tests Before Committing
+```bash
+# Frontend: No automated tests currently
+npm run build  # Verify build works
+
+# Backend: Run all tests
+cd tile-backend
+make fmt && make vet     # Format and check code
+make test-unit           # Fast unit tests
+make test-integration    # Requires database setup
 ```
 
 ## Development Notes
@@ -215,8 +271,16 @@ CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
 
 ### Database Migrations
 - Migration files in `tile-backend/migrations/`
-- Run with: `psql -d tile_templates -f migrations/001_create_room_templates.up.sql`
-- Rollback: `psql -d tile_templates -f migrations/001_create_room_templates.down.sql`
+- Apply all migrations in order:
+  ```bash
+  psql -d tile_templates -f migrations/001_create_room_templates.up.sql
+  psql -d tile_templates -f migrations/002_add_thumbnail.up.sql
+  ```
+- Rollback migrations in reverse order:
+  ```bash
+  psql -d tile_templates -f migrations/002_add_thumbnail.down.sql
+  psql -d tile_templates -f migrations/001_create_room_templates.down.sql
+  ```
 
 ## Testing Strategy
 

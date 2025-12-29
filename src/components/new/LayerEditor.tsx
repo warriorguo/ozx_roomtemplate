@@ -16,6 +16,13 @@ interface CellProps {
   isVisible: boolean;
   showErrors: boolean;
   layer: LayerType;
+  groundValue: CellValue;      // ground层的值
+  staticValue: CellValue;      // static层的值
+  turretValue: CellValue;      // turret层的值
+  mobGroundValue: CellValue;   // mobGround层的值
+  mobAirValue: CellValue;      // mobAir层的值
+  isCompositeView: boolean;    // 是否为总图层视图
+  allLayersValid: boolean;     // 该位置所有层是否都有效
   onCellClick: (x: number, y: number) => void;
   onCellMouseDown: (x: number, y: number) => void;
   onCellMouseEnter: (x: number, y: number) => void;
@@ -30,6 +37,13 @@ const Cell: React.FC<CellProps> = ({
   isVisible,
   showErrors,
   layer,
+  groundValue,
+  staticValue,
+  turretValue,
+  mobGroundValue,
+  mobAirValue,
+  isCompositeView,
+  allLayersValid,
   onCellClick,
   onCellMouseDown,
   onCellMouseEnter,
@@ -54,9 +68,37 @@ const Cell: React.FC<CellProps> = ({
       msUserSelect: 'none', // IE/Edge
     };
 
-    // Background color based on value and layer
+    // 总图层视图：按优先级显示所有层的数据
+    if (isCompositeView && isVisible) {
+      // 优先级：mobAir > mobGround > turret > static > ground
+      if (mobAirValue === 1) {
+        baseStyle.backgroundColor = '#87CEEB'; // Sky blue (mobAir)
+      } else if (mobGroundValue === 1) {
+        baseStyle.backgroundColor = '#FFD700'; // Yellow (mobGround)
+      } else if (turretValue === 1) {
+        baseStyle.backgroundColor = '#4169E1'; // Blue (turret)
+      } else if (staticValue === 1) {
+        baseStyle.backgroundColor = '#FFA500'; // Orange (static)
+      } else if (groundValue === 1) {
+        baseStyle.backgroundColor = '#90EE90'; // Light green (ground)
+      } else {
+        baseStyle.backgroundColor = '#ffffff'; // White (all 0)
+        baseStyle.border = '1px solid #ddd';
+      }
+
+      // 如果有任何层验证失败，标红
+      if (!allLayersValid && showErrors) {
+        baseStyle.border = '2px solid #ff0000';
+        baseStyle.boxShadow = '0 0 3px rgba(255, 0, 0, 0.5)';
+      }
+
+      return baseStyle;
+    }
+
+    // 普通视图：Background color based on value and layer
     if (isVisible) {
       if (value === 1) {
+        // 当前层值为1时，显示该层的特征颜色
         switch (layer) {
           case 'ground':
             baseStyle.backgroundColor = '#90EE90'; // Light green
@@ -75,8 +117,67 @@ const Cell: React.FC<CellProps> = ({
             break;
         }
       } else {
-        baseStyle.backgroundColor = '#ffffff'; // White for 0 values
-        baseStyle.border = '1px solid #ddd'; // Light border for empty cells
+        // 当前层值为0时，根据依赖关系显示不同背景色
+        switch (layer) {
+          case 'static':
+            // static层：ground=1 显示浅绿色
+            if (groundValue === 1) {
+              baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
+              baseStyle.border = '1px solid #C8E6C9';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
+          case 'turret':
+            // turret层：static=1 显示浅橘色，否则 ground=1 显示浅绿色
+            if (staticValue === 1) {
+              baseStyle.backgroundColor = '#FFE5CC'; // 浅橘色
+              baseStyle.border = '1px solid #FFD4A3';
+            } else if (groundValue === 1) {
+              baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
+              baseStyle.border = '1px solid #C8E6C9';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
+          case 'mobGround':
+            // mobGround层：turret=1 显示浅蓝色，static=1 显示浅橘色，ground=1 显示浅绿色
+            if (turretValue === 1) {
+              baseStyle.backgroundColor = '#E3F2FD'; // 浅蓝色
+              baseStyle.border = '1px solid #BBDEFB';
+            } else if (staticValue === 1) {
+              baseStyle.backgroundColor = '#FFE5CC'; // 浅橘色
+              baseStyle.border = '1px solid #FFD4A3';
+            } else if (groundValue === 1) {
+              baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
+              baseStyle.border = '1px solid #C8E6C9';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
+          case 'mobAir':
+            // mobAir层：ground=1 显示浅绿色
+            if (groundValue === 1) {
+              baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
+              baseStyle.border = '1px solid #C8E6C9';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
+          default:
+            // ground层和其他层
+            baseStyle.backgroundColor = '#ffffff';
+            baseStyle.border = '1px solid #ddd';
+            break;
+        }
       }
     } else {
       baseStyle.backgroundColor = '#f5f5f5'; // Light gray when layer is hidden
@@ -262,7 +363,7 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
         >
           {title}
         </div>
-        
+
         <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
           <input
             type="checkbox"
@@ -286,6 +387,11 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
           Array.from({ length: template.width }, (_, x) => {
             const cellValue = template[layer][y][x];
             const cellValid = validationResult?.layerValidation[layer]?.[y]?.[x] ?? true;
+            const groundValue = template.ground[y][x];          // 获取对应位置的ground值
+            const staticValue = template.static[y][x];          // 获取对应位置的static值
+            const turretValue = template.turret[y][x];          // 获取对应位置的turret值
+            const mobGroundValue = template.mobGround[y][x];    // 获取对应位置的mobGround值
+            const mobAirValue = template.mobAir[y][x];          // 获取对应位置的mobAir值
 
             return (
               <Cell
@@ -297,6 +403,13 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 isVisible={isVisible}
                 showErrors={uiState.showErrors}
                 layer={layer}
+                groundValue={groundValue}
+                staticValue={staticValue}
+                turretValue={turretValue}
+                mobGroundValue={mobGroundValue}
+                mobAirValue={mobAirValue}
+                isCompositeView={false}
+                allLayersValid={true}
                 onCellClick={handleCellClick}
                 onCellMouseDown={handleCellMouseDown}
                 onCellMouseEnter={handleCellMouseEnter}

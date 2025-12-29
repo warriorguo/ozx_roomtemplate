@@ -62,5 +62,6 @@ export interface UIState {
     y: number;
     visible: boolean;
   };
+  showCompositeView: boolean;  // 是否显示总图层视图（仅在mobAir层）
 }
 
