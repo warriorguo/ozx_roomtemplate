@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import { SaveLoadPanel } from './SaveLoadPanel';
+import { frontendToBackendPayload } from '../../services/templateConverter';
 
 interface NewTemplateDialogProps {
   isOpen: boolean;
@@ -171,15 +172,22 @@ export const ToolBar: React.FC = () => {
       if (!proceed) return;
     }
 
-    const jsonString = JSON.stringify(template, null, 2);
+    // 使用后端格式导出，包含 payload 包装和所有字段（包括 roomType）
+    const payload = frontendToBackendPayload(template, 'exported-template');
+    const exportData = {
+      name: payload.meta.name,
+      payload: payload
+    };
+
+    const jsonString = JSON.stringify(exportData, null, 2);
     const blob = new Blob([jsonString], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    
+
     const link = document.createElement('a');
     link.href = url;
     link.download = 'template.json';
     link.click();
-    
+
     URL.revokeObjectURL(url);
   };
 
@@ -194,7 +202,14 @@ export const ToolBar: React.FC = () => {
     }
 
     try {
-      const jsonString = JSON.stringify(template, null, 2);
+      // 使用后端格式导出，包含 payload 包装和所有字段（包括 roomType）
+      const payload = frontendToBackendPayload(template, 'exported-template');
+      const exportData = {
+        name: payload.meta.name,
+        payload: payload
+      };
+
+      const jsonString = JSON.stringify(exportData, null, 2);
       await navigator.clipboard.writeText(jsonString);
       alert('Template JSON copied to clipboard!');
     } catch (error) {

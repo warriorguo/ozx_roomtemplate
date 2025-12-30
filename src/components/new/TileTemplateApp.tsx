@@ -3,6 +3,7 @@ import { LayerEditor } from './LayerEditor';
 import { CompositeLayerEditor } from './CompositeLayerEditor';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
+import { ROOM_TYPES } from '../../types/newTemplate';
 
 const layerConfigs: Array<{
   layer: LayerType;
@@ -43,7 +44,7 @@ const layerConfigs: Array<{
 ];
 
 export const TileTemplateApp: React.FC = () => {
-  const { uiState, template, apiState } = useNewTemplateStore();
+  const { uiState, template, apiState, toggleRoomAttribute, setRoomType } = useNewTemplateStore();
 
   const ErrorSummary: React.FC = () => {
     const { validationResult } = uiState;
@@ -235,6 +236,228 @@ export const TileTemplateApp: React.FC = () => {
                 <strong>Dimensions:</strong> {template.width} × {template.height}
               </div>
 
+              {/* Door States */}
+              <div style={{ marginBottom: '15px' }}>
+                <strong>🚪 Doors:</strong>
+                <div style={{
+                  marginTop: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '13px'
+                }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '8px'
+                  }}>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <span style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: template.doors.top ? '#28a745' : '#dc3545',
+                        display: 'inline-block'
+                      }}></span>
+                      <span>Top</span>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <span style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: template.doors.right ? '#28a745' : '#dc3545',
+                        display: 'inline-block'
+                      }}></span>
+                      <span>Right</span>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <span style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: template.doors.bottom ? '#28a745' : '#dc3545',
+                        display: 'inline-block'
+                      }}></span>
+                      <span>Bottom</span>
+                    </div>
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px'
+                    }}>
+                      <span style={{
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        backgroundColor: template.doors.left ? '#28a745' : '#dc3545',
+                        display: 'inline-block'
+                      }}></span>
+                      <span>Left</span>
+                    </div>
+                  </div>
+                  <div style={{
+                    marginTop: '8px',
+                    paddingTop: '8px',
+                    borderTop: '1px solid #dee2e6',
+                    fontSize: '11px',
+                    color: '#6c757d'
+                  }}>
+                    💡 Door opens when both middle cells = 1 in ground layer
+                  </div>
+                </div>
+              </div>
+
+              {/* Room Type */}
+              <div style={{ marginBottom: '15px' }}>
+                <strong>🏠 Room Type:</strong>
+                <div style={{
+                  marginTop: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '13px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px'
+                  }}>
+                    {ROOM_TYPES.map(({ type, label, description }) => (
+                      <label
+                        key={type}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '8px',
+                          cursor: 'pointer',
+                          padding: '6px',
+                          borderRadius: '4px',
+                          backgroundColor: template.roomType === type ? '#e7f3ff' : 'transparent',
+                          border: template.roomType === type ? '1px solid #0066cc' : '1px solid transparent',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (template.roomType !== type) {
+                            e.currentTarget.style.backgroundColor = '#e9ecef';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (template.roomType !== type) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }
+                        }}
+                      >
+                        <input
+                          type="radio"
+                          name="roomType"
+                          checked={template.roomType === type}
+                          onChange={() => setRoomType(type)}
+                          style={{
+                            cursor: 'pointer',
+                            marginTop: '2px',
+                            accentColor: '#0066cc',
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{
+                            fontWeight: template.roomType === type ? 'bold' : 'normal',
+                            color: template.roomType === type ? '#0066cc' : '#212529',
+                            marginBottom: '2px',
+                          }}>
+                            {label}
+                          </div>
+                          <div style={{
+                            fontSize: '11px',
+                            color: '#6c757d',
+                            lineHeight: '1.3',
+                          }}>
+                            {description}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Room Attributes */}
+              <div style={{ marginBottom: '15px' }}>
+                <strong>🏷️ Room Attributes:</strong>
+                <div style={{
+                  marginTop: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '13px'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '6px'
+                  }}>
+                    {[
+                      { key: 'boss' as const, label: '👹 Boss', color: '#dc3545' },
+                      { key: 'elite' as const, label: '⚔️ Elite', color: '#fd7e14' },
+                      { key: 'mob' as const, label: '🐛 Mob', color: '#6c757d' },
+                      { key: 'treasure' as const, label: '💎 Treasure', color: '#ffc107' },
+                      { key: 'teleport' as const, label: '🌀 Teleport', color: '#17a2b8' },
+                      { key: 'story' as const, label: '📖 Story', color: '#6f42c1' },
+                    ].map(({ key, label, color }) => (
+                      <label
+                        key={key}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          cursor: 'pointer',
+                          padding: '4px',
+                          borderRadius: '4px',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = '#e9ecef';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'transparent';
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={template.attributes[key]}
+                          onChange={() => toggleRoomAttribute(key)}
+                          style={{
+                            cursor: 'pointer',
+                            accentColor: color,
+                          }}
+                        />
+                        <span style={{
+                          fontWeight: template.attributes[key] ? 'bold' : 'normal',
+                          color: template.attributes[key] ? color : '#6c757d',
+                        }}>
+                          {label}
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               {/* Thumbnail */}
               {apiState.lastSaved?.thumbnail && (
                 <div style={{ marginBottom: '15px' }}>
@@ -296,12 +519,57 @@ export const TileTemplateApp: React.FC = () => {
                 <div style={{ marginBottom: '15px' }}>
                   <strong>Hovered Cell:</strong> ({uiState.hoveredCell.x}, {uiState.hoveredCell.y})
                   <div style={{ fontSize: '12px', marginTop: '5px' }}>
+                    <strong>Layer Values:</strong><br/>
                     Ground: {template.ground[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>
                     Static: {template.static[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>
                     Turret: {template.turret[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>
                     MobGround: {template.mobGround[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>
                     MobAir: {template.mobAir[uiState.hoveredCell.y][uiState.hoveredCell.x]}
                   </div>
+
+                  {(() => {
+                    const props = template.tileProperties[uiState.hoveredCell.y][uiState.hoveredCell.x];
+                    if (!props) return null;
+
+                    return (
+                      <div style={{
+                        marginTop: '10px',
+                        padding: '8px',
+                        backgroundColor: '#e3f2fd',
+                        borderRadius: '4px',
+                        border: '1px solid #90caf9',
+                        fontSize: '11px',
+                        lineHeight: '1.6'
+                      }}>
+                        <strong style={{ color: '#1976d2' }}>📊 Tile Properties:</strong><br/>
+                        <div style={{ marginTop: '4px' }}>
+                          <strong>Walkable:</strong> {props.walkable ? '✓ Yes' : '✗ No'}<br/>
+                          <strong>Distance to Edge:</strong> {props.distToEdge}<br/>
+
+                          <div style={{ marginTop: '4px' }}>
+                            <strong>Wall Distances:</strong><br/>
+                            &nbsp;&nbsp;Top: {props.distToTopWall} | Bottom: {props.distToBottomWall}<br/>
+                            &nbsp;&nbsp;Left: {props.distToLeftWall} | Right: {props.distToRightWall}<br/>
+                            &nbsp;&nbsp;Center: {props.distToCenter}
+                          </div>
+
+                          <div style={{ marginTop: '4px' }}>
+                            <strong>Door Distances (BFS):</strong><br/>
+                            &nbsp;&nbsp;Top: {props.distToTopDoor ?? '-'}<br/>
+                            &nbsp;&nbsp;Bottom: {props.distToBottomDoor ?? '-'}<br/>
+                            &nbsp;&nbsp;Left: {props.distToLeftDoor ?? '-'}<br/>
+                            &nbsp;&nbsp;Right: {props.distToRightDoor ?? '-'}
+                          </div>
+
+                          <div style={{ marginTop: '4px' }}>
+                            <strong>Feature Distances:</strong><br/>
+                            &nbsp;&nbsp;Nearest Static: {props.distToNearStatic ?? '-'}<br/>
+                            &nbsp;&nbsp;Nearest Turret: {props.distToNearTurret ?? '-'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

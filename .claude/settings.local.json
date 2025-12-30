@@ -18,7 +18,12 @@
       "Bash(go doc:*)",
       "Bash(go build:*)",
       "Bash(test:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(node test-doors.js:*)",
+      "Bash(curl:*)",
+      "Bash(chmod:*)",
+      "Bash(PGPASSWORD=pass psql:*)",
+      "Bash(DATABASE_URL='postgres://postgres:pass@localhost:5432/appdb?sslmode=disable' ./bin/migrate:*)"
     ],
     "deny": []
   }

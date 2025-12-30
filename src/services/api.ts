@@ -15,12 +15,44 @@ export interface BackendTemplate {
   updated_at: string;
 }
 
+export interface BackendTileProperties {
+  walkable: boolean;
+  distToTopWall: number;
+  distToBottomWall: number;
+  distToLeftWall: number;
+  distToRightWall: number;
+  distToCenter: number;
+  distToEdge: number;
+  distToTopDoor: number | null;
+  distToBottomDoor: number | null;
+  distToLeftDoor: number | null;
+  distToRightDoor: number | null;
+  distToNearStatic: number | null;
+  distToNearTurret: number | null;
+}
+
 export interface BackendTemplatePayload {
   ground: number[][];
   static: number[][];
   turret: number[][];
   mobGround: number[][];
   mobAir: number[][];
+  doors?: {
+    top: 0 | 1;
+    right: 0 | 1;
+    bottom: 0 | 1;
+    left: 0 | 1;
+  };
+  attributes?: {
+    boss: boolean;
+    elite: boolean;
+    mob: boolean;
+    treasure: boolean;
+    teleport: boolean;
+    story: boolean;
+  };
+  roomType?: 'full' | 'bridge' | 'platform';
+  tileProperties?: (BackendTileProperties | null)[][];
   meta: {
     name: string;
     version: number;

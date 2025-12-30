@@ -3,11 +3,13 @@
  */
 
 import type { Template as FrontendTemplate } from '../types/newTemplate';
-import type { 
-  BackendTemplate, 
-  BackendTemplatePayload, 
-  BackendCreateRequest 
+import type {
+  BackendTemplate,
+  BackendTemplatePayload,
+  BackendCreateRequest
 } from './api';
+import { calculateDoorStates } from '../utils/newTemplateUtils';
+import { calculateAllTileProperties } from '../utils/tilePropertiesCalculator';
 
 /**
  * Convert frontend template to backend create request format
@@ -25,6 +27,10 @@ export function frontendToBackendCreateRequest(
       turret: template.turret,
       mobGround: template.mobGround,
       mobAir: template.mobAir,
+      doors: template.doors,
+      attributes: template.attributes,
+      roomType: template.roomType,
+      tileProperties: template.tileProperties,
       meta: {
         name,
         version: template.version,
@@ -42,7 +48,7 @@ export function frontendToBackendCreateRequest(
 export function backendToFrontendTemplate(
   backendTemplate: BackendTemplate
 ): FrontendTemplate {
-  return {
+  const template: FrontendTemplate = {
     version: 1,
     width: backendTemplate.width,
     height: backendTemplate.height,
@@ -51,7 +57,33 @@ export function backendToFrontendTemplate(
     turret: backendTemplate.payload.turret,
     mobGround: backendTemplate.payload.mobGround,
     mobAir: backendTemplate.payload.mobAir,
+    doors: backendTemplate.payload.doors || { top: 0, right: 0, bottom: 0, left: 0 },
+    attributes: backendTemplate.payload.attributes || {
+      boss: false,
+      elite: false,
+      mob: false,
+      treasure: false,
+      teleport: false,
+      story: false,
+    },
+    roomType: backendTemplate.payload.roomType || 'full',
+    tileProperties: backendTemplate.payload.tileProperties ||
+      Array(backendTemplate.height).fill(null).map(() =>
+        Array(backendTemplate.width).fill(null)
+      ),
   };
+
+  // 如果后端没有 doors 字段，或者需要重新计算，则计算门状态
+  if (!backendTemplate.payload.doors) {
+    template.doors = calculateDoorStates(template);
+  }
+
+  // 如果后端没有 tileProperties 字段，重新计算
+  if (!backendTemplate.payload.tileProperties) {
+    template.tileProperties = calculateAllTileProperties(template);
+  }
+
+  return template;
 }
 
 /**
@@ -67,6 +99,10 @@ export function frontendToBackendPayload(
     turret: template.turret,
     mobGround: template.mobGround,
     mobAir: template.mobAir,
+    doors: template.doors,
+    attributes: template.attributes,
+    roomType: template.roomType,
+    tileProperties: template.tileProperties,
     meta: {
       name,
       version: template.version,

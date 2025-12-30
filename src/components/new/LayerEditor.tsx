@@ -49,6 +49,43 @@ const Cell: React.FC<CellProps> = ({
   onCellMouseEnter,
   onCellMouseLeave,
 }) => {
+  const { template } = useNewTemplateStore();
+
+  // 判断当前格子是否是门位置，以及哪一侧需要标记浅棕色
+  const getDoorBorderSide = (): 'top' | 'bottom' | 'left' | 'right' | null => {
+    // 只在 ground 层显示门标记
+    if (layer !== 'ground') return null;
+
+    const width = template.width;
+    const height = template.height;
+
+    // 计算中间两格的位置
+    const midWidth = Math.floor(width / 2);
+    const midHeight = Math.floor(height / 2);
+
+    // 顶部边缘的中间两格
+    if (y === 0 && (x === midWidth - 1 || x === midWidth)) {
+      return 'top';
+    }
+
+    // 底部边缘的中间两格
+    if (y === height - 1 && (x === midWidth - 1 || x === midWidth)) {
+      return 'bottom';
+    }
+
+    // 左侧边缘的中间两格
+    if (x === 0 && (y === midHeight - 1 || y === midHeight)) {
+      return 'left';
+    }
+
+    // 右侧边缘的中间两格
+    if (x === width - 1 && (y === midHeight - 1 || y === midHeight)) {
+      return 'right';
+    }
+
+    return null;
+  };
+
   const getCellStyle = (): React.CSSProperties => {
     const baseStyle: React.CSSProperties = {
       width: '30px',
@@ -189,6 +226,27 @@ const Cell: React.FC<CellProps> = ({
       baseStyle.boxShadow = '0 0 3px rgba(255, 0, 0, 0.5)';
     }
 
+    // 门边框标记 - 浅棕色 (#D2B48C)
+    const doorSide = getDoorBorderSide();
+    if (doorSide && isVisible) {
+      const doorBorderColor = '#D2B48C'; // 浅棕色 (tan)
+      const doorBorderWidth = '3px';
+
+      switch (doorSide) {
+        case 'top':
+          baseStyle.borderTop = `${doorBorderWidth} solid ${doorBorderColor}`;
+          break;
+        case 'bottom':
+          baseStyle.borderBottom = `${doorBorderWidth} solid ${doorBorderColor}`;
+          break;
+        case 'left':
+          baseStyle.borderLeft = `${doorBorderWidth} solid ${doorBorderColor}`;
+          break;
+        case 'right':
+          baseStyle.borderRight = `${doorBorderWidth} solid ${doorBorderColor}`;
+          break;
+      }
+    }
 
     return baseStyle;
   };
@@ -275,8 +333,9 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
   }, [uiState.dragState.isDragging, endDrag]);
 
   const handleCellClick = (x: number, y: number) => {
-    if (uiState.dragState.isDragging) return;
-    
+    // 如果正在拖拽或刚刚结束拖拽，忽略点击事件（避免重复触发）
+    if (uiState.dragState.isDragging || uiState.dragState.justEndedDrag) return;
+
     // 使用笔刷模式
     if (uiState.brushSize.width > 1 || uiState.brushSize.height > 1) {
       applyBrush(layer, x, y);

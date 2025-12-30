@@ -272,12 +272,25 @@ go build -ldflags="-s -w" -o bin/server cmd/server/main.go
 
 ### Running Migrations
 ```bash
-# Up migration
+# Apply all migrations in order
 psql -d tile_templates -f migrations/001_create_room_templates.up.sql
+psql -d tile_templates -f migrations/002_add_thumbnail.up.sql
+psql -d tile_templates -f migrations/003_add_computed_fields.up.sql
 
-# Down migration (if needed)
+# Rollback migrations (in reverse order if needed)
+psql -d tile_templates -f migrations/003_add_computed_fields.down.sql
+psql -d tile_templates -f migrations/002_add_thumbnail.down.sql
 psql -d tile_templates -f migrations/001_create_room_templates.down.sql
 ```
+
+**Migration 003 adds computed fields for advanced querying:**
+- `walkable_ratio` - Ratio of walkable tiles
+- `room_type` - Type of room (full, bridge, platform)
+- `room_attributes` - Room attributes (boss, elite, mob, etc.)
+- `doors_connected` - Door connectivity status
+- `static_count`, `turret_count`, `mobground_count`, `mobair_count` - Tile counts per layer
+
+See [API_QUERY_PARAMS.md](API_QUERY_PARAMS.md) for detailed query documentation.
 
 ### Testing
 

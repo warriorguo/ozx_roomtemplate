@@ -1,27 +1,27 @@
 import { create } from 'zustand';
-import type { 
-  Template, 
-  LayerType, 
-  UIState
+import type {
+  Template,
+  LayerType,
+  UIState,
+  RoomAttribute,
+  RoomType
 } from '../types/newTemplate';
-import { 
-  createEmptyTemplate, 
-  setCellValue, 
-  validateTemplate
+import {
+  createEmptyTemplate,
+  setCellValue,
+  validateTemplate,
+  calculateDoorStates
 } from '../utils/newTemplateUtils';
-import { 
-  templateApi, 
-  type BackendTemplate,
-  type BackendCreateResponse,
-  type BackendListResponse,
+import { calculateAllTileProperties } from '../utils/tilePropertiesCalculator';
+import {
+  templateApi,
   ApiError
 } from '../services/api';
-import { 
+import {
   frontendToBackendCreateRequest,
   backendToFrontendTemplate,
   frontendToBackendPayload,
-  validateTemplateName,
-  generateDefaultTemplateName
+  validateTemplateName
 } from '../services/templateConverter';
 import { generateDetailedThumbnail } from '../utils/thumbnailGenerator';
 
@@ -58,8 +58,11 @@ interface NewTemplateStore {
   
   // Ground special functionality
   invertGroundLayer: () => void;
-  
-  
+
+  // Room attributes
+  toggleRoomAttribute: (attribute: RoomAttribute) => void;
+  setRoomType: (roomType: RoomType) => void;
+
   // Drag operations
   startDrag: (layer: LayerType, x: number, y: number) => void;
   dragToCell: (layer: LayerType, x: number, y: number) => void;
@@ -95,6 +98,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         dragLayer: null,
         dragMode: null,
         lastProcessedCell: null,
+        justEndedDrag: false,
       },
       hoveredCell: null,
       layerVisibility: {
@@ -203,6 +207,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             dragMode: 'brush',
             lastProcessedCell: { x, y },
             brushTargetValue: targetValue,
+            justEndedDrag: false, // 清除标志
           },
         },
       }));
@@ -220,6 +225,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             dragLayer: layer,
             dragMode,
             lastProcessedCell: { x, y },
+            justEndedDrag: false, // 清除标志
           },
         },
       }));
@@ -269,9 +275,23 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
           dragLayer: null,
           dragMode: null,
           lastProcessedCell: null,
+          justEndedDrag: true, // 标记刚刚结束拖拽
         },
       },
     }));
+
+    // 短暂延迟后清除 justEndedDrag 标志，避免阻止后续的正常点击
+    setTimeout(() => {
+      set((state) => ({
+        uiState: {
+          ...state.uiState,
+          dragState: {
+            ...state.uiState.dragState,
+            justEndedDrag: false,
+          },
+        },
+      }));
+    }, 50); // 50ms 足够让 onClick 事件完成
   },
 
   setHoveredCell: (x: number, y: number) => {
@@ -586,8 +606,17 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     }
     
     newTemplate[layer] = newLayer;
+
+    // 如果修改的是 ground 层，重新计算门状态
+    if (layer === 'ground') {
+      newTemplate.doors = calculateDoorStates(newTemplate);
+    }
+
+    // 重新计算 tile properties
+    newTemplate.tileProperties = calculateAllTileProperties(newTemplate);
+
     const validation = validateTemplate(newTemplate);
-    
+
     set({
       template: newTemplate,
       uiState: {
@@ -620,8 +649,17 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     }
     
     newTemplate[layer] = newLayer;
+
+    // 如果修改的是 ground 层，重新计算门状态
+    if (layer === 'ground') {
+      newTemplate.doors = calculateDoorStates(newTemplate);
+    }
+
+    // 重新计算 tile properties
+    newTemplate.tileProperties = calculateAllTileProperties(newTemplate);
+
     const validation = validateTemplate(newTemplate);
-    
+
     set({
       template: newTemplate,
       uiState: {
@@ -648,21 +686,54 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
   // Ground special functionality
   invertGroundLayer: () => {
     const { template } = get();
-    
+
     let newTemplate = { ...template };
-    const newGround = template.ground.map(row => 
+    const newGround = template.ground.map(row =>
       row.map(cell => cell === 1 ? 0 : 1)
     );
-    
+
     newTemplate.ground = newGround;
+
+    // 重新计算门状态
+    newTemplate.doors = calculateDoorStates(newTemplate);
+
+    // 重新计算 tile properties
+    newTemplate.tileProperties = calculateAllTileProperties(newTemplate);
+
     const validation = validateTemplate(newTemplate);
-    
+
     set({
       template: newTemplate,
       uiState: {
         ...get().uiState,
         validationResult: validation,
       },
+    });
+  },
+
+  // Room attributes
+  toggleRoomAttribute: (attribute: RoomAttribute) => {
+    const { template } = get();
+
+    const newTemplate = { ...template };
+    newTemplate.attributes = {
+      ...template.attributes,
+      [attribute]: !template.attributes[attribute],
+    };
+
+    set({
+      template: newTemplate,
+    });
+  },
+
+  setRoomType: (roomType: RoomType) => {
+    const { template } = get();
+
+    const newTemplate = { ...template };
+    newTemplate.roomType = roomType;
+
+    set({
+      template: newTemplate,
     });
   },
 };});

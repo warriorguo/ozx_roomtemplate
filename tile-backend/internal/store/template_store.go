@@ -16,7 +16,7 @@ import (
 // TemplateStore defines the interface for template storage operations
 type TemplateStore interface {
 	Create(ctx context.Context, template model.Template) (*model.Template, error)
-	List(ctx context.Context, limit, offset int, nameLike string) ([]model.TemplateSummary, int, error)
+	List(ctx context.Context, params model.ListTemplatesQueryParams) ([]model.TemplateSummary, int, error)
 	Get(ctx context.Context, id string) (*model.Template, error)
 	Delete(ctx context.Context, id string) error
 	HealthCheck(ctx context.Context) error
@@ -56,15 +56,34 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		template.ID = uuid.New()
 	}
 
+	// Compute stats before saving
+	model.ComputeTemplateStats(&template)
+
 	// Marshal payload to JSON
 	payloadJSON, err := json.Marshal(template.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
+	// Marshal room attributes
+	roomAttributesJSON, err := model.SerializeRoomAttributes(template.RoomAttributes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal room attributes: %w", err)
+	}
+
+	// Marshal doors connected
+	doorsConnectedJSON, err := model.SerializeDoorsConnected(template.DoorsConnected)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal doors connected: %w", err)
+	}
+
 	query := `
-		INSERT INTO room_templates (id, name, version, width, height, payload, thumbnail)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO room_templates (
+			id, name, version, width, height, payload, thumbnail,
+			walkable_ratio, room_type, room_attributes, doors_connected,
+			static_count, turret_count, mobground_count, mobair_count
+		)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		RETURNING created_at, updated_at`
 
 	err = s.db.QueryRow(ctx, query,
@@ -75,6 +94,14 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		template.Height,
 		payloadJSON,
 		template.Thumbnail,
+		template.WalkableRatio,
+		template.RoomType,
+		roomAttributesJSON,
+		doorsConnectedJSON,
+		template.StaticCount,
+		template.TurretCount,
+		template.MobGroundCount,
+		template.MobAirCount,
 	).Scan(&template.CreatedAt, &template.UpdatedAt)
 
 	if err != nil {
@@ -84,17 +111,146 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 	return &template, nil
 }
 
-// List retrieves templates with pagination and optional name filtering
-func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, nameLike string) ([]model.TemplateSummary, int, error) {
-	var whereClause string
+// List retrieves templates with pagination and filtering
+func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTemplatesQueryParams) ([]model.TemplateSummary, int, error) {
+	var whereClauses []string
 	var args []interface{}
 	argIndex := 1
 
-	// Build WHERE clause for name filtering
-	if nameLike != "" {
-		whereClause = "WHERE name ILIKE $" + fmt.Sprintf("%d", argIndex)
-		args = append(args, "%"+nameLike+"%")
+	// Build WHERE clauses
+	if params.NameLike != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("name ILIKE $%d", argIndex))
+		args = append(args, "%"+params.NameLike+"%")
 		argIndex++
+	}
+
+	if params.RoomType != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("room_type = $%d", argIndex))
+		args = append(args, params.RoomType)
+		argIndex++
+	}
+
+	if params.MinWalkableRatio != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("walkable_ratio >= $%d", argIndex))
+		args = append(args, *params.MinWalkableRatio)
+		argIndex++
+	}
+
+	if params.MaxWalkableRatio != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("walkable_ratio <= $%d", argIndex))
+		args = append(args, *params.MaxWalkableRatio)
+		argIndex++
+	}
+
+	// Static count filters
+	if params.MinStaticCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("static_count >= $%d", argIndex))
+		args = append(args, *params.MinStaticCount)
+		argIndex++
+	}
+	if params.MaxStaticCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("static_count <= $%d", argIndex))
+		args = append(args, *params.MaxStaticCount)
+		argIndex++
+	}
+
+	// Turret count filters
+	if params.MinTurretCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("turret_count >= $%d", argIndex))
+		args = append(args, *params.MinTurretCount)
+		argIndex++
+	}
+	if params.MaxTurretCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("turret_count <= $%d", argIndex))
+		args = append(args, *params.MaxTurretCount)
+		argIndex++
+	}
+
+	// MobGround count filters
+	if params.MinMobGroundCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("mobground_count >= $%d", argIndex))
+		args = append(args, *params.MinMobGroundCount)
+		argIndex++
+	}
+	if params.MaxMobGroundCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("mobground_count <= $%d", argIndex))
+		args = append(args, *params.MaxMobGroundCount)
+		argIndex++
+	}
+
+	// MobAir count filters
+	if params.MinMobAirCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("mobair_count >= $%d", argIndex))
+		args = append(args, *params.MinMobAirCount)
+		argIndex++
+	}
+	if params.MaxMobAirCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("mobair_count <= $%d", argIndex))
+		args = append(args, *params.MaxMobAirCount)
+		argIndex++
+	}
+
+	// Room attributes filters (JSONB queries)
+	if params.HasBoss != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'boss')::boolean = $%d", argIndex))
+		args = append(args, *params.HasBoss)
+		argIndex++
+	}
+	if params.HasElite != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'elite')::boolean = $%d", argIndex))
+		args = append(args, *params.HasElite)
+		argIndex++
+	}
+	if params.HasMob != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'mob')::boolean = $%d", argIndex))
+		args = append(args, *params.HasMob)
+		argIndex++
+	}
+	if params.HasTreasure != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'treasure')::boolean = $%d", argIndex))
+		args = append(args, *params.HasTreasure)
+		argIndex++
+	}
+	if params.HasTeleport != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'teleport')::boolean = $%d", argIndex))
+		args = append(args, *params.HasTeleport)
+		argIndex++
+	}
+	if params.HasStory != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'story')::boolean = $%d", argIndex))
+		args = append(args, *params.HasStory)
+		argIndex++
+	}
+
+	// Door connectivity filters (JSONB queries)
+	if params.TopDoorConnected != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(doors_connected->>'top')::boolean = $%d", argIndex))
+		args = append(args, *params.TopDoorConnected)
+		argIndex++
+	}
+	if params.RightDoorConnected != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(doors_connected->>'right')::boolean = $%d", argIndex))
+		args = append(args, *params.RightDoorConnected)
+		argIndex++
+	}
+	if params.BottomDoorConnected != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(doors_connected->>'bottom')::boolean = $%d", argIndex))
+		args = append(args, *params.BottomDoorConnected)
+		argIndex++
+	}
+	if params.LeftDoorConnected != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("(doors_connected->>'left')::boolean = $%d", argIndex))
+		args = append(args, *params.LeftDoorConnected)
+		argIndex++
+	}
+
+	// Build WHERE clause string
+	whereClause := ""
+	if len(whereClauses) > 0 {
+		whereClause = "WHERE " + whereClauses[0]
+		for i := 1; i < len(whereClauses); i++ {
+			whereClause += " AND " + whereClauses[i]
+		}
 	}
 
 	// Get total count
@@ -107,13 +263,17 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, n
 
 	// Get paginated results
 	listQuery := fmt.Sprintf(`
-		SELECT id, name, version, width, height, thumbnail, created_at, updated_at
+		SELECT
+			id, name, version, width, height, thumbnail,
+			walkable_ratio, room_type, room_attributes, doors_connected,
+			static_count, turret_count, mobground_count, mobair_count,
+			created_at, updated_at
 		FROM room_templates %s
 		ORDER BY created_at DESC
 		LIMIT $%d OFFSET $%d`,
 		whereClause, argIndex, argIndex+1)
 
-	args = append(args, limit, offset)
+	args = append(args, params.Limit, params.Offset)
 
 	rows, err := s.db.Query(ctx, listQuery, args...)
 	if err != nil {
@@ -124,6 +284,8 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, n
 	var templates []model.TemplateSummary
 	for rows.Next() {
 		var template model.TemplateSummary
+		var roomAttributesJSON []byte
+		var doorsConnectedJSON []byte
 
 		err := rows.Scan(
 			&template.ID,
@@ -132,11 +294,36 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, limit, offset int, n
 			&template.Width,
 			&template.Height,
 			&template.Thumbnail,
+			&template.WalkableRatio,
+			&template.RoomType,
+			&roomAttributesJSON,
+			&doorsConnectedJSON,
+			&template.StaticCount,
+			&template.TurretCount,
+			&template.MobGroundCount,
+			&template.MobAirCount,
 			&template.CreatedAt,
 			&template.UpdatedAt,
 		)
 		if err != nil {
 			return nil, 0, fmt.Errorf("failed to scan template: %w", err)
+		}
+
+		// Deserialize JSON fields
+		if roomAttributesJSON != nil {
+			attrs, err := model.DeserializeRoomAttributes(roomAttributesJSON)
+			if err != nil {
+				return nil, 0, fmt.Errorf("failed to deserialize room attributes: %w", err)
+			}
+			template.RoomAttributes = attrs
+		}
+
+		if doorsConnectedJSON != nil {
+			doors, err := model.DeserializeDoorsConnected(doorsConnectedJSON)
+			if err != nil {
+				return nil, 0, fmt.Errorf("failed to deserialize doors connected: %w", err)
+			}
+			template.DoorsConnected = doors
 		}
 
 		templates = append(templates, template)
@@ -158,12 +345,18 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 	}
 
 	query := `
-		SELECT id, name, version, width, height, payload, thumbnail, created_at, updated_at
+		SELECT
+			id, name, version, width, height, payload, thumbnail,
+			walkable_ratio, room_type, room_attributes, doors_connected,
+			static_count, turret_count, mobground_count, mobair_count,
+			created_at, updated_at
 		FROM room_templates
 		WHERE id = $1`
 
 	var template model.Template
 	var payloadJSON []byte
+	var roomAttributesJSON []byte
+	var doorsConnectedJSON []byte
 
 	err = s.db.QueryRow(ctx, query, templateID).Scan(
 		&template.ID,
@@ -173,6 +366,14 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		&template.Height,
 		&payloadJSON,
 		&template.Thumbnail,
+		&template.WalkableRatio,
+		&template.RoomType,
+		&roomAttributesJSON,
+		&doorsConnectedJSON,
+		&template.StaticCount,
+		&template.TurretCount,
+		&template.MobGroundCount,
+		&template.MobAirCount,
 		&template.CreatedAt,
 		&template.UpdatedAt,
 	)
@@ -188,6 +389,24 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 	err = json.Unmarshal(payloadJSON, &template.Payload)
 	if err != nil {
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
+	}
+
+	// Deserialize room attributes
+	if roomAttributesJSON != nil {
+		attrs, err := model.DeserializeRoomAttributes(roomAttributesJSON)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize room attributes: %w", err)
+		}
+		template.RoomAttributes = attrs
+	}
+
+	// Deserialize doors connected
+	if doorsConnectedJSON != nil {
+		doors, err := model.DeserializeDoorsConnected(doorsConnectedJSON)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deserialize doors connected: %w", err)
+		}
+		template.DoorsConnected = doors
 	}
 
 	return &template, nil

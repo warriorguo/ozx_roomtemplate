@@ -83,31 +83,140 @@ func (h *TemplateHandler) CreateTemplate(w http.ResponseWriter, r *http.Request)
 
 // ListTemplates handles GET /api/v1/templates
 func (h *TemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) {
-	// Parse query parameters
-	limitStr := r.URL.Query().Get("limit")
-	offsetStr := r.URL.Query().Get("offset")
-	nameLike := r.URL.Query().Get("name_like")
+	query := r.URL.Query()
 
-	// Set default values
-	limit := 20
-	offset := 0
+	// Build query parameters
+	params := model.ListTemplatesQueryParams{
+		Limit:    20, // default
+		Offset:   0,  // default
+		NameLike: query.Get("name_like"),
+		RoomType: query.Get("room_type"),
+	}
 
 	// Parse limit
-	if limitStr != "" {
+	if limitStr := query.Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
-			limit = l
+			params.Limit = l
 		}
 	}
 
 	// Parse offset
-	if offsetStr != "" {
+	if offsetStr := query.Get("offset"); offsetStr != "" {
 		if o, err := strconv.Atoi(offsetStr); err == nil && o >= 0 {
-			offset = o
+			params.Offset = o
+		}
+	}
+
+	// Parse walkable ratio filters
+	if val := query.Get("min_walkable_ratio"); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			params.MinWalkableRatio = &f
+		}
+	}
+	if val := query.Get("max_walkable_ratio"); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			params.MaxWalkableRatio = &f
+		}
+	}
+
+	// Parse count filters
+	if val := query.Get("min_static_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MinStaticCount = &i
+		}
+	}
+	if val := query.Get("max_static_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MaxStaticCount = &i
+		}
+	}
+	if val := query.Get("min_turret_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MinTurretCount = &i
+		}
+	}
+	if val := query.Get("max_turret_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MaxTurretCount = &i
+		}
+	}
+	if val := query.Get("min_mobground_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MinMobGroundCount = &i
+		}
+	}
+	if val := query.Get("max_mobground_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MaxMobGroundCount = &i
+		}
+	}
+	if val := query.Get("min_mobair_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MinMobAirCount = &i
+		}
+	}
+	if val := query.Get("max_mobair_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MaxMobAirCount = &i
+		}
+	}
+
+	// Parse room attribute filters
+	if val := query.Get("has_boss"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.HasBoss = &b
+		}
+	}
+	if val := query.Get("has_elite"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.HasElite = &b
+		}
+	}
+	if val := query.Get("has_mob"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.HasMob = &b
+		}
+	}
+	if val := query.Get("has_treasure"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.HasTreasure = &b
+		}
+	}
+	if val := query.Get("has_teleport"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.HasTeleport = &b
+		}
+	}
+	if val := query.Get("has_story"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.HasStory = &b
+		}
+	}
+
+	// Parse door connectivity filters
+	if val := query.Get("top_door_connected"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.TopDoorConnected = &b
+		}
+	}
+	if val := query.Get("right_door_connected"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.RightDoorConnected = &b
+		}
+	}
+	if val := query.Get("bottom_door_connected"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.BottomDoorConnected = &b
+		}
+	}
+	if val := query.Get("left_door_connected"); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			params.LeftDoorConnected = &b
 		}
 	}
 
 	// Query database
-	templates, total, err := h.store.List(r.Context(), limit, offset, nameLike)
+	templates, total, err := h.store.List(r.Context(), params)
 	if err != nil {
 		h.logger.Error("Failed to list templates", zap.Error(err))
 		h.respondError(w, http.StatusInternalServerError, "Failed to list templates", err.Error())

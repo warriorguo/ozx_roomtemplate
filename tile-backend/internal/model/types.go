@@ -18,39 +18,114 @@ type TemplateMeta struct {
 	Height  int    `json:"height"`
 }
 
+// DoorStates represents door open/closed states
+type DoorStates struct {
+	Top    int `json:"top"`    // 0 or 1
+	Right  int `json:"right"`  // 0 or 1
+	Bottom int `json:"bottom"` // 0 or 1
+	Left   int `json:"left"`   // 0 or 1
+}
+
+// RoomAttributes represents room attributes
+type RoomAttributes struct {
+	Boss     bool `json:"boss"`
+	Elite    bool `json:"elite"`
+	Mob      bool `json:"mob"`
+	Treasure bool `json:"treasure"`
+	Teleport bool `json:"teleport"`
+	Story    bool `json:"story"`
+}
+
+// DoorsConnected represents door connectivity (whether each door connects walkable areas)
+type DoorsConnected struct {
+	Top    bool `json:"top"`
+	Right  bool `json:"right"`
+	Bottom bool `json:"bottom"`
+	Left   bool `json:"left"`
+}
+
 // TemplatePayload represents the complete template data as received from frontend
 type TemplatePayload struct {
-	Ground    Layer        `json:"ground"`
-	Static    Layer        `json:"static"`
-	Turret    Layer        `json:"turret"`
-	MobGround Layer        `json:"mobGround"`
-	MobAir    Layer        `json:"mobAir"`
-	Meta      TemplateMeta `json:"meta"`
+	Ground         Layer           `json:"ground"`
+	Static         Layer           `json:"static"`
+	Turret         Layer           `json:"turret"`
+	MobGround      Layer           `json:"mobGround"`
+	MobAir         Layer           `json:"mobAir"`
+	Doors          *DoorStates     `json:"doors,omitempty"`
+	Attributes     *RoomAttributes `json:"attributes,omitempty"`
+	RoomType       *string         `json:"roomType,omitempty"` // "full", "bridge", or "platform"
+	Meta           TemplateMeta    `json:"meta"`
 }
 
 // Template represents a complete template record
 type Template struct {
-	ID        uuid.UUID       `json:"id"`
-	Name      string          `json:"name"`
-	Version   int             `json:"version"`
-	Width     int             `json:"width"`
-	Height    int             `json:"height"`
-	Payload   TemplatePayload `json:"payload"`
-	Thumbnail *string         `json:"thumbnail,omitempty"` // Base64 encoded PNG
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID              uuid.UUID        `json:"id"`
+	Name            string           `json:"name"`
+	Version         int              `json:"version"`
+	Width           int              `json:"width"`
+	Height          int              `json:"height"`
+	Payload         TemplatePayload  `json:"payload"`
+	Thumbnail       *string          `json:"thumbnail,omitempty"` // Base64 encoded PNG
+	WalkableRatio   *float64         `json:"walkable_ratio,omitempty"`
+	RoomType        *string          `json:"room_type,omitempty"`
+	RoomAttributes  *RoomAttributes  `json:"room_attributes,omitempty"`
+	DoorsConnected  *DoorsConnected  `json:"doors_connected,omitempty"`
+	StaticCount     *int             `json:"static_count,omitempty"`
+	TurretCount     *int             `json:"turret_count,omitempty"`
+	MobGroundCount  *int             `json:"mobground_count,omitempty"`
+	MobAirCount     *int             `json:"mobair_count,omitempty"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
 }
 
 // TemplateSummary represents a template summary for list responses
 type TemplateSummary struct {
-	ID        uuid.UUID `json:"id"`
-	Name      string    `json:"name"`
-	Version   int       `json:"version"`
-	Width     int       `json:"width"`
-	Height    int       `json:"height"`
-	Thumbnail *string   `json:"thumbnail,omitempty"` // Base64 encoded PNG
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID             uuid.UUID       `json:"id"`
+	Name           string          `json:"name"`
+	Version        int             `json:"version"`
+	Width          int             `json:"width"`
+	Height         int             `json:"height"`
+	Thumbnail      *string         `json:"thumbnail,omitempty"` // Base64 encoded PNG
+	WalkableRatio  *float64        `json:"walkable_ratio,omitempty"`
+	RoomType       *string         `json:"room_type,omitempty"`
+	RoomAttributes *RoomAttributes `json:"room_attributes,omitempty"`
+	DoorsConnected *DoorsConnected `json:"doors_connected,omitempty"`
+	StaticCount    *int            `json:"static_count,omitempty"`
+	TurretCount    *int            `json:"turret_count,omitempty"`
+	MobGroundCount *int            `json:"mobground_count,omitempty"`
+	MobAirCount    *int            `json:"mobair_count,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
+}
+
+// ListTemplatesQueryParams represents query parameters for listing templates
+type ListTemplatesQueryParams struct {
+	Limit           int
+	Offset          int
+	NameLike        string
+	RoomType        string
+	MinWalkableRatio *float64
+	MaxWalkableRatio *float64
+	MinStaticCount   *int
+	MaxStaticCount   *int
+	MinTurretCount   *int
+	MaxTurretCount   *int
+	MinMobGroundCount *int
+	MaxMobGroundCount *int
+	MinMobAirCount    *int
+	MaxMobAirCount    *int
+	// Room attributes filters
+	HasBoss     *bool
+	HasElite    *bool
+	HasMob      *bool
+	HasTreasure *bool
+	HasTeleport *bool
+	HasStory    *bool
+	// Door connectivity filters
+	TopDoorConnected    *bool
+	RightDoorConnected  *bool
+	BottomDoorConnected *bool
+	LeftDoorConnected   *bool
 }
 
 // CreateTemplateRequest represents the request body for creating a template
