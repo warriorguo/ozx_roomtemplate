@@ -6,9 +6,10 @@ import { formatTemplateInfo, generateDefaultTemplateName } from '../../services/
 interface SaveLoadPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  mode: 'save' | 'load';
 }
 
-export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose }) => {
+export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, mode }) => {
   const { 
     template, 
     apiState, 
@@ -18,7 +19,6 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
     clearApiError 
   } = useNewTemplateStore();
 
-  const [activeTab, setActiveTab] = useState<'save' | 'load'>('save');
   const [templateName, setTemplateName] = useState('');
   const [templateList, setTemplateList] = useState<BackendListResponse | null>(null);
   const [listLoading, setListLoading] = useState(false);
@@ -36,12 +36,12 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
     }
   }, [isOpen, apiState.lastSaved?.name, templateName]);
 
-  // Load template list when switching to load tab
+  // Load template list when opening in load mode
   useEffect(() => {
-    if (isOpen && activeTab === 'load') {
+    if (isOpen && mode === 'load') {
       loadTemplateList();
     }
-  }, [isOpen, activeTab]);
+  }, [isOpen, mode]);
 
   const loadTemplateList = async () => {
     setListLoading(true);
@@ -140,34 +140,9 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
           padding: '20px',
           borderBottom: '1px solid #eee',
         }}>
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <button
-              onClick={() => setActiveTab('save')}
-              style={{
-                padding: '8px 16px',
-                border: 'none',
-                borderRadius: '4px',
-                backgroundColor: activeTab === 'save' ? '#007bff' : '#f8f9fa',
-                color: activeTab === 'save' ? 'white' : '#333',
-                cursor: 'pointer',
-              }}
-            >
-              💾 Save
-            </button>
-            <button
-              onClick={() => setActiveTab('load')}
-              style={{
-                padding: '8px 16px',
-                border: 'none',
-                borderRadius: '4px',
-                backgroundColor: activeTab === 'load' ? '#007bff' : '#f8f9fa',
-                color: activeTab === 'load' ? 'white' : '#333',
-                cursor: 'pointer',
-              }}
-            >
-              📁 Load
-            </button>
-          </div>
+          <h2 style={{ margin: 0, fontSize: '20px', color: '#333' }}>
+            {mode === 'save' ? '💾 Save Template' : '📁 Load Template'}
+          </h2>
           
           <button
             onClick={onClose}
@@ -232,10 +207,9 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
             </div>
           )}
 
-          {/* Save Tab */}
-          {activeTab === 'save' && (
+          {/* Save Mode */}
+          {mode === 'save' && (
             <div>
-              <h3 style={{ margin: '0 0 20px 0' }}>Save Template</h3>
               
               <div style={{ marginBottom: '20px' }}>
                 <label style={{
@@ -304,10 +278,9 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose })
             </div>
           )}
 
-          {/* Load Tab */}
-          {activeTab === 'load' && (
+          {/* Load Mode */}
+          {mode === 'load' && (
             <div>
-              <h3 style={{ margin: '0 0 20px 0' }}>Load Template</h3>
               
               {/* Search */}
               <form onSubmit={handleSearch} style={{ marginBottom: '20px' }}>

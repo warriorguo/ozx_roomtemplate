@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import { SaveLoadPanel } from './SaveLoadPanel';
 import { frontendToBackendPayload } from '../../services/templateConverter';
@@ -146,61 +146,23 @@ export const ToolBar: React.FC = () => {
   const {
     template,
     uiState,
-    apiState,
     createNewTemplate,
     toggleErrorDisplay,
-    validateTemplateWithBackend,
+    toggleAcceptPaste,
+    loadTemplateFromJSON,
   } = useNewTemplateStore();
 
   const [showNewDialog, setShowNewDialog] = useState(false);
-  const [showSaveLoadPanel, setShowSaveLoadPanel] = useState(false);
+  const [showSavePanel, setShowSavePanel] = useState(false);
+  const [showLoadPanel, setShowLoadPanel] = useState(false);
   
   const validationResult = uiState.validationResult;
-  const canExport = validationResult?.isValid ?? true; // 默认允许导出
 
   const handleNewTemplate = (width: number, height: number) => {
     createNewTemplate(width, height);
   };
 
-  const exportTemplate = () => {
-    // 允许导出即使有验证错误的模板，但给出警告
-    if (validationResult && !validationResult.isValid) {
-      const proceed = confirm(
-        `Template has ${validationResult.errors.length} validation error(s). ` +
-        'Do you want to export anyway?'
-      );
-      if (!proceed) return;
-    }
-
-    // 使用后端格式导出，包含 payload 包装和所有字段（包括 roomType）
-    const payload = frontendToBackendPayload(template, 'exported-template');
-    const exportData = {
-      name: payload.meta.name,
-      payload: payload
-    };
-
-    const jsonString = JSON.stringify(exportData, null, 2);
-    const blob = new Blob([jsonString], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'template.json';
-    link.click();
-
-    URL.revokeObjectURL(url);
-  };
-
   const copyToClipboard = async () => {
-    // 允许复制即使有验证错误的模板，但给出警告
-    if (validationResult && !validationResult.isValid) {
-      const proceed = confirm(
-        `Template has ${validationResult.errors.length} validation error(s). ` +
-        'Do you want to copy anyway?'
-      );
-      if (!proceed) return;
-    }
-
     try {
       // 使用后端格式导出，包含 payload 包装和所有字段（包括 roomType）
       const payload = frontendToBackendPayload(template, 'exported-template');
@@ -217,6 +179,48 @@ export const ToolBar: React.FC = () => {
       alert('Failed to copy to clipboard. Please try again.');
     }
   };
+
+  // Handle paste events
+  const handlePaste = async (event: ClipboardEvent) => {
+    if (!uiState.acceptPaste) {
+      return;
+    }
+
+    try {
+      const clipboardText = event.clipboardData?.getData('text');
+      if (!clipboardText) {
+        return;
+      }
+
+      // Parse JSON
+      let jsonData;
+      try {
+        jsonData = JSON.parse(clipboardText);
+      } catch (parseError) {
+        alert('Invalid JSON format in clipboard');
+        return;
+      }
+
+      // Load template from JSON
+      await loadTemplateFromJSON(jsonData);
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load template from clipboard';
+      alert(`Error: ${errorMessage}`);
+    }
+  };
+
+  // Add/remove paste event listener based on acceptPaste state
+  useEffect(() => {
+    if (uiState.acceptPaste) {
+      document.addEventListener('paste', handlePaste);
+    } else {
+      document.removeEventListener('paste', handlePaste);
+    }
+
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [uiState.acceptPaste, loadTemplateFromJSON]);
 
   return (
     <div style={{
@@ -250,7 +254,7 @@ export const ToolBar: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setShowSaveLoadPanel(true)}
+            onClick={() => setShowSavePanel(true)}
             style={{
               padding: '8px 16px',
               backgroundColor: '#FF9800',
@@ -261,56 +265,37 @@ export const ToolBar: React.FC = () => {
               fontWeight: 'bold'
             }}
           >
-            💾 Save/Load
+            💾 Save
           </button>
-          
+
           <button
-            onClick={exportTemplate}
-            disabled={!canExport}
+            onClick={() => setShowLoadPanel(true)}
             style={{
               padding: '8px 16px',
-              backgroundColor: canExport ? '#2196F3' : '#ccc',
+              backgroundColor: '#2196F3',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: canExport ? 'pointer' : 'not-allowed',
+              cursor: 'pointer',
               fontWeight: 'bold'
             }}
           >
-            📤 Export JSON
+            📁 Load
           </button>
 
           <button
             onClick={copyToClipboard}
-            disabled={!canExport}
             style={{
               padding: '8px 16px',
-              backgroundColor: canExport ? '#17A2B8' : '#ccc',
+              backgroundColor: '#17A2B8',
               color: 'white',
               border: 'none',
               borderRadius: '4px',
-              cursor: canExport ? 'pointer' : 'not-allowed',
+              cursor: 'pointer',
               fontWeight: 'bold'
             }}
           >
             📋 Copy JSON
-          </button>
-
-          <button
-            onClick={() => validateTemplateWithBackend(true)}
-            disabled={apiState.isLoading}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#9C27B0',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: apiState.isLoading ? 'not-allowed' : 'pointer',
-              fontWeight: 'bold',
-              opacity: apiState.isLoading ? 0.6 : 1,
-            }}
-          >
-            🔍 {apiState.isLoading ? 'Validating...' : 'Validate'}
           </button>
         </div>
 
@@ -336,13 +321,13 @@ export const ToolBar: React.FC = () => {
 
           <div style={{
             padding: '5px 10px',
-            backgroundColor: canExport ? '#e8f5e8' : '#ffebee',
-            color: canExport ? '#2e7d32' : '#c62828',
+            backgroundColor: validationResult?.isValid !== false ? '#e8f5e8' : '#ffebee',
+            color: validationResult?.isValid !== false ? '#2e7d32' : '#c62828',
             borderRadius: '4px',
             fontSize: '14px',
             fontWeight: 'bold'
           }}>
-            {canExport ? '✓ Valid' : '✗ Invalid'}
+            {validationResult?.isValid !== false ? '✓ Valid' : '✗ Invalid'}
             {validationResult && ` (${validationResult.errors.length} errors)`}
           </div>
 
@@ -354,6 +339,15 @@ export const ToolBar: React.FC = () => {
             />
             Show Errors
           </label>
+
+          <label style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '14px' }}>
+            <input
+              type="checkbox"
+              checked={uiState.acceptPaste}
+              onChange={toggleAcceptPaste}
+            />
+            Accept Paste
+          </label>
         </div>
       </div>
 
@@ -364,8 +358,15 @@ export const ToolBar: React.FC = () => {
       />
 
       <SaveLoadPanel
-        isOpen={showSaveLoadPanel}
-        onClose={() => setShowSaveLoadPanel(false)}
+        isOpen={showSavePanel}
+        onClose={() => setShowSavePanel(false)}
+        mode="save"
+      />
+
+      <SaveLoadPanel
+        isOpen={showLoadPanel}
+        onClose={() => setShowLoadPanel(false)}
+        mode="load"
       />
     </div>
   );

@@ -45,6 +45,7 @@ interface NewTemplateStore {
   // Template management
   createNewTemplate: (width: number, height: number) => void;
   loadTemplate: (template: Template) => void;
+  loadTemplateFromJSON: (jsonData: any) => Promise<void>;
   
   // Cell editing
   setCellValue: (layer: LayerType, x: number, y: number, value: 0 | 1) => void;
@@ -74,6 +75,7 @@ interface NewTemplateStore {
   toggleLayerVisibility: (layer: LayerType) => void;
   toggleErrorDisplay: () => void;
   toggleCompositeView: () => void;
+  toggleAcceptPaste: () => void;
   
   // Validation
   validateTemplate: () => void;
@@ -118,6 +120,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         visible: false,
       },
       showCompositeView: true,  // 总图层默认打开
+      acceptPaste: false,  // 默认关闭paste功能
     },
   apiState: {
     isLoading: false,
@@ -338,6 +341,15 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       uiState: {
         ...state.uiState,
         showCompositeView: !state.uiState.showCompositeView,
+      },
+    }));
+  },
+
+  toggleAcceptPaste: () => {
+    set((state) => ({
+      uiState: {
+        ...state.uiState,
+        acceptPaste: !state.uiState.acceptPaste,
       },
     }));
   },
@@ -735,5 +747,100 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     set({
       template: newTemplate,
     });
+  },
+
+  // Load template from JSON data (for paste functionality)
+  loadTemplateFromJSON: async (jsonData: any): Promise<void> => {
+    try {
+      // Validate JSON structure
+      if (!jsonData || typeof jsonData !== 'object') {
+        throw new Error('Invalid JSON: Expected an object');
+      }
+
+      // Check if it has the expected structure and construct backend template format
+      let backendTemplate;
+      
+      if (jsonData.payload && jsonData.name) {
+        // Format from Copy JSON: { name: string, payload: { ground, static, ..., meta } }
+        const payload = jsonData.payload;
+        
+        // Construct backend template format
+        backendTemplate = {
+          id: 'pasted-template',
+          name: jsonData.name,
+          width: payload.meta?.width || 20,
+          height: payload.meta?.height || 12,
+          payload: {
+            ground: payload.ground,
+            static: payload.static,
+            turret: payload.turret,
+            mobGround: payload.mobGround,
+            mobAir: payload.mobAir,
+            doors: payload.doors,
+            attributes: payload.attributes,
+            roomType: payload.roomType,
+            tileProperties: payload.tileProperties,
+          },
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      } else if (jsonData.meta && jsonData.ground && jsonData.static) {
+        // Direct payload format: { ground, static, turret, ..., meta }
+        backendTemplate = {
+          id: 'pasted-template',
+          name: jsonData.meta?.name || 'pasted-template',
+          width: jsonData.meta?.width || 20,
+          height: jsonData.meta?.height || 12,
+          payload: jsonData,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+      } else if (jsonData.id && jsonData.payload) {
+        // Backend template format: { id, name, payload: {...} }
+        backendTemplate = jsonData;
+      } else {
+        throw new Error('Invalid JSON structure: Expected template data with required fields (ground, static, turret, mobGround, mobAir)');
+      }
+
+      // Validate that the payload has required fields
+      const payload = backendTemplate.payload;
+      if (!payload.ground || !payload.static || !payload.turret || !payload.mobGround || !payload.mobAir) {
+        throw new Error('Invalid template: Missing required layer data (ground, static, turret, mobGround, mobAir)');
+      }
+
+      // Convert to frontend template format
+      const frontendTemplate = backendToFrontendTemplate(backendTemplate);
+      
+      // Recalculate doors and tile properties based on current ground layer
+      frontendTemplate.doors = calculateDoorStates(frontendTemplate);
+      frontendTemplate.tileProperties = calculateAllTileProperties(frontendTemplate);
+      
+      const validation = validateTemplate(frontendTemplate);
+      
+      set({
+        template: frontendTemplate,
+        uiState: {
+          ...get().uiState,
+          validationResult: validation,
+        },
+        apiState: {
+          ...get().apiState,
+          error: null,
+        },
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : 'Failed to load template from JSON';
+      
+      set((state) => ({
+        apiState: {
+          ...state.apiState,
+          error: errorMessage,
+        },
+      }));
+      
+      throw error; // Re-throw to allow caller to handle
+    }
   },
 };});

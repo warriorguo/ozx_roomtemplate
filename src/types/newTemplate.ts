@@ -116,5 +116,6 @@ export interface UIState {
     visible: boolean;
   };
   showCompositeView: boolean;  // 是否显示总图层视图（仅在mobAir层）
+  acceptPaste: boolean;  // 是否接受paste操作
 }
 
