@@ -33,6 +33,7 @@ export interface BackendTileProperties {
 
 export interface BackendTemplatePayload {
   ground: number[][];
+  bridge?: number[][]; // Optional for backward compatibility
   static: number[][];
   turret: number[][];
   mobGround: number[][];
@@ -107,14 +108,19 @@ export interface BackendErrorResponse {
 // API Configuration
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8090/api/v1';
 
-class ApiError extends Error {
+export class ApiError extends Error {
+  public status: number;
+  public details?: Record<string, string>;
+
   constructor(
     message: string,
-    public status: number,
-    public details?: Record<string, string>
+    status: number,
+    details?: Record<string, string>
   ) {
     super(message);
     this.name = 'ApiError';
+    this.status = status;
+    this.details = details;
   }
 }
 
@@ -257,5 +263,4 @@ export class TemplateApiService {
 // Create singleton instance
 export const templateApi = new TemplateApiService();
 
-// Export utility functions for converting between frontend and backend types
-export { ApiError };
+// ApiError is already exported above

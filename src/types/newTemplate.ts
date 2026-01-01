@@ -55,6 +55,7 @@ export interface Template {
   width: number;
   height: number;
   ground: Grid<CellValue>;
+  bridge: Grid<CellValue>;
   static: Grid<CellValue>;
   turret: Grid<CellValue>;
   mobGround: Grid<CellValue>;
@@ -65,7 +66,7 @@ export interface Template {
   tileProperties: Grid<TileProperties | null>; // null if cell is not set (value=0)
 }
 
-export type LayerType = "ground" | "static" | "turret" | "mobGround" | "mobAir";
+export type LayerType = "ground" | "bridge" | "static" | "turret" | "mobGround" | "mobAir";
 
 export interface DragState {
   isDragging: boolean;
@@ -78,6 +79,7 @@ export interface DragState {
 
 export interface LayerValidation {
   ground: boolean[][];
+  bridge: boolean[][];
   static: boolean[][];
   turret: boolean[][];
   mobGround: boolean[][];

@@ -62,6 +62,7 @@ export function createEmptyTemplate(width: number, height: number): Template {
     width,
     height,
     ground: createLayer(),
+    bridge: createLayer(),
     static: createLayer(),
     turret: createLayer(),
     mobGround: createLayer(),
@@ -124,6 +125,7 @@ export function validateCellRules(
   y: number
 ): Record<LayerType, boolean> {
   const ground = template.ground[y][x];
+  const bridge = template.bridge[y][x];
   const static_ = template.static[y][x];
   const turret = template.turret[y][x];
   const mobGround = template.mobGround[y][x];
@@ -131,17 +133,62 @@ export function validateCellRules(
 
   return {
     ground: true, // Ground has no constraints
-    static: static_ === 0 || ground === 1,
-    turret: turret === 0 || (ground === 1 && static_ === 0),
-    mobGround: mobGround === 0 || (ground === 1 && static_ === 0 && turret === 0),
+    bridge: validateBridgeCell(template, x, y),
+    static: static_ === 0 || (ground === 1 || bridge === 1) && bridge === 0, // Static can't be placed on bridge
+    turret: turret === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && bridge === 0),
+    mobGround: mobGround === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && turret === 0 && bridge === 0),
     mobAir: true, // MobAir has no constraints
   };
+}
+
+// Validate bridge placement: bridge should span unwalkable areas (ground=0) to connect walkable areas
+function validateBridgeCell(template: Template, x: number, y: number): boolean {
+  const bridge = template.bridge[y][x];
+  if (bridge === 0) return true; // Empty bridge cells are always valid
+  
+  const ground = template.ground[y][x];
+  
+  // Bridge can only be placed on unwalkable ground
+  if (ground === 1) return false;
+  
+  // Check if bridge connects walkable areas in any direction
+  const directions = [
+    { dx: -1, dy: 0 }, // left
+    { dx: 1, dy: 0 },  // right  
+    { dx: 0, dy: -1 }, // up
+    { dx: 0, dy: 1 }   // down
+  ];
+  
+  for (const dir of directions) {
+    const x1 = x + dir.dx;
+    const y1 = y + dir.dy;
+    const x2 = x - dir.dx;
+    const y2 = y - dir.dy;
+    
+    // Check if this direction has walkable areas on both sides
+    const side1Walkable = isWalkable(template, x1, y1);
+    const side2Walkable = isWalkable(template, x2, y2);
+    
+    if (side1Walkable && side2Walkable) {
+      return true; // Bridge connects walkable areas
+    }
+  }
+  
+  return false; // Bridge doesn't connect walkable areas
+}
+
+function isWalkable(template: Template, x: number, y: number): boolean {
+  if (x < 0 || x >= template.width || y < 0 || y >= template.height) {
+    return false;
+  }
+  return template.ground[y][x] === 1 || template.bridge[y][x] === 1;
 }
 
 export function validateTemplate(template: Template): ValidationResult {
   const errors: ValidationError[] = [];
   const layerValidation: LayerValidation = {
     ground: [],
+    bridge: [],
     static: [],
     turret: [],
     mobGround: [],
@@ -151,6 +198,7 @@ export function validateTemplate(template: Template): ValidationResult {
   // Initialize validation grids
   for (let y = 0; y < template.height; y++) {
     layerValidation.ground[y] = [];
+    layerValidation.bridge[y] = [];
     layerValidation.static[y] = [];
     layerValidation.turret[y] = [];
     layerValidation.mobGround[y] = [];
@@ -161,13 +209,14 @@ export function validateTemplate(template: Template): ValidationResult {
       
       // Store validation results
       layerValidation.ground[y][x] = cellValidation.ground;
+      layerValidation.bridge[y][x] = cellValidation.bridge;
       layerValidation.static[y][x] = cellValidation.static;
       layerValidation.turret[y][x] = cellValidation.turret;
       layerValidation.mobGround[y][x] = cellValidation.mobGround;
       layerValidation.mobAir[y][x] = cellValidation.mobAir;
 
       // Collect errors for cells that have value=1 but are invalid
-      const layers: LayerType[] = ['static', 'turret', 'mobGround', 'mobAir'];
+      const layers: LayerType[] = ['bridge', 'static', 'turret', 'mobGround', 'mobAir'];
       
       layers.forEach(layer => {
         if (template[layer][y][x] === 1 && !cellValidation[layer]) {
@@ -196,18 +245,26 @@ function getValidationErrorReason(
   y: number
 ): string {
   const ground = template.ground[y][x];
+  const bridge = template.bridge[y][x];
   const static_ = template.static[y][x];
   const turret = template.turret[y][x];
 
   switch (layer) {
+    case 'bridge':
+      if (ground === 1) return 'Bridge cannot be placed on walkable ground';
+      return 'Bridge must connect walkable areas';
     case 'static':
-      return ground === 0 ? 'Static items require walkable ground' : 'Unknown error';
+      if (ground === 0 && bridge === 0) return 'Static items require walkable ground or bridge';
+      if (bridge === 1) return 'Static items cannot be placed on bridge';
+      return 'Unknown error';
     case 'turret':
-      if (ground === 0) return 'Turrets require walkable ground';
+      if (ground === 0 && bridge === 0) return 'Turrets require walkable ground or bridge';
+      if (bridge === 1) return 'Turrets cannot be placed on bridge';
       if (static_ === 1) return 'Turrets cannot be placed on static items';
       return 'Unknown error';
     case 'mobGround':
-      if (ground === 0) return 'Ground mobs require walkable ground';
+      if (ground === 0 && bridge === 0) return 'Ground mobs require walkable ground or bridge';
+      if (bridge === 1) return 'Ground mobs cannot be placed on bridge';
       if (static_ === 1) return 'Ground mobs cannot be placed on static items';
       if (turret === 1) return 'Ground mobs cannot be placed on turrets';
       return 'Unknown error';

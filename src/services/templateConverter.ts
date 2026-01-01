@@ -2,7 +2,7 @@
  * Utility functions to convert between frontend and backend template formats
  */
 
-import type { Template as FrontendTemplate } from '../types/newTemplate';
+import type { Template as FrontendTemplate, Grid, CellValue } from '../types/newTemplate';
 import type {
   BackendTemplate,
   BackendTemplatePayload,
@@ -23,6 +23,7 @@ export function frontendToBackendCreateRequest(
     name,
     payload: {
       ground: template.ground,
+      bridge: template.bridge,
       static: template.static,
       turret: template.turret,
       mobGround: template.mobGround,
@@ -52,11 +53,13 @@ export function backendToFrontendTemplate(
     version: 1,
     width: backendTemplate.width,
     height: backendTemplate.height,
-    ground: backendTemplate.payload.ground,
-    static: backendTemplate.payload.static,
-    turret: backendTemplate.payload.turret,
-    mobGround: backendTemplate.payload.mobGround,
-    mobAir: backendTemplate.payload.mobAir,
+    ground: backendTemplate.payload.ground as Grid<CellValue>,
+    bridge: (backendTemplate.payload.bridge || 
+      Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
+    static: backendTemplate.payload.static as Grid<CellValue>,
+    turret: backendTemplate.payload.turret as Grid<CellValue>,
+    mobGround: backendTemplate.payload.mobGround as Grid<CellValue>,
+    mobAir: backendTemplate.payload.mobAir as Grid<CellValue>,
     doors: backendTemplate.payload.doors || { top: 0, right: 0, bottom: 0, left: 0 },
     attributes: backendTemplate.payload.attributes || {
       boss: false,
@@ -95,6 +98,7 @@ export function frontendToBackendPayload(
 ): BackendTemplatePayload {
   return {
     ground: template.ground,
+    bridge: template.bridge,
     static: template.static,
     turret: template.turret,
     mobGround: template.mobGround,

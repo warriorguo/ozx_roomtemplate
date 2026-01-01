@@ -105,6 +105,11 @@ func validateLayers(payload *model.TemplatePayload) []model.ValidationError {
 		"mobGround": payload.MobGround,
 		"mobAir":    payload.MobAir,
 	}
+	
+	// Add bridge layer if present (optional for backward compatibility)
+	if payload.Bridge != nil {
+		layers["bridge"] = payload.Bridge
+	}
 
 	for layerName, layer := range layers {
 		layerErrors := validateSingleLayer(layerName, layer, width, height)
@@ -167,28 +172,73 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			ground := payload.Ground[y][x]
+			var bridge int = 0
+			if payload.Bridge != nil && len(payload.Bridge) > y && len(payload.Bridge[y]) > x {
+				bridge = payload.Bridge[y][x]
+			}
 			static := payload.Static[y][x]
 			turret := payload.Turret[y][x]
 			mobGround := payload.MobGround[y][x]
 
-			// Rule: static==1 => ground==1
-			if static == 1 && ground == 0 {
-				errors = append(errors, model.ValidationError{
-					Layer:  "static",
-					X:      x,
-					Y:      y,
-					Reason: "static items require walkable ground",
-				})
+			// Bridge validation rules
+			if bridge == 1 {
+				// Rule: bridge==1 => ground==0 (bridge can only be placed on unwalkable ground)
+				if ground == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "bridge",
+						X:      x,
+						Y:      y,
+						Reason: "bridge cannot be placed on walkable ground",
+					})
+				}
+
+				// Rule: bridge must connect walkable areas
+				if !bridgeConnectsWalkableAreas(payload, x, y, width, height) {
+					errors = append(errors, model.ValidationError{
+						Layer:  "bridge",
+						X:      x,
+						Y:      y,
+						Reason: "bridge must connect walkable areas",
+					})
+				}
 			}
 
-			// Rule: turret==1 => ground==1 && static==0
+			// Rule: static==1 => (ground==1 || bridge==1) && bridge==0
+			if static == 1 {
+				if ground == 0 && bridge == 0 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "static",
+						X:      x,
+						Y:      y,
+						Reason: "static items require walkable ground or bridge",
+					})
+				}
+				if bridge == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "static",
+						X:      x,
+						Y:      y,
+						Reason: "static items cannot be placed on bridge",
+					})
+				}
+			}
+
+			// Rule: turret==1 => (ground==1 || bridge==1) && static==0 && bridge==0
 			if turret == 1 {
-				if ground == 0 {
+				if ground == 0 && bridge == 0 {
 					errors = append(errors, model.ValidationError{
 						Layer:  "turret",
 						X:      x,
 						Y:      y,
-						Reason: "turrets require walkable ground",
+						Reason: "turrets require walkable ground or bridge",
+					})
+				}
+				if bridge == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "turret",
+						X:      x,
+						Y:      y,
+						Reason: "turrets cannot be placed on bridge",
 					})
 				}
 				if static == 1 {
@@ -201,14 +251,22 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 				}
 			}
 
-			// Rule: mobGround==1 => ground==1 && static==0 && turret==0
+			// Rule: mobGround==1 => (ground==1 || bridge==1) && static==0 && turret==0 && bridge==0
 			if mobGround == 1 {
-				if ground == 0 {
+				if ground == 0 && bridge == 0 {
 					errors = append(errors, model.ValidationError{
 						Layer:  "mobGround",
 						X:      x,
 						Y:      y,
-						Reason: "ground mobs require walkable ground",
+						Reason: "ground mobs require walkable ground or bridge",
+					})
+				}
+				if bridge == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "mobGround",
+						X:      x,
+						Y:      y,
+						Reason: "ground mobs cannot be placed on bridge",
 					})
 				}
 				if static == 1 {
@@ -234,4 +292,43 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 	}
 
 	return errors
+}
+
+// bridgeConnectsWalkableAreas checks if a bridge tile connects walkable areas
+func bridgeConnectsWalkableAreas(payload *model.TemplatePayload, x, y, width, height int) bool {
+	// Check all four directions (horizontal and vertical)
+	directions := []struct{ dx, dy int }{
+		{-1, 0}, {1, 0},  // left, right
+		{0, -1}, {0, 1},  // up, down
+	}
+
+	for _, dir := range directions {
+		x1, y1 := x+dir.dx, y+dir.dy
+		x2, y2 := x-dir.dx, y-dir.dy
+
+		// Check if this direction has walkable areas on both sides
+		side1Walkable := isWalkable(payload, x1, y1, width, height)
+		side2Walkable := isWalkable(payload, x2, y2, width, height)
+
+		if side1Walkable && side2Walkable {
+			return true // Bridge connects walkable areas
+		}
+	}
+
+	return false // Bridge doesn't connect walkable areas
+}
+
+// isWalkable checks if a position is walkable (ground=1 or bridge=1)
+func isWalkable(payload *model.TemplatePayload, x, y, width, height int) bool {
+	if x < 0 || x >= width || y < 0 || y >= height {
+		return false
+	}
+
+	ground := payload.Ground[y][x]
+	var bridge int = 0
+	if payload.Bridge != nil && len(payload.Bridge) > y && len(payload.Bridge[y]) > x {
+		bridge = payload.Bridge[y][x]
+	}
+
+	return ground == 1 || bridge == 1
 }

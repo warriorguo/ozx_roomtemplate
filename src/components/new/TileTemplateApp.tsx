@@ -18,22 +18,28 @@ const layerConfigs: Array<{
     description: 'Walkable areas - foundation for all other layers'
   },
   {
+    layer: 'bridge',
+    title: 'Bridge (桥梁)',
+    color: '#9966CC',
+    description: 'Bridge tiles that span unwalkable areas to connect walkable areas'
+  },
+  {
     layer: 'static',
     title: 'Static (静态物品)',
     color: '#FFA500',
-    description: 'Static objects placement areas (requires ground=1)'
+    description: 'Static objects placement areas (requires walkable ground, not on bridge)'
   },
   {
     layer: 'turret',
     title: 'Turret (炮塔)',
     color: '#4169E1',
-    description: 'Turret placement (requires ground=1, static=0)'
+    description: 'Turret placement (requires walkable ground, not on bridge/static)'
   },
   {
     layer: 'mobGround',
     title: 'Mob Ground (地面怪)',
     color: '#FFD700',
-    description: 'Ground mob spawns (requires ground=1, static=0, turret=0)'
+    description: 'Ground mob spawns (requires walkable ground, not on bridge/static/turret)'
   },
   {
     layer: 'mobAir',
@@ -209,7 +215,7 @@ export const TileTemplateApp: React.FC = () => {
                   fontSize: '12px',
                   color: '#6c757d'
                 }}>
-                  Read-only view showing all layers combined with priority: MobAir &gt; MobGround &gt; Turret &gt; Static &gt; Ground
+                  Read-only view showing all layers combined with priority: MobAir &gt; MobGround &gt; Turret &gt; Static &gt; Bridge &gt; Ground
                 </p>
               </div>
 
@@ -521,6 +527,7 @@ export const TileTemplateApp: React.FC = () => {
                   <div style={{ fontSize: '12px', marginTop: '5px' }}>
                     <strong>Layer Values:</strong><br/>
                     Ground: {template.ground[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>
+                    Bridge: {template.bridge[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>
                     Static: {template.static[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>
                     Turret: {template.turret[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>
                     MobGround: {template.mobGround[uiState.hoveredCell.y][uiState.hoveredCell.x]}<br/>

@@ -105,6 +105,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       hoveredCell: null,
       layerVisibility: {
         ground: true,
+        bridge: true,
         static: true,
         turret: true,
         mobGround: true,
@@ -531,6 +532,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         })),
         layerValidation: {
           ground: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
+          bridge: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           static: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           turret: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           mobGround: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
@@ -772,6 +774,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
           height: payload.meta?.height || 12,
           payload: {
             ground: payload.ground,
+            bridge: payload.bridge,
             static: payload.static,
             turret: payload.turret,
             mobGround: payload.mobGround,
@@ -805,7 +808,12 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       // Validate that the payload has required fields
       const payload = backendTemplate.payload;
       if (!payload.ground || !payload.static || !payload.turret || !payload.mobGround || !payload.mobAir) {
-        throw new Error('Invalid template: Missing required layer data (ground, static, turret, mobGround, mobAir)');
+        throw new Error('Invalid template: Missing required layer data (ground, bridge, static, turret, mobGround, mobAir)');
+      }
+      
+      // Initialize bridge layer if not present (for backward compatibility)
+      if (!payload.bridge) {
+        payload.bridge = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
       }
 
       // Convert to frontend template format

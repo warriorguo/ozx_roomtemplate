@@ -17,6 +17,7 @@ interface CellProps {
   showErrors: boolean;
   layer: LayerType;
   groundValue: CellValue;      // ground层的值
+  bridgeValue: CellValue;      // bridge层的值
   staticValue: CellValue;      // static层的值
   turretValue: CellValue;      // turret层的值
   mobGroundValue: CellValue;   // mobGround层的值
@@ -38,6 +39,7 @@ const Cell: React.FC<CellProps> = ({
   showErrors,
   layer,
   groundValue,
+  bridgeValue,
   staticValue,
   turretValue,
   mobGroundValue,
@@ -107,7 +109,7 @@ const Cell: React.FC<CellProps> = ({
 
     // 总图层视图：按优先级显示所有层的数据
     if (isCompositeView && isVisible) {
-      // 优先级：mobAir > mobGround > turret > static > ground
+      // 优先级：mobAir > mobGround > turret > static > bridge > ground
       if (mobAirValue === 1) {
         baseStyle.backgroundColor = '#87CEEB'; // Sky blue (mobAir)
       } else if (mobGroundValue === 1) {
@@ -116,6 +118,8 @@ const Cell: React.FC<CellProps> = ({
         baseStyle.backgroundColor = '#4169E1'; // Blue (turret)
       } else if (staticValue === 1) {
         baseStyle.backgroundColor = '#FFA500'; // Orange (static)
+      } else if (bridgeValue === 1) {
+        baseStyle.backgroundColor = '#9966CC'; // Purple (bridge)
       } else if (groundValue === 1) {
         baseStyle.backgroundColor = '#90EE90'; // Light green (ground)
       } else {
@@ -140,6 +144,9 @@ const Cell: React.FC<CellProps> = ({
           case 'ground':
             baseStyle.backgroundColor = '#90EE90'; // Light green
             break;
+          case 'bridge':
+            baseStyle.backgroundColor = '#9966CC'; // Purple
+            break;
           case 'static':
             baseStyle.backgroundColor = '#FFA500'; // Orange
             break;
@@ -156,9 +163,23 @@ const Cell: React.FC<CellProps> = ({
       } else {
         // 当前层值为0时，根据依赖关系显示不同背景色
         switch (layer) {
-          case 'static':
-            // static层：ground=1 显示浅绿色
+          case 'bridge':
+            // bridge层：ground=0 显示可放置(白色)，ground=1 显示不可放置(浅红色)
             if (groundValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在walkable ground上
+              baseStyle.border = '1px solid #FFB3B3';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
+          case 'static':
+            // static层：bridge=1 显示浅紫色，ground=1 显示浅绿色
+            if (bridgeValue === 1) {
+              baseStyle.backgroundColor = '#E5D3FF'; // 浅紫色 - 不能放置在bridge上
+              baseStyle.border = '1px solid #D1B3FF';
+            } else if (groundValue === 1) {
               baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
               baseStyle.border = '1px solid #C8E6C9';
             } else {
@@ -168,8 +189,11 @@ const Cell: React.FC<CellProps> = ({
             break;
 
           case 'turret':
-            // turret层：static=1 显示浅橘色，否则 ground=1 显示浅绿色
-            if (staticValue === 1) {
+            // turret层：bridge=1 显示浅紫色，static=1 显示浅橘色，ground=1/bridge=1 显示浅绿色
+            if (bridgeValue === 1) {
+              baseStyle.backgroundColor = '#E5D3FF'; // 浅紫色 - 不能放置在bridge上
+              baseStyle.border = '1px solid #D1B3FF';
+            } else if (staticValue === 1) {
               baseStyle.backgroundColor = '#FFE5CC'; // 浅橘色
               baseStyle.border = '1px solid #FFD4A3';
             } else if (groundValue === 1) {
@@ -182,8 +206,11 @@ const Cell: React.FC<CellProps> = ({
             break;
 
           case 'mobGround':
-            // mobGround层：turret=1 显示浅蓝色，static=1 显示浅橘色，ground=1 显示浅绿色
-            if (turretValue === 1) {
+            // mobGround层：bridge=1 显示浅紫色，turret=1 显示浅蓝色，static=1 显示浅橘色，ground=1 显示浅绿色
+            if (bridgeValue === 1) {
+              baseStyle.backgroundColor = '#E5D3FF'; // 浅紫色 - 不能放置在bridge上
+              baseStyle.border = '1px solid #D1B3FF';
+            } else if (turretValue === 1) {
               baseStyle.backgroundColor = '#E3F2FD'; // 浅蓝色
               baseStyle.border = '1px solid #BBDEFB';
             } else if (staticValue === 1) {
@@ -199,8 +226,8 @@ const Cell: React.FC<CellProps> = ({
             break;
 
           case 'mobAir':
-            // mobAir层：ground=1 显示浅绿色
-            if (groundValue === 1) {
+            // mobAir层：ground=1 或 bridge=1 显示浅绿色
+            if (groundValue === 1 || bridgeValue === 1) {
               baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
               baseStyle.border = '1px solid #C8E6C9';
             } else {
@@ -273,7 +300,6 @@ const Cell: React.FC<CellProps> = ({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={onCellMouseLeave}
       onDragStart={(e) => e.preventDefault()} // 禁用拖拽
-      onSelectStart={(e) => e.preventDefault()} // 禁用选择
       title={`(${x}, ${y}) - ${layer}: ${value}${!isValid && value === 1 ? ' [INVALID]' : ''}`}
     >
     </div>
@@ -311,14 +337,10 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
     // Disable text selection during drag
     if (uiState.dragState.isDragging) {
       document.body.style.userSelect = 'none';
-      document.body.style.webkitUserSelect = 'none';
-      document.body.style.mozUserSelect = 'none';
-      document.body.style.msUserSelect = 'none';
+      (document.body.style as any).webkitUserSelect = 'none';
     } else {
       document.body.style.userSelect = '';
-      document.body.style.webkitUserSelect = '';
-      document.body.style.mozUserSelect = '';
-      document.body.style.msUserSelect = '';
+      (document.body.style as any).webkitUserSelect = '';
     }
 
     document.addEventListener('mouseup', handleMouseUp);
@@ -326,9 +348,7 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
       document.removeEventListener('mouseup', handleMouseUp);
       // Cleanup: restore text selection
       document.body.style.userSelect = '';
-      document.body.style.webkitUserSelect = '';
-      document.body.style.mozUserSelect = '';
-      document.body.style.msUserSelect = '';
+      (document.body.style as any).webkitUserSelect = '';
     };
   }, [uiState.dragState.isDragging, endDrag]);
 
@@ -447,6 +467,7 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
             const cellValue = template[layer][y][x];
             const cellValid = validationResult?.layerValidation[layer]?.[y]?.[x] ?? true;
             const groundValue = template.ground[y][x];          // 获取对应位置的ground值
+            const bridgeValue = template.bridge[y][x];          // 获取对应位置的bridge值
             const staticValue = template.static[y][x];          // 获取对应位置的static值
             const turretValue = template.turret[y][x];          // 获取对应位置的turret值
             const mobGroundValue = template.mobGround[y][x];    // 获取对应位置的mobGround值
@@ -463,6 +484,7 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 showErrors={uiState.showErrors}
                 layer={layer}
                 groundValue={groundValue}
+                bridgeValue={bridgeValue}
                 staticValue={staticValue}
                 turretValue={turretValue}
                 mobGroundValue={mobGroundValue}
