@@ -17,6 +17,7 @@ interface CellProps {
   showErrors: boolean;
   layer: LayerType;
   groundValue: CellValue;      // ground层的值
+  softEdgeValue: CellValue;    // softEdge层的值
   bridgeValue: CellValue;      // bridge层的值
   staticValue: CellValue;      // static层的值
   turretValue: CellValue;      // turret层的值
@@ -39,6 +40,7 @@ const Cell: React.FC<CellProps> = ({
   showErrors,
   layer,
   groundValue,
+  softEdgeValue: _softEdgeValue,
   bridgeValue,
   staticValue,
   turretValue,
@@ -144,6 +146,9 @@ const Cell: React.FC<CellProps> = ({
           case 'ground':
             baseStyle.backgroundColor = '#90EE90'; // Light green
             break;
+          case 'softEdge':
+            baseStyle.backgroundColor = '#808080'; // Gray
+            break;
           case 'bridge':
             baseStyle.backgroundColor = '#9966CC'; // Purple
             break;
@@ -163,6 +168,16 @@ const Cell: React.FC<CellProps> = ({
       } else {
         // 当前层值为0时，根据依赖关系显示不同背景色
         switch (layer) {
+          case 'softEdge':
+            // softEdge层：ground=1 显示不可放置(浅红色)，ground=0 显示白色
+            if (groundValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能与ground重叠
+              baseStyle.border = '1px solid #FFB3B3';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
           case 'bridge':
             // bridge层：ground=0 显示可放置(白色)，ground=1 显示不可放置(浅红色)
             if (groundValue === 1) {
@@ -467,6 +482,7 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
             const cellValue = template[layer][y][x];
             const cellValid = validationResult?.layerValidation[layer]?.[y]?.[x] ?? true;
             const groundValue = template.ground[y][x];          // 获取对应位置的ground值
+            const softEdgeValue = template.softEdge[y][x];      // 获取对应位置的softEdge值
             const bridgeValue = template.bridge[y][x];          // 获取对应位置的bridge值
             const staticValue = template.static[y][x];          // 获取对应位置的static值
             const turretValue = template.turret[y][x];          // 获取对应位置的turret值
@@ -484,6 +500,7 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 showErrors={uiState.showErrors}
                 layer={layer}
                 groundValue={groundValue}
+                softEdgeValue={softEdgeValue}
                 bridgeValue={bridgeValue}
                 staticValue={staticValue}
                 turretValue={turretValue}

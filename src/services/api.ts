@@ -33,6 +33,7 @@ export interface BackendTileProperties {
 
 export interface BackendTemplatePayload {
   ground: number[][];
+  softEdge?: number[][]; // Optional for backward compatibility
   bridge?: number[][]; // Optional for backward compatibility
   static: number[][];
   turret: number[][];

@@ -23,6 +23,7 @@ export function frontendToBackendCreateRequest(
     name,
     payload: {
       ground: template.ground,
+      softEdge: template.softEdge,
       bridge: template.bridge,
       static: template.static,
       turret: template.turret,
@@ -54,6 +55,8 @@ export function backendToFrontendTemplate(
     width: backendTemplate.width,
     height: backendTemplate.height,
     ground: backendTemplate.payload.ground as Grid<CellValue>,
+    softEdge: (backendTemplate.payload.softEdge || 
+      Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
     bridge: (backendTemplate.payload.bridge || 
       Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
     static: backendTemplate.payload.static as Grid<CellValue>,
@@ -98,6 +101,7 @@ export function frontendToBackendPayload(
 ): BackendTemplatePayload {
   return {
     ground: template.ground,
+    softEdge: template.softEdge,
     bridge: template.bridge,
     static: template.static,
     turret: template.turret,

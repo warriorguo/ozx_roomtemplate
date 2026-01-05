@@ -47,6 +47,7 @@ type DoorsConnected struct {
 // TemplatePayload represents the complete template data as received from frontend
 type TemplatePayload struct {
 	Ground         Layer           `json:"ground"`
+	SoftEdge       Layer           `json:"softEdge,omitempty"` // Optional for backward compatibility
 	Bridge         Layer           `json:"bridge,omitempty"` // Optional for backward compatibility
 	Static         Layer           `json:"static"`
 	Turret         Layer           `json:"turret"`

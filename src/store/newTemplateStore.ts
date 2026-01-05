@@ -105,6 +105,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       hoveredCell: null,
       layerVisibility: {
         ground: true,
+        softEdge: true,
         bridge: true,
         static: true,
         turret: true,
@@ -532,6 +533,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         })),
         layerValidation: {
           ground: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
+          softEdge: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           bridge: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           static: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           turret: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),

@@ -18,6 +18,12 @@ const layerConfigs: Array<{
     description: 'Walkable areas - foundation for all other layers'
   },
   {
+    layer: 'softEdge',
+    title: 'Soft Edge (软边缘)',
+    color: '#808080',
+    description: 'Soft edge tiles - must be adjacent to ground but not overlap'
+  },
+  {
     layer: 'bridge',
     title: 'Bridge (桥梁)',
     color: '#9966CC',

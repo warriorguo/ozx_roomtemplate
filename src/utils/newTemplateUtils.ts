@@ -62,6 +62,7 @@ export function createEmptyTemplate(width: number, height: number): Template {
     width,
     height,
     ground: createLayer(),
+    softEdge: createLayer(),
     bridge: createLayer(),
     static: createLayer(),
     turret: createLayer(),
@@ -133,12 +134,46 @@ export function validateCellRules(
 
   return {
     ground: true, // Ground has no constraints
+    softEdge: validateSoftEdgeCell(template, x, y),
     bridge: validateBridgeCell(template, x, y),
     static: static_ === 0 || (ground === 1 || bridge === 1) && bridge === 0, // Static can't be placed on bridge
     turret: turret === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && bridge === 0),
     mobGround: mobGround === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && turret === 0 && bridge === 0),
     mobAir: true, // MobAir has no constraints
   };
+}
+
+// Validate soft edge placement: must be adjacent to ground but not overlap with ground
+function validateSoftEdgeCell(template: Template, x: number, y: number): boolean {
+  const softEdge = template.softEdge[y][x];
+  if (softEdge === 0) return true; // Empty soft edge cells are always valid
+  
+  const ground = template.ground[y][x];
+  
+  // Soft edge cannot overlap with ground
+  if (ground === 1) return false;
+  
+  // Check if soft edge is adjacent to at least one ground tile
+  const directions = [
+    { dx: -1, dy: 0 }, // left
+    { dx: 1, dy: 0 },  // right
+    { dx: 0, dy: -1 }, // up
+    { dx: 0, dy: 1 }   // down
+  ];
+  
+  for (const dir of directions) {
+    const nx = x + dir.dx;
+    const ny = y + dir.dy;
+    
+    // Check bounds
+    if (nx >= 0 && nx < template.width && ny >= 0 && ny < template.height) {
+      if (template.ground[ny][nx] === 1) {
+        return true; // Found adjacent ground tile
+      }
+    }
+  }
+  
+  return false; // No adjacent ground tile found
 }
 
 // Validate bridge placement: bridge should span unwalkable areas (ground=0) to connect walkable areas
@@ -188,6 +223,7 @@ export function validateTemplate(template: Template): ValidationResult {
   const errors: ValidationError[] = [];
   const layerValidation: LayerValidation = {
     ground: [],
+    softEdge: [],
     bridge: [],
     static: [],
     turret: [],
@@ -198,6 +234,7 @@ export function validateTemplate(template: Template): ValidationResult {
   // Initialize validation grids
   for (let y = 0; y < template.height; y++) {
     layerValidation.ground[y] = [];
+    layerValidation.softEdge[y] = [];
     layerValidation.bridge[y] = [];
     layerValidation.static[y] = [];
     layerValidation.turret[y] = [];
@@ -209,6 +246,7 @@ export function validateTemplate(template: Template): ValidationResult {
       
       // Store validation results
       layerValidation.ground[y][x] = cellValidation.ground;
+      layerValidation.softEdge[y][x] = cellValidation.softEdge;
       layerValidation.bridge[y][x] = cellValidation.bridge;
       layerValidation.static[y][x] = cellValidation.static;
       layerValidation.turret[y][x] = cellValidation.turret;
@@ -216,7 +254,7 @@ export function validateTemplate(template: Template): ValidationResult {
       layerValidation.mobAir[y][x] = cellValidation.mobAir;
 
       // Collect errors for cells that have value=1 but are invalid
-      const layers: LayerType[] = ['bridge', 'static', 'turret', 'mobGround', 'mobAir'];
+      const layers: LayerType[] = ['softEdge', 'bridge', 'static', 'turret', 'mobGround', 'mobAir'];
       
       layers.forEach(layer => {
         if (template[layer][y][x] === 1 && !cellValidation[layer]) {
@@ -250,6 +288,9 @@ function getValidationErrorReason(
   const turret = template.turret[y][x];
 
   switch (layer) {
+    case 'softEdge':
+      if (ground === 1) return 'Soft edge cannot overlap with ground';
+      return 'Soft edge must be adjacent to ground';
     case 'bridge':
       if (ground === 1) return 'Bridge cannot be placed on walkable ground';
       return 'Bridge must connect walkable areas';

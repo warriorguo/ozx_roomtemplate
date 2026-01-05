@@ -106,6 +106,11 @@ func validateLayers(payload *model.TemplatePayload) []model.ValidationError {
 		"mobAir":    payload.MobAir,
 	}
 	
+	// Add softEdge layer if present (optional for backward compatibility)
+	if payload.SoftEdge != nil {
+		layers["softEdge"] = payload.SoftEdge
+	}
+	
 	// Add bridge layer if present (optional for backward compatibility)
 	if payload.Bridge != nil {
 		layers["bridge"] = payload.Bridge
@@ -172,6 +177,10 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			ground := payload.Ground[y][x]
+			var softEdge int = 0
+			if payload.SoftEdge != nil && len(payload.SoftEdge) > y && len(payload.SoftEdge[y]) > x {
+				softEdge = payload.SoftEdge[y][x]
+			}
 			var bridge int = 0
 			if payload.Bridge != nil && len(payload.Bridge) > y && len(payload.Bridge[y]) > x {
 				bridge = payload.Bridge[y][x]
@@ -179,6 +188,29 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 			static := payload.Static[y][x]
 			turret := payload.Turret[y][x]
 			mobGround := payload.MobGround[y][x]
+
+			// SoftEdge validation rules
+			if softEdge == 1 {
+				// Rule: softEdge==1 => ground==0 (softEdge cannot overlap with ground)
+				if ground == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "softEdge",
+						X:      x,
+						Y:      y,
+						Reason: "soft edge cannot overlap with ground",
+					})
+				}
+
+				// Rule: softEdge must be adjacent to at least one ground tile
+				if !isAdjacentToGround(payload, x, y, width, height) {
+					errors = append(errors, model.ValidationError{
+						Layer:  "softEdge",
+						X:      x,
+						Y:      y,
+						Reason: "soft edge must be adjacent to ground",
+					})
+				}
+			}
 
 			// Bridge validation rules
 			if bridge == 1 {
@@ -331,4 +363,26 @@ func isWalkable(payload *model.TemplatePayload, x, y, width, height int) bool {
 	}
 
 	return ground == 1 || bridge == 1
+}
+
+// isAdjacentToGround checks if a position is adjacent to at least one ground tile
+func isAdjacentToGround(payload *model.TemplatePayload, x, y, width, height int) bool {
+	// Check all four directions
+	directions := []struct{ dx, dy int }{
+		{-1, 0}, {1, 0},  // left, right
+		{0, -1}, {0, 1},  // up, down
+	}
+
+	for _, dir := range directions {
+		nx, ny := x+dir.dx, y+dir.dy
+		
+		// Check bounds
+		if nx >= 0 && nx < width && ny >= 0 && ny < height {
+			if payload.Ground[ny][nx] == 1 {
+				return true // Found adjacent ground tile
+			}
+		}
+	}
+
+	return false // No adjacent ground tile found
 }
