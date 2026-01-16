@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+tile-backend/vendor/
+
+# Build outputs
+dist/
+tile-backend/bin/
+tile-backend/server
+
+# Development files
+.git/
+.gitignore
+.env
+.env.*
+!.env.example
+tile-backend/.env
+tile-backend/.env.*
+!tile-backend/.env.example
+
+# IDE and editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation (not needed in image)
+*.md
+!README.md
+
+# Test files
+tile-backend/tests/
+tile-backend/*_test.go
+coverage.out
+
+# Docker
+Dockerfile
+docker-compose*.yml
+.dockerignore
