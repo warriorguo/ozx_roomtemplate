@@ -423,6 +423,156 @@ func (suite *IntegrationTestSuite) TestConcurrentOperations() {
 	assert.Equal(suite.T(), numGoroutines, listResp.Total)
 }
 
+func (suite *IntegrationTestSuite) TestGenerateBridge_Success() {
+	// Test generating a bridge with two doors
+	generateReq := map[string]interface{}{
+		"width":  15,
+		"height": 12,
+		"doors":  []string{"top", "bottom"},
+	}
+
+	generateBody, _ := json.Marshal(generateReq)
+	resp, err := http.Post(suite.server.URL+"/api/v1/generate/bridge", "application/json", bytes.NewReader(generateBody))
+	require.NoError(suite.T(), err)
+	defer resp.Body.Close()
+
+	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
+
+	var generateResp map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&generateResp)
+	require.NoError(suite.T(), err)
+
+	// Verify payload exists
+	payload, ok := generateResp["payload"].(map[string]interface{})
+	require.True(suite.T(), ok, "payload should exist")
+
+	// Verify ground layer exists and has correct dimensions
+	ground, ok := payload["ground"].([]interface{})
+	require.True(suite.T(), ok, "ground layer should exist")
+	assert.Equal(suite.T(), 12, len(ground), "ground should have 12 rows")
+
+	firstRow, ok := ground[0].([]interface{})
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), 15, len(firstRow), "ground should have 15 columns")
+
+	// Verify roomType is bridge
+	roomType, ok := payload["roomType"].(string)
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), "bridge", roomType)
+
+	// Verify doors
+	doors, ok := payload["doors"].(map[string]interface{})
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), float64(1), doors["top"])
+	assert.Equal(suite.T(), float64(0), doors["right"])
+	assert.Equal(suite.T(), float64(1), doors["bottom"])
+	assert.Equal(suite.T(), float64(0), doors["left"])
+
+	// Verify other layers exist and are empty
+	for _, layerName := range []string{"softEdge", "bridge", "static", "turret", "mobGround", "mobAir"} {
+		layer, ok := payload[layerName].([]interface{})
+		require.True(suite.T(), ok, "%s layer should exist", layerName)
+		assert.Equal(suite.T(), 12, len(layer), "%s should have 12 rows", layerName)
+	}
+}
+
+func (suite *IntegrationTestSuite) TestGenerateBridge_FourDoors() {
+	generateReq := map[string]interface{}{
+		"width":  20,
+		"height": 20,
+		"doors":  []string{"top", "right", "bottom", "left"},
+	}
+
+	generateBody, _ := json.Marshal(generateReq)
+	resp, err := http.Post(suite.server.URL+"/api/v1/generate/bridge", "application/json", bytes.NewReader(generateBody))
+	require.NoError(suite.T(), err)
+	defer resp.Body.Close()
+
+	assert.Equal(suite.T(), http.StatusOK, resp.StatusCode)
+
+	var generateResp map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&generateResp)
+	require.NoError(suite.T(), err)
+
+	payload, ok := generateResp["payload"].(map[string]interface{})
+	require.True(suite.T(), ok)
+
+	// Verify all doors are set
+	doors, ok := payload["doors"].(map[string]interface{})
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), float64(1), doors["top"])
+	assert.Equal(suite.T(), float64(1), doors["right"])
+	assert.Equal(suite.T(), float64(1), doors["bottom"])
+	assert.Equal(suite.T(), float64(1), doors["left"])
+}
+
+func (suite *IntegrationTestSuite) TestGenerateBridge_NotEnoughDoors() {
+	// Test with only one door - should fail
+	generateReq := map[string]interface{}{
+		"width":  10,
+		"height": 10,
+		"doors":  []string{"top"},
+	}
+
+	generateBody, _ := json.Marshal(generateReq)
+	resp, err := http.Post(suite.server.URL+"/api/v1/generate/bridge", "application/json", bytes.NewReader(generateBody))
+	require.NoError(suite.T(), err)
+	defer resp.Body.Close()
+
+	assert.Equal(suite.T(), http.StatusBadRequest, resp.StatusCode)
+
+	var errorResp map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&errorResp)
+	require.NoError(suite.T(), err)
+
+	assert.Contains(suite.T(), errorResp["message"], "2 doors")
+}
+
+func (suite *IntegrationTestSuite) TestGenerateBridge_NoDoors() {
+	generateReq := map[string]interface{}{
+		"width":  10,
+		"height": 10,
+		"doors":  []string{},
+	}
+
+	generateBody, _ := json.Marshal(generateReq)
+	resp, err := http.Post(suite.server.URL+"/api/v1/generate/bridge", "application/json", bytes.NewReader(generateBody))
+	require.NoError(suite.T(), err)
+	defer resp.Body.Close()
+
+	assert.Equal(suite.T(), http.StatusBadRequest, resp.StatusCode)
+}
+
+func (suite *IntegrationTestSuite) TestGenerateBridge_InvalidDimensions() {
+	// Test with dimensions too small
+	generateReq := map[string]interface{}{
+		"width":  2,
+		"height": 2,
+		"doors":  []string{"top", "bottom"},
+	}
+
+	generateBody, _ := json.Marshal(generateReq)
+	resp, err := http.Post(suite.server.URL+"/api/v1/generate/bridge", "application/json", bytes.NewReader(generateBody))
+	require.NoError(suite.T(), err)
+	defer resp.Body.Close()
+
+	assert.Equal(suite.T(), http.StatusBadRequest, resp.StatusCode)
+
+	var errorResp map[string]interface{}
+	err = json.NewDecoder(resp.Body).Decode(&errorResp)
+	require.NoError(suite.T(), err)
+
+	assert.Contains(suite.T(), errorResp["message"], "dimension")
+}
+
+func (suite *IntegrationTestSuite) TestGenerateBridge_InvalidJSON() {
+	resp, err := http.Post(suite.server.URL+"/api/v1/generate/bridge", "application/json", bytes.NewReader([]byte("invalid json")))
+	require.NoError(suite.T(), err)
+	defer resp.Body.Close()
+
+	assert.Equal(suite.T(), http.StatusBadRequest, resp.StatusCode)
+}
+
 // TestIntegrationSuite runs the integration test suite
 func TestIntegrationSuite(t *testing.T) {
 	suite.Run(t, new(IntegrationTestSuite))

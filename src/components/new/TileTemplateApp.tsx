@@ -1,9 +1,11 @@
+import { useState } from 'react';
 import { ToolBar } from './ToolBar';
 import { LayerEditor } from './LayerEditor';
 import { CompositeLayerEditor } from './CompositeLayerEditor';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
 import { ROOM_TYPES } from '../../types/newTemplate';
+import { templateApi, type DoorPosition } from '../../services/api';
 
 const layerConfigs: Array<{
   layer: LayerType;
@@ -56,7 +58,78 @@ const layerConfigs: Array<{
 ];
 
 export const TileTemplateApp: React.FC = () => {
-  const { uiState, template, apiState, toggleRoomAttribute, setRoomType } = useNewTemplateStore();
+  const { uiState, template, apiState, toggleRoomAttribute, setRoomType, loadTemplateFromJSON } = useNewTemplateStore();
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+  const [selectedDoors, setSelectedDoors] = useState<{ top: boolean; right: boolean; bottom: boolean; left: boolean }>({
+    top: false,
+    right: false,
+    bottom: false,
+    left: false,
+  });
+
+  // Toggle door selection
+  const toggleDoorSelection = (door: 'top' | 'right' | 'bottom' | 'left') => {
+    setSelectedDoors(prev => ({ ...prev, [door]: !prev[door] }));
+  };
+
+  // Check if ground layer has data
+  const hasGroundData = (): boolean => {
+    for (let y = 0; y < template.height; y++) {
+      for (let x = 0; x < template.width; x++) {
+        if (template.ground[y][x] === 1) {
+          return true;
+        }
+      }
+    }
+    return false;
+  };
+
+  // Handle room generation
+  const handleGenerateRoom = async () => {
+    const doors: DoorPosition[] = [];
+    if (selectedDoors.top) doors.push('top');
+    if (selectedDoors.right) doors.push('right');
+    if (selectedDoors.bottom) doors.push('bottom');
+    if (selectedDoors.left) doors.push('left');
+
+    if (doors.length < 2) {
+      setGenerateError('Please select at least 2 doors to generate a room.');
+      return;
+    }
+
+    // Check if ground has data and confirm overwrite
+    if (hasGroundData()) {
+      const confirmed = window.confirm(
+        'The Ground layer already has data. Generating a new room will overwrite all existing layers.\n\nAre you sure you want to continue?'
+      );
+      if (!confirmed) {
+        return;
+      }
+    }
+
+    setIsGenerating(true);
+    setGenerateError(null);
+
+    try {
+      const response = await templateApi.generateBridge({
+        width: template.width,
+        height: template.height,
+        doors,
+      });
+
+      // Load the generated template
+      await loadTemplateFromJSON({
+        name: `generated-${template.roomType}-${template.width}x${template.height}`,
+        payload: response.payload,
+      });
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to generate room';
+      setGenerateError(errorMessage);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
 
   const ErrorSummary: React.FC = () => {
     const { validationResult } = uiState;
@@ -404,6 +477,122 @@ export const TileTemplateApp: React.FC = () => {
                       </label>
                     ))}
                   </div>
+
+                  {/* Generate Room Panel */}
+                  {template.roomType === 'bridge' && (
+                    <div style={{
+                      marginTop: '12px',
+                      paddingTop: '12px',
+                      borderTop: '1px solid #dee2e6',
+                    }}>
+                      <div style={{
+                        fontWeight: 'bold',
+                        fontSize: '13px',
+                        marginBottom: '10px',
+                        color: '#333',
+                      }}>
+                        Select Doors to Connect:
+                      </div>
+
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: '1fr 1fr',
+                        gap: '8px',
+                        marginBottom: '12px',
+                      }}>
+                        {(['top', 'right', 'bottom', 'left'] as const).map(door => (
+                          <label
+                            key={door}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              padding: '8px 10px',
+                              backgroundColor: selectedDoors[door] ? '#d4edda' : 'white',
+                              border: selectedDoors[door] ? '2px solid #28a745' : '1px solid #ddd',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedDoors[door]}
+                              onChange={() => toggleDoorSelection(door)}
+                              style={{
+                                cursor: 'pointer',
+                                accentColor: '#28a745',
+                                width: '16px',
+                                height: '16px',
+                              }}
+                            />
+                            <span style={{
+                              fontWeight: selectedDoors[door] ? 'bold' : 'normal',
+                              color: selectedDoors[door] ? '#155724' : '#333',
+                              textTransform: 'capitalize',
+                            }}>
+                              {door}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+
+                      <div style={{
+                        fontSize: '11px',
+                        color: '#6c757d',
+                        marginBottom: '10px',
+                      }}>
+                        Size: {template.width} x {template.height} | Select at least 2 doors
+                      </div>
+
+                      {generateError && (
+                        <div style={{
+                          marginBottom: '10px',
+                          padding: '8px',
+                          backgroundColor: '#f8d7da',
+                          border: '1px solid #f5c6cb',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          color: '#721c24',
+                        }}>
+                          {generateError}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={handleGenerateRoom}
+                        disabled={isGenerating}
+                        style={{
+                          width: '100%',
+                          padding: '10px 16px',
+                          backgroundColor: isGenerating ? '#6c757d' : '#9966CC',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: isGenerating ? 'not-allowed' : 'pointer',
+                          fontWeight: 'bold',
+                          fontSize: '14px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          transition: 'background-color 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isGenerating) {
+                            e.currentTarget.style.backgroundColor = '#7a4db5';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isGenerating) {
+                            e.currentTarget.style.backgroundColor = '#9966CC';
+                          }
+                        }}
+                      >
+                        {isGenerating ? 'Generating...' : '🎲 Generate Room'}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 

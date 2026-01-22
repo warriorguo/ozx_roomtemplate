@@ -316,6 +316,29 @@ export class TemplateApiService {
   async healthCheck(): Promise<{ status: string }> {
     return this.makeRequest<{ status: string }>('/health');
   }
+
+  /**
+   * Generate a bridge-type room
+   */
+  async generateBridge(request: BridgeGenerateRequest): Promise<BridgeGenerateResponse> {
+    return this.makeRequest<BridgeGenerateResponse>('/generate/bridge', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+}
+
+// Bridge generation types
+export type DoorPosition = 'top' | 'right' | 'bottom' | 'left';
+
+export interface BridgeGenerateRequest {
+  width: number;
+  height: number;
+  doors: DoorPosition[];
+}
+
+export interface BridgeGenerateResponse {
+  payload: BackendTemplatePayload;
 }
 
 // Create singleton instance

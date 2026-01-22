@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"tile-backend/internal/generate"
 	"tile-backend/internal/model"
 	"tile-backend/internal/store"
 	"tile-backend/internal/validate"
@@ -360,4 +361,30 @@ func (h *TemplateHandler) respondValidationError(w http.ResponseWriter, result *
 	}
 
 	h.respondJSON(w, http.StatusBadRequest, response)
+}
+
+// GenerateBridge handles POST /api/v1/generate/bridge
+func (h *TemplateHandler) GenerateBridge(w http.ResponseWriter, r *http.Request) {
+	var req generate.BridgeGenerateRequest
+
+	// Parse request body
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid JSON", err.Error())
+		return
+	}
+
+	// Validate doors
+	if len(req.Doors) < 2 {
+		h.respondError(w, http.StatusBadRequest, "Invalid request", "at least 2 doors are required")
+		return
+	}
+
+	// Generate bridge room
+	result, err := generate.GenerateBridgeRoom(req)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Generation failed", err.Error())
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, result)
 }
