@@ -1,138 +1,241 @@
 # Room Template Editor
 
-A React-based visual editor for creating game room tile templates with three distinct layers.
+A full-stack visual editor for creating game room tile templates with a multi-layer system, rule-based validation, and backend storage.
 
 ## Features
 
-- **Visual Grid Editor**: Click-based editing with real-time visual feedback
-- **Three-Layer System**: Ground, Static, and Monster layers with different rules
-- **Import/Export**: JSON-based template files with validation and auto-correction
-- **Layer Management**: Toggle visibility and switch between editing layers
-- **Smart Validation**: Automatic constraint enforcement and error correction
+- **Multi-Layer System**: 7 layers (Ground, SoftEdge, Bridge, Static, Turret, MobGround, MobAir) with hierarchical constraints
+- **Visual Grid Editor**: Click and drag painting with real-time validation
+- **Ground Auto-Generation**: Rule-driven room layout generation with door placement
+- **Room Attributes**: Boss, Elite, Mob, Treasure, Teleport, Story tags
+- **Room Types**: Full Room, Bridge, Platform classifications
+- **Backend Storage**: PostgreSQL-based template persistence with thumbnails
+- **Advanced Filtering**: Filter templates by doors, room type, and attributes
+- **Docker Support**: Ready for containerized deployment
 
 ## Quick Start
 
+### Prerequisites
+
+- Node.js 18+
+- Go 1.22+
+- PostgreSQL 12+
+
+### Setup
+
 ```bash
+# 1. Install frontend dependencies
 npm install
+
+# 2. Setup backend
+cd tile-backend
+go mod tidy
+
+# 3. Create database and run migrations
+createdb tile_templates
+psql -d tile_templates -f migrations/001_create_room_templates.up.sql
+psql -d tile_templates -f migrations/002_add_thumbnail.up.sql
+psql -d tile_templates -f migrations/003_add_computed_fields.up.sql
+
+# 4. Configure environment
+cd ..
+cp .env.example .env
+# Edit .env: VITE_API_BASE_URL=http://localhost:8090/api/v1
+
+cp tile-backend/.env.example tile-backend/.env
+# Edit tile-backend/.env with your database settings
+```
+
+### Run
+
+```bash
+# Terminal 1 - Backend (port 8090)
+cd tile-backend
+go run cmd/server/main.go
+
+# Terminal 2 - Frontend (port 5173)
 npm run dev
 ```
 
-Open your browser and navigate to the displayed URL to start editing templates.
+Open http://localhost:5173 in your browser.
+
+## Layer System
+
+### Layer Hierarchy
+
+| Layer | Description | Constraints |
+|-------|-------------|-------------|
+| **Ground** | Walkable floor tiles | None |
+| **SoftEdge** | Soft edge markers | `ground=1` |
+| **Bridge** | Bridge tiles | `ground=1` |
+| **Static** | Item placement zones | `ground=1` |
+| **Turret** | Defensive positions | `ground=1 AND static=0` |
+| **MobGround** | Ground enemy spawns | `ground=1 AND static=0 AND turret=0` |
+| **MobAir** | Flying enemy spawns | None |
+
+### Validation Rules
+
+```
+Static:    valid if static=0    OR ground=1
+Turret:    valid if turret=0    OR (ground=1 AND static=0)
+MobGround: valid if mobGround=0 OR (ground=1 AND static=0 AND turret=0)
+MobAir:    always valid
+```
+
+Invalid cells are highlighted with red borders in real-time.
+
+## Room Configuration
+
+### Room Types
+
+- **Full Room**: Standard enclosed room
+- **Bridge**: Connecting corridor
+- **Platform**: Floating platform area
+
+### Room Attributes
+
+- Boss, Elite, Mob, Treasure, Teleport, Story
+
+### Door Connectivity
+
+Doors can be placed on four sides (Top, Right, Bottom, Left) and automatically tracked for filtering.
 
 ## Data Format
 
-Templates are exported as JSON with the following structure:
-
 ```json
 {
-  "version": 1,
-  "width": 15,
-  "height": 11,
-  "ground": [[0,1,0,...], ...],
-  "static": [[0,0,1,...], ...],
-  "monster": [[0,1,2,...], ...]
+  "name": "example-room",
+  "payload": {
+    "ground": [[0,1,1,...], ...],
+    "softEdge": [[0,0,0,...], ...],
+    "bridge": [[0,0,0,...], ...],
+    "static": [[0,0,1,...], ...],
+    "turret": [[0,0,0,...], ...],
+    "mobGround": [[0,0,0,...], ...],
+    "mobAir": [[0,1,0,...], ...],
+    "doors": { "top": 1, "right": 0, "bottom": 1, "left": 0 },
+    "attributes": {
+      "boss": false, "elite": true, "mob": true,
+      "treasure": false, "teleport": false, "story": false
+    },
+    "roomType": "full",
+    "meta": {
+      "name": "example-room",
+      "version": 1,
+      "width": 20,
+      "height": 12
+    }
+  }
 }
 ```
 
-### Layer Rules
+## API Endpoints
 
-#### Ground Layer
-- **Values**: `0` (non-walkable, gray) | `1` (walkable floor, light green)
-- **Interaction**: 
-  - Click to toggle between 0 and 1
-  - **Drag to paint/erase**: Hold and drag mouse to batch edit tiles
-  - Drag automatically detects whether to set or clear based on first clicked tile
-- **Constraints**: Changing to 0 automatically clears static items and land monsters
+Base URL: `http://localhost:8090/api/v1`
 
-#### Static Layer
-- **Values**: `0` (no items) | `1` (can place items, orange corner marker)
-- **Interaction**: Click to toggle, only works on ground tiles (ground = 1)
-- **Constraints**: Cannot be set to 1 on non-ground tiles
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/templates` | Create template |
+| GET | `/templates` | List templates with filters |
+| GET | `/templates/{id}` | Get template by ID |
+| DELETE | `/templates/{id}` | Delete template |
+| POST | `/templates/validate` | Validate template |
+| GET | `/health` | Health check |
 
-#### Monster Layer
-- **Values**: 
-  - `0` (empty)
-  - `1` (land monster spawn, pink circle) - ground only
-  - `2` (flying monster spawn, blue circle) - anywhere
-- **Interaction**: 
-  - On ground tiles: `0 → 1 → 2 → 0`
-  - On non-ground tiles: `0 → 2 → 0`
+### Filter Parameters
 
-## Controls
+```
+GET /templates?room_type=full&has_boss=true&top_door_connected=true
+```
 
-- **Layer Selection**: Click layer buttons to switch editing mode
-- **Visibility Toggle**: Eye icons to show/hide each layer
-- **Ground Layer Editing**:
-  - **Single Click**: Toggle individual tiles between walkable/non-walkable
-  - **Drag Operation**: Hold mouse button and drag to paint/erase multiple tiles
-    - First tile determines mode: drag on empty = paint, drag on floor = erase
-    - Visual feedback shows drag cursor and blue outline during operation
-- **New Template**: Create templates with custom dimensions (1-200)
-- **Import**: Load JSON files with automatic validation and correction
-- **Export**: Save as single JSON or separate layer files
-- **Copy**: Copy JSON to clipboard for easy sharing
+- `name_like` - Search by name
+- `room_type` - full, bridge, platform
+- `has_boss`, `has_elite`, `has_mob`, `has_treasure`, `has_teleport`, `has_story`
+- `top_door_connected`, `right_door_connected`, `bottom_door_connected`, `left_door_connected`
 
-## Visual Guide
+## Project Structure
 
-| Element | Appearance | Description |
-|---------|------------|-------------|
-| Ground (walkable) | Light green background | Safe to walk on |
-| Ground (non-walkable) | Gray background | Cannot walk on |
-| Static items | Orange corner "S" | Item placement zones |
-| Land monsters | Pink circle with "L" | Ground-only spawns |
-| Flying monsters | Blue circle with "F" | Can spawn anywhere |
-| Flying (non-ground) | Dark blue circle | Flying monsters on walls |
+```
+ozx_roomtemplate/
+├── src/                          # Frontend (React + TypeScript)
+│   ├── components/new/           # UI components
+│   │   ├── TileTemplateApp.tsx   # Main application
+│   │   ├── LayerEditor.tsx       # Grid editor
+│   │   ├── SaveLoadPanel.tsx     # Save/Load with filters
+│   │   └── ToolBar.tsx           # Main toolbar
+│   ├── services/
+│   │   ├── api.ts                # Backend API client
+│   │   └── templateConverter.ts  # Data format conversion
+│   ├── store/
+│   │   └── newTemplateStore.ts   # Zustand state management
+│   └── utils/
+│       └── newTemplateUtils.ts   # Validation logic
+│
+├── tile-backend/                 # Backend (Go + PostgreSQL)
+│   ├── cmd/server/               # Entry point
+│   ├── internal/
+│   │   ├── http/                 # HTTP handlers
+│   │   ├── store/                # Database layer
+│   │   ├── model/                # Data models
+│   │   └── validate/             # Validation logic
+│   └── migrations/               # Database migrations
+│
+├── Dockerfile                    # Docker build
+└── .env.example                  # Environment template
+```
 
-## Sample Template
+## Docker Deployment
 
-A sample 15×11 template is included in `sample-template.json` that demonstrates:
-- Basic room layout with walls and walkable areas
-- Strategic item placement locations
-- Mixed monster spawn types
-- Proper constraint adherence
+```bash
+# Build and run
+docker build -t room-template-editor .
+docker run -p 80:80 -e DATABASE_URL=... room-template-editor
+```
+
+The Dockerfile includes nginx for serving the frontend and proxying API requests to the backend.
 
 ## Development
 
-Built with:
-- React + TypeScript
-- Vite for development
-- Zustand for state management
-- DOM-based grid rendering
+### Frontend Commands
 
-### Project Structure
-
-```
-src/
-├── components/           # React components
-│   ├── GridEditor.tsx   # Main grid editor
-│   ├── Toolbar.tsx      # Top toolbar with controls
-│   ├── LayerControl.tsx # Layer visibility and selection
-│   ├── ImportExport.tsx # File operations
-│   ├── InfoPanel.tsx    # Rules and current state
-│   └── NewTemplateDialog.tsx # Template creation
-├── store/
-│   └── templateStore.ts # Zustand state management
-├── types/
-│   └── template.ts      # TypeScript interfaces
-├── utils/
-│   ├── templateUtils.ts # Core logic functions
-│   └── fileUtils.ts     # File operations
-└── App.tsx              # Main application
+```bash
+npm install          # Install dependencies
+npm run dev          # Development server
+npm run build        # Production build
+npm run preview      # Preview build
 ```
 
-### Key Functions
+### Backend Commands
 
-- `createEmptyTemplate(width, height)` - Initialize blank template
-- `toggleGround(template, x, y)` - Toggle ground state with constraint handling
-- `toggleStatic(template, x, y)` - Toggle static items (ground-only)
-- `toggleMonster(template, x, y)` - Cycle monster spawns with smart rules
-- `validateTemplate(data)` - Check template validity
-- `sanitizeTemplate(data)` - Auto-correct invalid templates
+```bash
+cd tile-backend
+go mod tidy          # Install dependencies
+go run cmd/server/main.go  # Run server
+make test            # Run tests
+make build           # Build binary
+```
 
-## Contributing
+### Testing
 
-This is a frontend-only implementation designed for easy extension. Future enhancements might include:
-- Backend integration for template storage
-- Advanced editing tools (brush, fill, undo/redo)
-- Collaborative editing features
-- Template library and sharing
+```bash
+# Backend tests
+cd tile-backend
+make test-unit       # Unit tests
+make test-integration # Integration tests (requires DB)
+```
+
+## Tech Stack
+
+**Frontend:**
+- React 18 + TypeScript
+- Zustand (state management)
+- Vite (build tool)
+
+**Backend:**
+- Go 1.22
+- Chi (HTTP router)
+- pgx (PostgreSQL driver)
+- Zap (logging)
+
+**Database:**
+- PostgreSQL with JSONB storage
