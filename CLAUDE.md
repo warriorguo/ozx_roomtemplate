@@ -269,6 +269,10 @@ make test-integration    # Requires database setup
 - Mirror changes in `src/utils/newTemplateUtils.ts` for real-time feedback
 - Add tests in both locations
 
+### When Modifying Bridge Generation
+- `tile-backend/internal/generate/bridge.go` implements the rules in `tile-backend/documents/bridge-generation-rules.md`
+- When updating generation logic, keep the documentation in sync with the implementation
+
 ### Database Migrations
 - Migration files in `tile-backend/migrations/`
 - Apply all migrations in order:

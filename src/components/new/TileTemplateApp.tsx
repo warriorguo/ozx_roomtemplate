@@ -67,6 +67,8 @@ export const TileTemplateApp: React.FC = () => {
     bottom: false,
     left: false,
   });
+  const [staticCount, setStaticCount] = useState<number>(8);
+  const [turretCount, setTurretCount] = useState<number>(4);
 
   // Toggle door selection
   const toggleDoorSelection = (door: 'top' | 'right' | 'bottom' | 'left') => {
@@ -116,6 +118,8 @@ export const TileTemplateApp: React.FC = () => {
         width: template.width,
         height: template.height,
         doors,
+        staticCount,
+        turretCount,
       });
 
       // Load the generated template
@@ -535,6 +539,82 @@ export const TileTemplateApp: React.FC = () => {
                             </span>
                           </label>
                         ))}
+                      </div>
+
+                      {/* Static Count Input */}
+                      <div style={{
+                        marginBottom: '12px',
+                      }}>
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '13px',
+                        }}>
+                          <span style={{ fontWeight: 'bold', color: '#333' }}>
+                            Static Count:
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="50"
+                            value={staticCount}
+                            onChange={(e) => setStaticCount(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
+                            style={{
+                              width: '60px',
+                              padding: '6px 8px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '13px',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </label>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#6c757d',
+                          marginTop: '4px',
+                        }}>
+                          Number of 2×2 static blocks to place (0-50)
+                        </div>
+                      </div>
+
+                      {/* Turret Count Input */}
+                      <div style={{
+                        marginBottom: '12px',
+                      }}>
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '13px',
+                        }}>
+                          <span style={{ fontWeight: 'bold', color: '#333' }}>
+                            Turret Count:
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            value={turretCount}
+                            onChange={(e) => setTurretCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
+                            style={{
+                              width: '60px',
+                              padding: '6px 8px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '13px',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </label>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#6c757d',
+                          marginTop: '4px',
+                        }}>
+                          Number of 1×1 turret tiles to place (0-30)
+                        </div>
                       </div>
 
                       <div style={{

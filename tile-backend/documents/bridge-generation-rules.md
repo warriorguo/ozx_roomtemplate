@@ -6,8 +6,11 @@ This document describes the auto-generation algorithm for bridge-type rooms.
 
 | Parameter | Description |
 |-----------|-------------|
-| `size` | Room dimensions (M × N) |
-| `doors` | Doors to connect (at least 2 required) |
+| `width` | Room width (4-200) |
+| `height` | Room height (4-200) |
+| `doors` | Doors to connect (at least 2 required: top, right, bottom, left) |
+| `staticCount` | Suggested number of statics to place (optional, default 0) |
+| `turretCount` | Suggested number of turrets to place (optional, default 0) |
 
 ## Ground Layer Generation
 
@@ -57,18 +60,100 @@ For each point in the selected strategy's point set, draw a rectangle centered o
 - If draw count = 0 or no strategies remain, exit
 - Otherwise, repeat from step 2.2
 
+## Static Layer Generation
+
+### Input Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `staticCount` | Suggested number of statics to place (optional, default 0) |
+
+### Placement Rules
+
+1. **Static size**: Fixed at 2×2 cells per static
+2. **Ground requirement**: All 4 cells of a static must be on ground (ground=1)
+3. **Door avoidance**: Statics cannot be placed at or adjacent to door positions (5×5 forbidden zone around each door)
+4. **No overlap with SoftEdge/Bridge**: Static cells must not overlap with softEdge or bridge layers
+5. **No touching**: Statics cannot touch each other (including diagonals) - minimum 1 cell gap required
+6. **Connectivity preservation**: After placing a static, all doors must remain connected via walkable paths
+
+### Placement Strategies
+
+Two alternating strategies are used:
+
+| Strategy | Description |
+|----------|-------------|
+| Center Outward | Start from room center, prioritize positions closer to center |
+| Edge Inward | Start from room edges, prioritize positions closer to edges |
+
+### Placement Steps
+
+1. Initialize valid positions list (all 2×2 positions satisfying ground, softEdge, bridge, and door constraints)
+2. Set remaining count = staticCount
+3. Select current strategy (alternates between Center Outward and Edge Inward)
+4. Sort valid positions by current strategy
+5. Attempt to place one static:
+   - Find first valid position that maintains door connectivity
+   - If found: place static, remove position, filter out touching positions, decrement remaining
+   - If not found: increment failure counter
+6. Switch strategy
+7. Repeat from step 4 until remaining = 0 or max attempts reached
+
+### Connectivity Check
+
+Uses BFS (Breadth-First Search) to verify all doors remain connected after a hypothetical static placement. A static placement is rejected if it would block the only path between any two doors.
+
+## Turret Layer Generation
+
+### Input Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `turretCount` | Suggested number of turrets to place (optional, default 0) |
+
+### Placement Rules
+
+1. **Turret size**: Fixed at 1×1 cell per turret
+2. **Ground requirement**: Turret cell must be on ground (ground=1)
+3. **Door distance**: Turrets must be at least **4 cells** (Manhattan distance) away from any door
+4. **Turret spacing**: Turrets must be at least **2 cells** (Manhattan distance) apart from each other
+5. **No overlap**: Turret cells must not overlap with softEdge, bridge, or static layers
+6. **Connectivity preservation**: After placing a turret, all doors must remain connected via walkable paths
+
+### Placement Preference
+
+Turrets are preferentially placed:
+1. **Near corners**: Within 2 cells of room corners (highest priority)
+2. **Near edges**: Within 2 cells of room edges
+3. **Center outward**: Among valid positions, closer to center is preferred
+
+### Placement Steps
+
+1. Find all valid positions (satisfying ground, layer overlap, door distance constraints)
+2. Sort positions by preference score (corners > edges > center distance)
+3. Set remaining count = turretCount
+4. Attempt to place one turret:
+   - Find first valid position that maintains door connectivity
+   - If found: place turret, filter out positions too close, decrement remaining
+   - If not found: decrement max attempts
+5. Repeat from step 4 until remaining = 0 or max attempts reached
+
+### Connectivity Check
+
+Uses BFS (Breadth-First Search) to verify all doors remain connected after a hypothetical turret placement. A turret placement is rejected if it would block the only path between any two doors.
+
 ## Other Layers
 
 | Layer | Default Value |
 |-------|---------------|
 | SoftEdge | All 0 |
 | Bridge | All 0 |
-| Static | All 0 |
-| Turret | All 0 |
 | MobGround | All 0 |
 | MobAir | All 0 |
 
-## Visual Example
+## Visual Examples
+
+### Ground Layer Example
 
 ```
 Doors: Top, Bottom, Left, Right
@@ -92,4 +177,67 @@ Size: 20×15
 
 █ = Ground (walkable)
 · = Empty (void)
+```
+
+### Static Layer Example
+
+```
+staticCount: 2
+
+Ground + Static overlay:
+
+····████████····████
+····████████····████
+····██▓▓████····████
+····██▓▓████····████
+····████████····████
+████████████████████
+████████████████▓▓██
+████████████████▓▓██
+████████████████████
+████████████████████
+····████████········
+····████████········
+····████████········
+····████████········
+····████████········
+
+█ = Ground only (walkable)
+▓ = Static on ground (blocked, 2×2 blocks)
+· = Empty (void)
+
+Note: Statics maintain minimum 1-cell gap from each other
+      and doors, preserving path connectivity.
+```
+
+### Turret Layer Example
+
+```
+turretCount: 4
+
+Ground + Static + Turret overlay:
+
+····████████····████
+····████████····████
+····██▓▓████····████
+····██▓▓███T····████
+····████████····████
+████████████████████
+██T█████████████▓▓██
+████████████████▓▓██
+████████████████████
+████████████████████
+····████████········
+····███T████········
+····████████········
+····████████····T···
+····████████········
+
+█ = Ground only (walkable)
+▓ = Static on ground (blocked, 2×2 blocks)
+T = Turret on ground (blocked, 1×1 tile)
+· = Empty (void)
+
+Note: Turrets maintain minimum 4-cell distance from doors
+      and minimum 2-cell distance from each other.
 ```

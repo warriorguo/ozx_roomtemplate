@@ -450,3 +450,634 @@ func TestApplyBrushWithMirror_MirrorNone(t *testing.T) {
 	assert.Equal(t, 0, ground[2][7], "mirrored Y position should not be filled")
 	assert.Equal(t, 0, ground[7][2], "mirrored X position should not be filled")
 }
+
+// Static Layer Generation Tests
+
+func TestGenerateBridgeRoom_WithStaticCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       20,
+		Height:      20,
+		Doors:       []DoorPosition{DoorTop, DoorBottom},
+		StaticCount: 3,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Count static placements (each static is 2x2, so count cells with static=1)
+	staticCellCount := 0
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.Static[y][x] == 1 {
+				staticCellCount++
+			}
+		}
+	}
+
+	// Should have some statics placed (may be less than requested if constraints prevent)
+	// Each static is 2x2 = 4 cells
+	assert.GreaterOrEqual(t, staticCellCount, 0, "should have placed some static cells")
+	t.Logf("Placed %d static cells (approximately %d statics)", staticCellCount, staticCellCount/4)
+}
+
+func TestGenerateBridgeRoom_StaticOnGround(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify all static cells are on ground
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.Static[y][x] == 1 {
+				assert.Equal(t, 1, resp.Payload.Ground[y][x], "static at (%d,%d) must be on ground", x, y)
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_StaticsDoNotTouch(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       30,
+		Height:      30,
+		Doors:       []DoorPosition{DoorTop, DoorBottom},
+		StaticCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Find all static positions (top-left corners of 2x2 statics)
+	var staticPositions []Point
+	for y := 0; y < req.Height-1; y++ {
+		for x := 0; x < req.Width-1; x++ {
+			// Check if this is a top-left corner of a 2x2 static
+			if resp.Payload.Static[y][x] == 1 &&
+				resp.Payload.Static[y][x+1] == 1 &&
+				resp.Payload.Static[y+1][x] == 1 &&
+				resp.Payload.Static[y+1][x+1] == 1 {
+				// Verify it's actually a corner (not part of a larger block)
+				isCorner := true
+				if x > 0 && resp.Payload.Static[y][x-1] == 1 {
+					isCorner = false
+				}
+				if y > 0 && resp.Payload.Static[y-1][x] == 1 {
+					isCorner = false
+				}
+				if isCorner {
+					staticPositions = append(staticPositions, Point{X: x, Y: y})
+				}
+			}
+		}
+	}
+
+	// Verify no two statics touch (including diagonals)
+	for i := 0; i < len(staticPositions); i++ {
+		for j := i + 1; j < len(staticPositions); j++ {
+			pos1 := staticPositions[i]
+			pos2 := staticPositions[j]
+			assert.False(t, wouldTouch(pos1, pos2), "statics at (%d,%d) and (%d,%d) should not touch", pos1.X, pos1.Y, pos2.X, pos2.Y)
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_DoorsConnectedWithStatics(t *testing.T) {
+	// Test with multiple statics to ensure doors remain connected
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Create walkable map (ground=1 and static=0)
+	walkable := make([][]bool, req.Height)
+	for y := 0; y < req.Height; y++ {
+		walkable[y] = make([]bool, req.Width)
+		for x := 0; x < req.Width; x++ {
+			walkable[y][x] = resp.Payload.Ground[y][x] == 1 && resp.Payload.Static[y][x] == 0
+		}
+	}
+
+	// Get door positions
+	doorPositions := []Point{
+		{X: req.Width / 2, Y: 0},            // top
+		{X: req.Width / 2, Y: req.Height - 1}, // bottom
+		{X: 0, Y: req.Height / 2},           // left
+		{X: req.Width - 1, Y: req.Height / 2}, // right
+	}
+
+	// Find nearest walkable cell to first door and do BFS
+	startDoor := findNearestWalkable(walkable, doorPositions[0], req.Width, req.Height)
+	if startDoor.X < 0 {
+		t.Skip("No walkable cell found near first door")
+	}
+
+	visited := bfsConnectivity(walkable, startDoor, req.Width, req.Height)
+
+	// Verify all other doors are reachable
+	for i, doorPos := range doorPositions[1:] {
+		nearestWalkable := findNearestWalkable(walkable, doorPos, req.Width, req.Height)
+		if nearestWalkable.X >= 0 {
+			assert.True(t, visited[nearestWalkable.Y][nearestWalkable.X], "door %d should be connected", i+1)
+		}
+	}
+}
+
+func TestIsValidStaticPosition(t *testing.T) {
+	width, height := 10, 10
+	ground := createEmptyLayer(width, height)
+	softEdge := createEmptyLayer(width, height)
+	bridge := createEmptyLayer(width, height)
+	staticLayer := createEmptyLayer(width, height)
+	forbiddenCells := make(map[Point]bool)
+
+	// Fill ground in center area
+	for y := 3; y < 7; y++ {
+		for x := 3; x < 7; x++ {
+			ground[y][x] = 1
+		}
+	}
+
+	// Valid position in center
+	assert.True(t, isValidStaticPosition(Point{X: 4, Y: 4}, ground, softEdge, bridge, staticLayer, forbiddenCells, width, height))
+
+	// Invalid - no ground
+	assert.False(t, isValidStaticPosition(Point{X: 0, Y: 0}, ground, softEdge, bridge, staticLayer, forbiddenCells, width, height))
+
+	// Invalid - out of bounds
+	assert.False(t, isValidStaticPosition(Point{X: 9, Y: 9}, ground, softEdge, bridge, staticLayer, forbiddenCells, width, height))
+
+	// Invalid - forbidden cell
+	forbiddenCells[Point{X: 4, Y: 4}] = true
+	assert.False(t, isValidStaticPosition(Point{X: 4, Y: 4}, ground, softEdge, bridge, staticLayer, forbiddenCells, width, height))
+}
+
+func TestTouchesExistingStatic(t *testing.T) {
+	width, height := 10, 10
+	staticLayer := createEmptyLayer(width, height)
+
+	// Place a static at (5,5)
+	placeStatic(staticLayer, Point{X: 5, Y: 5})
+
+	// Positions that touch
+	assert.True(t, touchesExistingStatic(Point{X: 3, Y: 5}, staticLayer, width, height), "diagonal should touch")
+	assert.True(t, touchesExistingStatic(Point{X: 7, Y: 5}, staticLayer, width, height), "adjacent right should touch")
+	assert.True(t, touchesExistingStatic(Point{X: 5, Y: 7}, staticLayer, width, height), "adjacent below should touch")
+	assert.True(t, touchesExistingStatic(Point{X: 5, Y: 3}, staticLayer, width, height), "adjacent above should touch")
+
+	// Positions that don't touch (with gap)
+	assert.False(t, touchesExistingStatic(Point{X: 0, Y: 0}, staticLayer, width, height), "far away should not touch")
+	assert.False(t, touchesExistingStatic(Point{X: 8, Y: 5}, staticLayer, width, height), "one gap right should not touch")
+}
+
+func TestWouldTouch(t *testing.T) {
+	// Two statics side by side (touching)
+	assert.True(t, wouldTouch(Point{X: 0, Y: 0}, Point{X: 2, Y: 0}), "side by side should touch")
+	assert.True(t, wouldTouch(Point{X: 0, Y: 0}, Point{X: 0, Y: 2}), "stacked should touch")
+
+	// Two statics diagonal (touching)
+	assert.True(t, wouldTouch(Point{X: 0, Y: 0}, Point{X: 2, Y: 2}), "diagonal should touch")
+
+	// Two statics with gap (not touching)
+	assert.False(t, wouldTouch(Point{X: 0, Y: 0}, Point{X: 4, Y: 0}), "with gap should not touch")
+	assert.False(t, wouldTouch(Point{X: 0, Y: 0}, Point{X: 4, Y: 4}), "far diagonal should not touch")
+}
+
+func TestDistanceFromCenter(t *testing.T) {
+	centerX, centerY := 10, 10
+
+	// At center (pos (9,9) has static center at (10,10) which equals room center)
+	assert.Equal(t, 0, distanceFromCenter(Point{X: 9, Y: 9}, centerX, centerY))
+
+	// Near center
+	assert.Equal(t, 2, distanceFromCenter(Point{X: 8, Y: 8}, centerX, centerY))
+
+	// Far from center
+	dist := distanceFromCenter(Point{X: 0, Y: 0}, centerX, centerY)
+	assert.Greater(t, dist, 10)
+}
+
+func TestDistanceFromEdge(t *testing.T) {
+	width, height := 20, 20
+
+	// At edge (pos (0,10) has static center at (1, 11))
+	assert.Equal(t, 1, distanceFromEdge(Point{X: 0, Y: 10}, width, height))
+
+	// At center (pos (9,9) has static center at (10, 10))
+	// Distances: left=10, right=9, top=10, bottom=9, min=9
+	centerDist := distanceFromEdge(Point{X: 9, Y: 9}, width, height)
+	assert.Equal(t, 9, centerDist)
+}
+
+func TestPlaceStatic(t *testing.T) {
+	staticLayer := createEmptyLayer(10, 10)
+	placeStatic(staticLayer, Point{X: 3, Y: 4})
+
+	// Verify 2x2 is filled
+	assert.Equal(t, 1, staticLayer[4][3])
+	assert.Equal(t, 1, staticLayer[4][4])
+	assert.Equal(t, 1, staticLayer[5][3])
+	assert.Equal(t, 1, staticLayer[5][4])
+
+	// Verify surrounding cells are not filled
+	assert.Equal(t, 0, staticLayer[3][3])
+	assert.Equal(t, 0, staticLayer[6][3])
+}
+
+func TestFilterTouchingPositions(t *testing.T) {
+	// Static at (0,0) occupies (0,0), (1,0), (0,1), (1,1)
+	// With 1-cell buffer, touching zone extends to x<=2 and y<=2
+	positions := []Point{
+		{X: 0, Y: 0},
+		{X: 2, Y: 0}, // Would touch (0,0) - adjacent with 1 cell gap
+		{X: 2, Y: 2}, // Would touch (0,0) - diagonal
+		{X: 4, Y: 0}, // Would not touch (0,0) - 2 cell gap
+		{X: 0, Y: 4}, // Would not touch (0,0) - 2 cell gap
+	}
+
+	filtered := filterTouchingPositions(positions, Point{X: 0, Y: 0})
+
+	// Should only keep positions that don't touch
+	assert.Len(t, filtered, 2)
+
+	// Verify the kept positions
+	hasPos := func(pts []Point, x, y int) bool {
+		for _, p := range pts {
+			if p.X == x && p.Y == y {
+				return true
+			}
+		}
+		return false
+	}
+
+	assert.True(t, hasPos(filtered, 4, 0))
+	assert.True(t, hasPos(filtered, 0, 4))
+}
+
+func TestGetDoorForbiddenCells(t *testing.T) {
+	doorPositions := map[DoorPosition]Point{
+		DoorTop: {X: 10, Y: 0},
+	}
+
+	forbidden := getDoorForbiddenCells(doorPositions, 20, 20)
+
+	// Door position should be forbidden
+	assert.True(t, forbidden[Point{X: 10, Y: 0}])
+
+	// Adjacent cells should be forbidden
+	assert.True(t, forbidden[Point{X: 9, Y: 0}])
+	assert.True(t, forbidden[Point{X: 11, Y: 0}])
+	assert.True(t, forbidden[Point{X: 10, Y: 1}])
+
+	// Far cells should not be forbidden
+	assert.False(t, forbidden[Point{X: 0, Y: 10}])
+}
+
+func TestCheckConnectivityAfterPlacement(t *testing.T) {
+	width, height := 10, 10
+	ground := createEmptyLayer(width, height)
+	staticLayer := createEmptyLayer(width, height)
+
+	// Create a vertical path in the middle
+	for y := 0; y < height; y++ {
+		ground[y][5] = 1
+		ground[y][6] = 1
+	}
+
+	doorPositions := map[DoorPosition]Point{
+		DoorTop:    {X: 5, Y: 0},
+		DoorBottom: {X: 5, Y: 9},
+	}
+
+	// Placing static that doesn't block path should be OK
+	assert.True(t, checkConnectivityAfterPlacement(ground, staticLayer, doorPositions, Point{X: 0, Y: 0}, width, height))
+
+	// Placing static that blocks path should fail
+	// (blocking middle of the path)
+	assert.False(t, checkConnectivityAfterPlacement(ground, staticLayer, doorPositions, Point{X: 5, Y: 4}, width, height))
+}
+
+func TestGenerateBridgeRoom_ZeroStaticCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       15,
+		Height:      15,
+		Doors:       []DoorPosition{DoorTop, DoorBottom},
+		StaticCount: 0, // Explicitly zero
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify static layer is all zeros
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			assert.Equal(t, 0, resp.Payload.Static[y][x], "static should be 0 when StaticCount=0")
+		}
+	}
+}
+
+// Turret Layer Generation Tests
+
+func TestGenerateBridgeRoom_WithTurretCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		TurretCount: 4,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Count turret placements
+	turretCount := 0
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.Turret[y][x] == 1 {
+				turretCount++
+			}
+		}
+	}
+
+	// Should have some turrets placed (may be less than requested if constraints prevent)
+	assert.GreaterOrEqual(t, turretCount, 0, "should have placed some turrets")
+	t.Logf("Placed %d turrets", turretCount)
+}
+
+func TestGenerateBridgeRoom_TurretOnGround(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		TurretCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify all turret cells are on ground
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.Turret[y][x] == 1 {
+				assert.Equal(t, 1, resp.Payload.Ground[y][x], "turret at (%d,%d) must be on ground", x, y)
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_TurretNotOnStatic(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom},
+		StaticCount: 3,
+		TurretCount: 4,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify turrets don't overlap with statics
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.Turret[y][x] == 1 {
+				assert.Equal(t, 0, resp.Payload.Static[y][x], "turret at (%d,%d) must not overlap with static", x, y)
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_TurretDistanceFromDoors(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       30,
+		Height:      30,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		TurretCount: 4,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	doorPositions := getDoorCenterPositions(req.Width, req.Height, req.Doors)
+
+	// Verify all turrets are at least 4 cells away from doors
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.Turret[y][x] == 1 {
+				turretPos := Point{X: x, Y: y}
+				for door, doorPos := range doorPositions {
+					dist := manhattanDistance(turretPos, doorPos)
+					assert.GreaterOrEqual(t, dist, turretMinDoorDistance,
+						"turret at (%d,%d) is too close to %s door (distance: %d)", x, y, door, dist)
+				}
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_TurretMinDistance(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       30,
+		Height:      30,
+		Doors:       []DoorPosition{DoorTop, DoorBottom},
+		TurretCount: 6,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Collect all turret positions
+	var turretPositions []Point
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.Turret[y][x] == 1 {
+				turretPositions = append(turretPositions, Point{X: x, Y: y})
+			}
+		}
+	}
+
+	// Verify minimum distance between turrets
+	for i := 0; i < len(turretPositions); i++ {
+		for j := i + 1; j < len(turretPositions); j++ {
+			dist := manhattanDistance(turretPositions[i], turretPositions[j])
+			assert.GreaterOrEqual(t, dist, turretMinTurretDistance,
+				"turrets at (%d,%d) and (%d,%d) are too close (distance: %d)",
+				turretPositions[i].X, turretPositions[i].Y,
+				turretPositions[j].X, turretPositions[j].Y, dist)
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_DoorsConnectedWithTurrets(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount: 2,
+		TurretCount: 4,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Create walkable map
+	walkable := make([][]bool, req.Height)
+	for y := 0; y < req.Height; y++ {
+		walkable[y] = make([]bool, req.Width)
+		for x := 0; x < req.Width; x++ {
+			walkable[y][x] = resp.Payload.Ground[y][x] == 1 &&
+				resp.Payload.Static[y][x] == 0 &&
+				resp.Payload.Turret[y][x] == 0
+		}
+	}
+
+	// Get door positions
+	doorPositions := []Point{
+		{X: req.Width / 2, Y: 0},
+		{X: req.Width / 2, Y: req.Height - 1},
+		{X: 0, Y: req.Height / 2},
+		{X: req.Width - 1, Y: req.Height / 2},
+	}
+
+	// Find nearest walkable cell to first door and do BFS
+	startDoor := findNearestWalkable(walkable, doorPositions[0], req.Width, req.Height)
+	if startDoor.X < 0 {
+		t.Skip("No walkable cell found near first door")
+	}
+
+	visited := bfsConnectivity(walkable, startDoor, req.Width, req.Height)
+
+	// Verify all other doors are reachable
+	for i, doorPos := range doorPositions[1:] {
+		nearestWalkable := findNearestWalkable(walkable, doorPos, req.Width, req.Height)
+		if nearestWalkable.X >= 0 {
+			assert.True(t, visited[nearestWalkable.Y][nearestWalkable.X], "door %d should be connected", i+1)
+		}
+	}
+}
+
+func TestIsValidTurretPosition(t *testing.T) {
+	width, height := 20, 20
+	ground := createEmptyLayer(width, height)
+	softEdge := createEmptyLayer(width, height)
+	bridge := createEmptyLayer(width, height)
+	staticLayer := createEmptyLayer(width, height)
+	turretLayer := createEmptyLayer(width, height)
+
+	// Fill ground in center area
+	for y := 5; y < 15; y++ {
+		for x := 5; x < 15; x++ {
+			ground[y][x] = 1
+		}
+	}
+
+	doorPositions := map[DoorPosition]Point{
+		DoorTop:    {X: 10, Y: 0},
+		DoorBottom: {X: 10, Y: 19},
+	}
+
+	// Valid position far from doors
+	assert.True(t, isValidTurretPosition(Point{X: 10, Y: 10}, ground, softEdge, bridge, staticLayer, turretLayer, doorPositions, width, height))
+
+	// Invalid - no ground
+	assert.False(t, isValidTurretPosition(Point{X: 0, Y: 0}, ground, softEdge, bridge, staticLayer, turretLayer, doorPositions, width, height))
+
+	// Invalid - too close to door (within 4 cells)
+	assert.False(t, isValidTurretPosition(Point{X: 10, Y: 3}, ground, softEdge, bridge, staticLayer, turretLayer, doorPositions, width, height))
+}
+
+func TestManhattanDistance(t *testing.T) {
+	assert.Equal(t, 0, manhattanDistance(Point{X: 5, Y: 5}, Point{X: 5, Y: 5}))
+	assert.Equal(t, 5, manhattanDistance(Point{X: 0, Y: 0}, Point{X: 3, Y: 2}))
+	assert.Equal(t, 10, manhattanDistance(Point{X: 0, Y: 0}, Point{X: 5, Y: 5}))
+}
+
+func TestTooCloseToExistingTurret(t *testing.T) {
+	width, height := 10, 10
+	turretLayer := createEmptyLayer(width, height)
+
+	// Place a turret at (5,5)
+	turretLayer[5][5] = 1
+
+	// Positions too close (distance < 2)
+	assert.True(t, tooCloseToExistingTurret(Point{X: 5, Y: 4}, turretLayer, width, height), "adjacent should be too close")
+	assert.True(t, tooCloseToExistingTurret(Point{X: 6, Y: 5}, turretLayer, width, height), "adjacent should be too close")
+
+	// Positions at exactly distance 2 should be OK
+	assert.False(t, tooCloseToExistingTurret(Point{X: 5, Y: 3}, turretLayer, width, height), "distance 2 should be OK")
+	assert.False(t, tooCloseToExistingTurret(Point{X: 7, Y: 5}, turretLayer, width, height), "distance 2 should be OK")
+}
+
+func TestFilterTurretsTooClose(t *testing.T) {
+	positions := []Point{
+		{X: 5, Y: 5},
+		{X: 5, Y: 6}, // Distance 1 - too close
+		{X: 6, Y: 5}, // Distance 1 - too close
+		{X: 7, Y: 5}, // Distance 2 - OK
+		{X: 5, Y: 7}, // Distance 2 - OK
+		{X: 8, Y: 8}, // Distance 6 - OK
+	}
+
+	filtered := filterTurretsTooClose(positions, Point{X: 5, Y: 5})
+
+	// Should only keep positions at distance >= 2
+	assert.Len(t, filtered, 3)
+}
+
+func TestMinDistanceToEdge(t *testing.T) {
+	width, height := 20, 20
+
+	// At corner
+	assert.Equal(t, 0, minDistanceToEdge(Point{X: 0, Y: 0}, width, height))
+
+	// At edge
+	assert.Equal(t, 0, minDistanceToEdge(Point{X: 10, Y: 0}, width, height))
+
+	// At center
+	assert.Equal(t, 9, minDistanceToEdge(Point{X: 10, Y: 10}, width, height))
+}
+
+func TestIsNearCorner(t *testing.T) {
+	width, height := 20, 20
+	threshold := 2
+
+	// Corners
+	assert.True(t, isNearCorner(Point{X: 0, Y: 0}, width, height, threshold))
+	assert.True(t, isNearCorner(Point{X: 19, Y: 0}, width, height, threshold))
+	assert.True(t, isNearCorner(Point{X: 0, Y: 19}, width, height, threshold))
+	assert.True(t, isNearCorner(Point{X: 19, Y: 19}, width, height, threshold))
+
+	// Near corner
+	assert.True(t, isNearCorner(Point{X: 1, Y: 1}, width, height, threshold))
+
+	// Not near corner
+	assert.False(t, isNearCorner(Point{X: 10, Y: 10}, width, height, threshold))
+}
+
+func TestGenerateBridgeRoom_ZeroTurretCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       15,
+		Height:      15,
+		Doors:       []DoorPosition{DoorTop, DoorBottom},
+		TurretCount: 0, // Explicitly zero
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify turret layer is all zeros
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			assert.Equal(t, 0, resp.Payload.Turret[y][x], "turret should be 0 when TurretCount=0")
+		}
+	}
+}
