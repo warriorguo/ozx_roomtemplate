@@ -399,3 +399,54 @@ func TestCopyLayer(t *testing.T) {
 	copied[0][0] = 99
 	assert.Equal(t, 1, original[0][0])
 }
+
+func TestApplyBrushWithMirror_MirrorY(t *testing.T) {
+	// Test left-right mirror (across Y-axis / vertical center)
+	ground := createEmptyLayer(10, 10)
+
+	// Apply brush at x=2, y=5 with MirrorY
+	// 2x2 brush centered at (2,5): startX=1, startY=4, fills (1,4),(2,4),(1,5),(2,5)
+	applyBrushWithMirror(ground, 2, 5, BrushSize{2, 2}, 10, 10, MirrorY)
+
+	// Original position should be filled
+	assert.Equal(t, 1, ground[5][2], "original position should be filled")
+	assert.Equal(t, 1, ground[5][1], "original position should be filled")
+
+	// Mirrored position: mirroredX = 10-1-2 = 7, centered at (7,5)
+	// 2x2 brush centered at (7,5): startX=6, startY=4, fills (6,4),(7,4),(6,5),(7,5)
+	assert.Equal(t, 1, ground[5][6], "mirrored position should be filled")
+	assert.Equal(t, 1, ground[5][7], "mirrored position should be filled")
+}
+
+func TestApplyBrushWithMirror_MirrorX(t *testing.T) {
+	// Test top-bottom mirror (across X-axis / horizontal center)
+	ground := createEmptyLayer(10, 10)
+
+	// Apply brush at x=5, y=2 with MirrorX
+	// 2x2 brush centered at (5,2): startX=4, startY=1, fills (4,1),(5,1),(4,2),(5,2)
+	applyBrushWithMirror(ground, 5, 2, BrushSize{2, 2}, 10, 10, MirrorX)
+
+	// Original position should be filled
+	assert.Equal(t, 1, ground[2][5], "original position should be filled")
+	assert.Equal(t, 1, ground[1][5], "original position should be filled")
+
+	// Mirrored position: mirroredY = 10-1-2 = 7, centered at (5,7)
+	// 2x2 brush centered at (5,7): startX=4, startY=6, fills (4,6),(5,6),(4,7),(5,7)
+	assert.Equal(t, 1, ground[6][5], "mirrored position should be filled")
+	assert.Equal(t, 1, ground[7][5], "mirrored position should be filled")
+}
+
+func TestApplyBrushWithMirror_MirrorNone(t *testing.T) {
+	// Test no mirror
+	ground := createEmptyLayer(10, 10)
+
+	// Apply brush at x=2, y=2 with MirrorNone
+	applyBrushWithMirror(ground, 2, 2, BrushSize{2, 2}, 10, 10, MirrorNone)
+
+	// Original position should be filled
+	assert.Equal(t, 1, ground[2][2], "original position should be filled")
+
+	// Mirrored positions should NOT be filled
+	assert.Equal(t, 0, ground[2][7], "mirrored Y position should not be filled")
+	assert.Equal(t, 0, ground[7][2], "mirrored X position should not be filled")
+}

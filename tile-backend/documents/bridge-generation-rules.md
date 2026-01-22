@@ -45,6 +45,11 @@ Randomly select a brush from: **2×2**, **2×3**, **3×3**, **3×2**, **4×3**, 
 
 For each point in the selected strategy's point set, draw a rectangle centered on that point using the brush.
 
+**Mirror Symmetry Rules:**
+- When drawing on Y-axis (vertical center line, e.g., top-bottom strategies): Mirror **left-right** to maintain symmetry
+- When drawing on X-axis (horizontal center line, e.g., left-right strategies): Mirror **top-bottom** to maintain symmetry
+- Center and "all doors/midpoints" strategies: No mirroring (already symmetric or covers all positions)
+
 #### 2.4 Repeat or Exit
 
 - Decrement draw count

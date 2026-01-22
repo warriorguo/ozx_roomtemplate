@@ -38,21 +38,32 @@ type BrushSize struct {
 	Width, Height int
 }
 
+// MirrorAxis represents the axis to mirror around
+type MirrorAxis int
+
+const (
+	MirrorNone MirrorAxis = iota
+	MirrorX               // Mirror top-bottom (across horizontal center line)
+	MirrorY               // Mirror left-right (across vertical center line)
+)
+
 // Strategy represents a platform placement strategy with weight
 type Strategy struct {
 	Name   string
 	Weight int
 	Points []Point
+	Mirror MirrorAxis // Which axis to mirror around
 }
 
 var connectionBrushes = []BrushSize{
-	{2, 2}, {3, 3}, {4, 4},
+	{2, 2} /*{3, 3},*/, {4, 4},
 }
 
 var platformBrushes = []BrushSize{
-	{2, 2}, {2, 3}, {3, 3}, {3, 2},
+	/*{2, 2}, {2, 3}, {3, 3}, {3, 2},
 	{4, 3}, {3, 4}, {4, 4}, {4, 5},
-	{5, 4}, {5, 5},
+	{5, 4}, {5, 5},*/
+	{4, 4}, {6, 6},
 }
 
 // GenerateBridgeRoom generates a bridge-type room template
@@ -182,10 +193,7 @@ func connectTwoPoints(ground [][]int, from, to Point, width, height int) {
 	// Calculate center point
 	centerX, centerY := width/2, height/2
 
-	// Decide whether to use straight or L-shaped path through center
-	useLShape := rand.Float32() < 0.5
-
-	if useLShape && from.X != to.X && from.Y != to.Y {
+	if from.X != to.X && from.Y != to.Y {
 		// L-shaped path through center point
 		centerPoint := Point{X: centerX, Y: centerY}
 		drawLine(ground, from, centerPoint, brush, width, height)
@@ -248,6 +256,24 @@ func applyBrush(ground [][]int, centerX, centerY int, brush BrushSize, width, he
 	}
 }
 
+// applyBrushWithMirror applies a brush and its mirror counterpart
+func applyBrushWithMirror(ground [][]int, centerX, centerY int, brush BrushSize, width, height int, mirror MirrorAxis) {
+	// Apply original brush
+	applyBrush(ground, centerX, centerY, brush, width, height)
+
+	// Apply mirrored brush
+	switch mirror {
+	case MirrorY:
+		// Mirror left-right (across vertical center line Y-axis)
+		mirroredX := width - 1 - centerX
+		applyBrush(ground, mirroredX, centerY, brush, width, height)
+	case MirrorX:
+		// Mirror top-bottom (across horizontal center line X-axis)
+		mirroredY := height - 1 - centerY
+		applyBrush(ground, centerX, mirroredY, brush, width, height)
+	}
+}
+
 // drawPlatforms draws small platforms according to the probability-based strategy
 func drawPlatforms(ground [][]int, width, height int, doors []DoorPosition, doorPositions map[DoorPosition]Point) {
 	// Determine number of draws (1-3)
@@ -265,10 +291,10 @@ func drawPlatforms(ground [][]int, width, height int, doors []DoorPosition, door
 
 		strategy := strategies[selectedIdx]
 
-		// Draw on all points in the strategy
+		// Draw on all points in the strategy with mirroring
 		brush := platformBrushes[rand.Intn(len(platformBrushes))]
 		for _, point := range strategy.Points {
-			applyBrush(ground, point.X, point.Y, brush, width, height)
+			applyBrushWithMirror(ground, point.X, point.Y, brush, width, height, strategy.Mirror)
 		}
 
 		// Remove selected strategy
@@ -281,11 +307,12 @@ func buildStrategies(width, height int, doors []DoorPosition, doorPositions map[
 	strategies := []Strategy{}
 	centerX, centerY := width/2, height/2
 
-	// Screen center: weight 50
+	// Screen center: weight 50 (no mirror needed, it's at center)
 	strategies = append(strategies, Strategy{
 		Name:   "center",
 		Weight: 50,
 		Points: []Point{{X: centerX, Y: centerY}},
+		Mirror: MirrorNone,
 	})
 
 	// Check for horizontal (left-right) connection
@@ -293,12 +320,15 @@ func buildStrategies(width, height int, doors []DoorPosition, doorPositions map[
 	_, hasRight := doorPositions[DoorRight]
 	if hasLeft && hasRight {
 		// Left and right door positions: weight 10
+		// Points on X-axis (horizontal center), mirror top-bottom
 		strategies = append(strategies, Strategy{
 			Name:   "left_right_doors",
 			Weight: 10,
 			Points: []Point{doorPositions[DoorLeft], doorPositions[DoorRight]},
+			Mirror: MirrorX,
 		})
 		// Midpoints between center and doors: weight 10
+		// Points on X-axis (horizontal center), mirror top-bottom
 		strategies = append(strategies, Strategy{
 			Name:   "left_right_midpoints",
 			Weight: 10,
@@ -306,6 +336,7 @@ func buildStrategies(width, height int, doors []DoorPosition, doorPositions map[
 				{X: (centerX + doorPositions[DoorLeft].X) / 2, Y: centerY},
 				{X: (centerX + doorPositions[DoorRight].X) / 2, Y: centerY},
 			},
+			Mirror: MirrorX,
 		})
 	}
 
@@ -314,12 +345,15 @@ func buildStrategies(width, height int, doors []DoorPosition, doorPositions map[
 	_, hasBottom := doorPositions[DoorBottom]
 	if hasTop && hasBottom {
 		// Top and bottom door positions: weight 10
+		// Points on Y-axis (vertical center), mirror left-right
 		strategies = append(strategies, Strategy{
 			Name:   "top_bottom_doors",
 			Weight: 10,
 			Points: []Point{doorPositions[DoorTop], doorPositions[DoorBottom]},
+			Mirror: MirrorY,
 		})
 		// Midpoints between center and doors: weight 10
+		// Points on Y-axis (vertical center), mirror left-right
 		strategies = append(strategies, Strategy{
 			Name:   "top_bottom_midpoints",
 			Weight: 10,
@@ -327,10 +361,11 @@ func buildStrategies(width, height int, doors []DoorPosition, doorPositions map[
 				{X: centerX, Y: (centerY + doorPositions[DoorTop].Y) / 2},
 				{X: centerX, Y: (centerY + doorPositions[DoorBottom].Y) / 2},
 			},
+			Mirror: MirrorY,
 		})
 	}
 
-	// All connected doors: weight 10
+	// All connected doors: weight 10 (no mirror, points already cover all positions)
 	allDoorPoints := make([]Point, 0, len(doorPositions))
 	for _, pos := range doorPositions {
 		allDoorPoints = append(allDoorPoints, pos)
@@ -340,10 +375,11 @@ func buildStrategies(width, height int, doors []DoorPosition, doorPositions map[
 			Name:   "all_doors",
 			Weight: 10,
 			Points: allDoorPoints,
+			Mirror: MirrorNone,
 		})
 	}
 
-	// Midpoints between center and all doors: weight 10
+	// Midpoints between center and all doors: weight 10 (no mirror, points already cover all positions)
 	midpoints := make([]Point, 0, len(doorPositions))
 	for _, pos := range doorPositions {
 		midpoints = append(midpoints, Point{
@@ -356,6 +392,7 @@ func buildStrategies(width, height int, doors []DoorPosition, doorPositions map[
 			Name:   "all_midpoints",
 			Weight: 10,
 			Points: midpoints,
+			Mirror: MirrorNone,
 		})
 	}
 
