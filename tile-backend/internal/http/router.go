@@ -20,17 +20,15 @@ func SetupRouter(templateStore store.TemplateStore, logger *zap.Logger, corsOrig
 	r.Use(LoggerMiddleware(logger))
 	r.Use(RequestSizeLimitMiddleware(2 * 1024 * 1024)) // 2MB limit
 
-	// CORS configuration
-	if len(corsOrigins) > 0 {
-		r.Use(cors.Handler(cors.Options{
-			AllowedOrigins:   corsOrigins,
-			AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-			AllowedHeaders:   []string{"Accept", "Authorization", "Content-Type", "X-CSRF-Token"},
-			ExposedHeaders:   []string{"Link"},
-			AllowCredentials: false,
-			MaxAge:           300,
-		}))
-	}
+	// CORS configuration - allow all origins for development
+	r.Use(cors.Handler(cors.Options{
+		AllowedOrigins:   []string{"*"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"},
+		AllowedHeaders:   []string{"*"},
+		ExposedHeaders:   []string{"Link", "Content-Length"},
+		AllowCredentials: false,
+		MaxAge:           300,
+	}))
 
 	// Create handlers
 	templateHandler := NewTemplateHandler(templateStore, logger)

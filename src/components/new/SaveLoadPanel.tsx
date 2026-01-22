@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
-import { templateApi, type BackendListResponse, ApiError } from '../../services/api';
+import { templateApi, type BackendListResponse, type ListTemplatesParams, type TemplateSummary, ApiError } from '../../services/api';
 import { formatTemplateInfo, generateDefaultTemplateName } from '../../services/templateConverter';
 
 interface SaveLoadPanelProps {
@@ -9,14 +9,114 @@ interface SaveLoadPanelProps {
   mode: 'save' | 'load';
 }
 
+type RoomTypeFilter = 'all' | 'full' | 'bridge' | 'platform';
+type DoorFilter = 'any' | 'connected' | 'disconnected';
+
+interface Filters {
+  roomType: RoomTypeFilter;
+  doors: {
+    top: DoorFilter;
+    right: DoorFilter;
+    bottom: DoorFilter;
+    left: DoorFilter;
+  };
+  attributes: {
+    boss: boolean | null;
+    elite: boolean | null;
+    mob: boolean | null;
+    treasure: boolean | null;
+    teleport: boolean | null;
+    story: boolean | null;
+  };
+}
+
+const initialFilters: Filters = {
+  roomType: 'all',
+  doors: {
+    top: 'any',
+    right: 'any',
+    bottom: 'any',
+    left: 'any',
+  },
+  attributes: {
+    boss: null,
+    elite: null,
+    mob: null,
+    treasure: null,
+    teleport: null,
+    story: null,
+  },
+};
+
+const roomTypeLabels: Record<string, string> = {
+  full: 'Full Room',
+  bridge: 'Bridge',
+  platform: 'Platform',
+};
+
+const attributeLabels: Record<string, string> = {
+  boss: 'Boss',
+  elite: 'Elite',
+  mob: 'Mob',
+  treasure: 'Treasure',
+  teleport: 'Teleport',
+  story: 'Story',
+};
+
+// Three-state checkbox component: null (any) -> true (yes) -> false (no) -> null (any)
+const TriStateCheckbox: React.FC<{
+  value: boolean | null;
+  onChange: (value: boolean | null) => void;
+  label: string;
+}> = ({ value, onChange, label }) => {
+  const handleClick = () => {
+    if (value === null) onChange(true);
+    else if (value === true) onChange(false);
+    else onChange(null);
+  };
+
+  return (
+    <div
+      onClick={handleClick}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        cursor: 'pointer',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        backgroundColor: value === null ? 'transparent' : value ? '#d4edda' : '#f8d7da',
+        border: '1px solid',
+        borderColor: value === null ? '#ddd' : value ? '#28a745' : '#dc3545',
+        transition: 'all 0.15s',
+        userSelect: 'none',
+      }}
+    >
+      <span style={{
+        width: '16px',
+        height: '16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '12px',
+        fontWeight: 'bold',
+        color: value === null ? '#999' : value ? '#28a745' : '#dc3545',
+      }}>
+        {value === null ? '-' : value ? '✓' : '✗'}
+      </span>
+      <span style={{ fontSize: '12px', color: '#333' }}>{label}</span>
+    </div>
+  );
+};
+
 export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, mode }) => {
-  const { 
-    template, 
-    apiState, 
-    saveTemplate, 
-    loadTemplateFromBackend, 
+  const {
+    template,
+    apiState,
+    saveTemplate,
+    loadTemplateFromBackend,
     deleteTemplateFromBackend,
-    clearApiError 
+    clearApiError
   } = useNewTemplateStore();
 
   const [templateName, setTemplateName] = useState('');
@@ -24,6 +124,8 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
   const [listLoading, setListLoading] = useState(false);
   const [listError, setListError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState<Filters>(initialFilters);
+  const [showFilters, setShowFilters] = useState(true);
 
   // Initialize template name when component opens
   useEffect(() => {
@@ -36,36 +138,63 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
     }
   }, [isOpen, apiState.lastSaved?.name, templateName]);
 
-  // Load template list when opening in load mode
-  useEffect(() => {
-    if (isOpen && mode === 'load') {
-      loadTemplateList();
-    }
-  }, [isOpen, mode]);
+  const buildFilterParams = useCallback((): ListTemplatesParams => {
+    const params: ListTemplatesParams = {};
 
-  const loadTemplateList = async () => {
+    if (searchTerm) params.name_like = searchTerm;
+    if (filters.roomType !== 'all') params.room_type = filters.roomType;
+
+    // Door connectivity
+    if (filters.doors.top === 'connected') params.top_door_connected = true;
+    if (filters.doors.top === 'disconnected') params.top_door_connected = false;
+    if (filters.doors.right === 'connected') params.right_door_connected = true;
+    if (filters.doors.right === 'disconnected') params.right_door_connected = false;
+    if (filters.doors.bottom === 'connected') params.bottom_door_connected = true;
+    if (filters.doors.bottom === 'disconnected') params.bottom_door_connected = false;
+    if (filters.doors.left === 'connected') params.left_door_connected = true;
+    if (filters.doors.left === 'disconnected') params.left_door_connected = false;
+
+    // Attributes
+    if (filters.attributes.boss !== null) params.has_boss = filters.attributes.boss;
+    if (filters.attributes.elite !== null) params.has_elite = filters.attributes.elite;
+    if (filters.attributes.mob !== null) params.has_mob = filters.attributes.mob;
+    if (filters.attributes.treasure !== null) params.has_treasure = filters.attributes.treasure;
+    if (filters.attributes.teleport !== null) params.has_teleport = filters.attributes.teleport;
+    if (filters.attributes.story !== null) params.has_story = filters.attributes.story;
+
+    return params;
+  }, [searchTerm, filters]);
+
+  const loadTemplateList = useCallback(async () => {
     setListLoading(true);
     setListError(null);
-    
+
     try {
-      const params = searchTerm ? { name_like: searchTerm } : undefined;
+      const params = buildFilterParams();
       const response = await templateApi.listTemplates(params);
       setTemplateList(response);
     } catch (error) {
-      const errorMessage = error instanceof ApiError 
-        ? error.message 
+      const errorMessage = error instanceof ApiError
+        ? error.message
         : 'Failed to load template list';
       setListError(errorMessage);
     } finally {
       setListLoading(false);
     }
-  };
+  }, [buildFilterParams]);
+
+  // Load template list when opening in load mode or filters change
+  useEffect(() => {
+    if (isOpen && mode === 'load') {
+      loadTemplateList();
+    }
+  }, [isOpen, mode, loadTemplateList]);
 
   const handleSave = async () => {
     if (!templateName.trim()) {
       return;
     }
-    
+
     try {
       await saveTemplate(templateName.trim());
       if (!apiState.error) {
@@ -88,13 +217,11 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
   };
 
   const handleDelete = async (templateId: string, templateName: string) => {
-    // Confirm deletion
     const confirmed = confirm(`Are you sure you want to delete "${templateName}"?\n\nThis action cannot be undone.`);
     if (!confirmed) return;
 
     try {
       await deleteTemplateFromBackend(templateId);
-      // Reload the template list after successful deletion
       if (!apiState.error) {
         loadTemplateList();
       }
@@ -106,6 +233,74 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     loadTemplateList();
+  };
+
+  const resetFilters = () => {
+    setFilters(initialFilters);
+    setSearchTerm('');
+  };
+
+  const renderDoorInfo = (item: TemplateSummary) => {
+    const doors = item.doors_connected;
+    if (!doors) return null;
+
+    const doorIcons = [
+      { key: 'top', label: 'T', connected: doors.top },
+      { key: 'right', label: 'R', connected: doors.right },
+      { key: 'bottom', label: 'B', connected: doors.bottom },
+      { key: 'left', label: 'L', connected: doors.left },
+    ];
+
+    return (
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        {doorIcons.map(door => (
+          <span
+            key={door.key}
+            style={{
+              padding: '2px 6px',
+              borderRadius: '3px',
+              fontSize: '11px',
+              fontWeight: 'bold',
+              backgroundColor: door.connected ? '#28a745' : '#6c757d',
+              color: 'white',
+            }}
+            title={`${door.key.charAt(0).toUpperCase() + door.key.slice(1)} door: ${door.connected ? 'Connected' : 'Disconnected'}`}
+          >
+            {door.label}
+          </span>
+        ))}
+      </div>
+    );
+  };
+
+  const renderAttributes = (item: TemplateSummary) => {
+    const attrs = item.room_attributes;
+    if (!attrs) return null;
+
+    const activeAttrs = Object.entries(attrs)
+      .filter(([_, value]) => value)
+      .map(([key]) => attributeLabels[key] || key);
+
+    if (activeAttrs.length === 0) return <span style={{ color: '#999', fontSize: '11px' }}>No attributes</span>;
+
+    return (
+      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+        {activeAttrs.map(attr => (
+          <span
+            key={attr}
+            style={{
+              padding: '2px 6px',
+              borderRadius: '3px',
+              fontSize: '11px',
+              backgroundColor: '#17a2b8',
+              color: 'white',
+            }}
+          >
+            {attr}
+          </span>
+        ))}
+      </div>
+    );
   };
 
   if (!isOpen) return null;
@@ -126,11 +321,13 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
       <div style={{
         backgroundColor: 'white',
         borderRadius: '8px',
-        width: '600px',
-        maxWidth: '90vw',
-        maxHeight: '80vh',
+        width: '900px',
+        maxWidth: '95vw',
+        maxHeight: '90vh',
         overflow: 'hidden',
         boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         {/* Header */}
         <div style={{
@@ -139,11 +336,12 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
           justifyContent: 'space-between',
           padding: '20px',
           borderBottom: '1px solid #eee',
+          flexShrink: 0,
         }}>
           <h2 style={{ margin: 0, fontSize: '20px', color: '#333' }}>
-            {mode === 'save' ? '💾 Save Template' : '📁 Load Template'}
+            {mode === 'save' ? 'Save Template' : 'Load Template'}
           </h2>
-          
+
           <button
             onClick={onClose}
             style={{
@@ -154,15 +352,15 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
               padding: '5px',
             }}
           >
-            ✕
+            X
           </button>
         </div>
 
         {/* Content */}
         <div style={{
           padding: '20px',
-          maxHeight: '60vh',
           overflowY: 'auto',
+          flex: 1,
         }}>
           {/* Error display */}
           {(apiState.error || listError) && (
@@ -188,13 +386,13 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                   cursor: 'pointer',
                 }}
               >
-                ✕
+                X
               </button>
             </div>
           )}
 
           {/* Success message */}
-          {apiState.lastSaved && (
+          {apiState.lastSaved && mode === 'save' && (
             <div style={{
               padding: '10px',
               backgroundColor: '#d4edda',
@@ -203,14 +401,13 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
               marginBottom: '20px',
               color: '#155724',
             }}>
-              ✅ Template "{apiState.lastSaved.name}" saved successfully!
+              Template "{apiState.lastSaved.name}" saved successfully!
             </div>
           )}
 
           {/* Save Mode */}
           {mode === 'save' && (
             <div>
-              
               <div style={{ marginBottom: '20px' }}>
                 <label style={{
                   display: 'block',
@@ -242,7 +439,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                 fontSize: '14px',
               }}>
                 <strong>Template Info:</strong><br/>
-                Size: {template.width} × {template.height}<br/>
+                Size: {template.width} x {template.height}<br/>
                 Layers: Ground, Static, Turret, MobGround, MobAir
               </div>
 
@@ -281,15 +478,14 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
           {/* Load Mode */}
           {mode === 'load' && (
             <div>
-              
-              {/* Search */}
-              <form onSubmit={handleSearch} style={{ marginBottom: '20px' }}>
-                <div style={{ display: 'flex', gap: '10px' }}>
+              {/* Search and Filter Toggle */}
+              <div style={{ marginBottom: '15px' }}>
+                <form onSubmit={handleSearch} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
                   <input
                     type="text"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Search templates..."
+                    placeholder="Search templates by name..."
                     style={{
                       flex: 1,
                       padding: '10px',
@@ -311,10 +507,118 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                       opacity: listLoading ? 0.6 : 1,
                     }}
                   >
-                    🔍 Search
+                    Search
                   </button>
-                </div>
-              </form>
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters(!showFilters)}
+                    style={{
+                      padding: '10px 15px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      backgroundColor: showFilters ? '#e9ecef' : 'white',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Filters {showFilters ? '[-]' : '[+]'}
+                  </button>
+                </form>
+
+                {/* Filter Panel */}
+                {showFilters && (
+                  <div style={{
+                    padding: '15px',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '4px',
+                    border: '1px solid #e9ecef',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                      <strong style={{ fontSize: '14px' }}>Filters</strong>
+                      <button
+                        onClick={resetFilters}
+                        style={{
+                          padding: '4px 10px',
+                          border: '1px solid #ddd',
+                          borderRadius: '4px',
+                          backgroundColor: 'white',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                        }}
+                      >
+                        Reset All
+                      </button>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
+                      {/* Room Type Filter */}
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', color: '#555' }}>Room Type</div>
+                        <select
+                          value={filters.roomType}
+                          onChange={(e) => setFilters({ ...filters, roomType: e.target.value as RoomTypeFilter })}
+                          style={{
+                            width: '100%',
+                            padding: '6px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                          }}
+                        >
+                          <option value="all">All Types</option>
+                          <option value="full">Full Room</option>
+                          <option value="bridge">Bridge</option>
+                          <option value="platform">Platform</option>
+                        </select>
+                      </div>
+
+                      {/* Door Connectivity Filter */}
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', color: '#555' }}>Door Connectivity</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                          {(['top', 'right', 'bottom', 'left'] as const).map(door => {
+                            const doorValue = filters.doors[door] === 'any' ? null : filters.doors[door] === 'connected';
+                            return (
+                              <TriStateCheckbox
+                                key={door}
+                                label={door.charAt(0).toUpperCase() + door.slice(1)}
+                                value={doorValue}
+                                onChange={(val) => setFilters({
+                                  ...filters,
+                                  doors: {
+                                    ...filters.doors,
+                                    [door]: val === null ? 'any' : val ? 'connected' : 'disconnected'
+                                  }
+                                })}
+                              />
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Attributes Filter */}
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', color: '#555' }}>Attributes</div>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
+                          {(['boss', 'elite', 'mob', 'treasure', 'teleport', 'story'] as const).map(attr => (
+                            <TriStateCheckbox
+                              key={attr}
+                              label={attributeLabels[attr]}
+                              value={filters.attributes[attr]}
+                              onChange={(val) => setFilters({
+                                ...filters,
+                                attributes: {
+                                  ...filters.attributes,
+                                  [attr]: val
+                                }
+                              })}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Template List */}
               {listLoading && (
@@ -337,7 +641,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                     Found {templateList.total} template(s)
                   </div>
 
-                  {templateList.items.length === 0 ? (
+                  {!templateList.items || templateList.items.length === 0 ? (
                     <div style={{
                       textAlign: 'center',
                       padding: '40px',
@@ -346,7 +650,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                       No templates found.
                     </div>
                   ) : (
-                    <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <div style={{ maxHeight: '450px', overflowY: 'auto' }}>
                       {templateList.items.map((item) => {
                         const info = formatTemplateInfo(item as any);
                         return (
@@ -377,8 +681,8 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                               {item.thumbnail ? (
                                 <div style={{
                                   flexShrink: 0,
-                                  width: '60px',
-                                  height: '60px',
+                                  width: '80px',
+                                  height: '80px',
                                   border: '1px solid #ddd',
                                   borderRadius: '4px',
                                   overflow: 'hidden',
@@ -398,8 +702,8 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                               ) : (
                                 <div style={{
                                   flexShrink: 0,
-                                  width: '60px',
-                                  height: '60px',
+                                  width: '80px',
+                                  height: '80px',
                                   border: '1px solid #ddd',
                                   borderRadius: '4px',
                                   backgroundColor: '#f0f0f0',
@@ -423,7 +727,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                                   marginBottom: '8px',
                                 }}>
                                   <div style={{ flex: 1, minWidth: 0 }}>
-                                    <strong style={{ 
+                                    <strong style={{
                                       fontSize: '16px',
                                       display: 'block',
                                       whiteSpace: 'nowrap',
@@ -437,7 +741,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                                       color: '#666',
                                       marginTop: '4px',
                                     }}>
-                                      {info.info} • {info.size} • Created {info.created}
+                                      {item.width}x{item.height} | Created {info.created}
                                     </div>
                                   </div>
                                   <div style={{ display: 'flex', gap: '8px', marginLeft: '10px', flexShrink: 0 }}>
@@ -479,6 +783,41 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                                     >
                                       Delete
                                     </button>
+                                  </div>
+                                </div>
+
+                                {/* Additional Info Row */}
+                                <div style={{
+                                  display: 'flex',
+                                  gap: '20px',
+                                  alignItems: 'center',
+                                  flexWrap: 'wrap',
+                                  marginTop: '8px',
+                                }}>
+                                  {/* Room Type */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <span style={{ fontSize: '12px', color: '#666' }}>Type:</span>
+                                    <span style={{
+                                      padding: '2px 8px',
+                                      borderRadius: '3px',
+                                      fontSize: '11px',
+                                      backgroundColor: '#6f42c1',
+                                      color: 'white',
+                                    }}>
+                                      {item.room_type ? roomTypeLabels[item.room_type] || item.room_type : 'N/A'}
+                                    </span>
+                                  </div>
+
+                                  {/* Doors */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <span style={{ fontSize: '12px', color: '#666' }}>Doors:</span>
+                                    {renderDoorInfo(item)}
+                                  </div>
+
+                                  {/* Attributes */}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                    <span style={{ fontSize: '12px', color: '#666' }}>Attrs:</span>
+                                    {renderAttributes(item)}
                                   </div>
                                 </div>
                               </div>

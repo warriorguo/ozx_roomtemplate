@@ -76,18 +76,63 @@ export interface BackendCreateResponse {
   updated_at: string;
 }
 
+export interface DoorsConnected {
+  top: boolean;
+  right: boolean;
+  bottom: boolean;
+  left: boolean;
+}
+
+export interface RoomAttributes {
+  boss: boolean;
+  elite: boolean;
+  mob: boolean;
+  treasure: boolean;
+  teleport: boolean;
+  story: boolean;
+}
+
+export interface TemplateSummary {
+  id: string;
+  name: string;
+  version: number;
+  width: number;
+  height: number;
+  thumbnail?: string;
+  walkable_ratio?: number;
+  room_type?: 'full' | 'bridge' | 'platform';
+  room_attributes?: RoomAttributes;
+  doors_connected?: DoorsConnected;
+  static_count?: number;
+  turret_count?: number;
+  mobground_count?: number;
+  mobair_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BackendListResponse {
   total: number;
-  items: Array<{
-    id: string;
-    name: string;
-    version: number;
-    width: number;
-    height: number;
-    thumbnail?: string; // Base64 encoded PNG
-    created_at: string;
-    updated_at: string;
-  }>;
+  items: TemplateSummary[];
+}
+
+export interface ListTemplatesParams {
+  limit?: number;
+  offset?: number;
+  name_like?: string;
+  room_type?: 'full' | 'bridge' | 'platform';
+  // Attribute filters
+  has_boss?: boolean;
+  has_elite?: boolean;
+  has_mob?: boolean;
+  has_treasure?: boolean;
+  has_teleport?: boolean;
+  has_story?: boolean;
+  // Door connectivity filters
+  top_door_connected?: boolean;
+  right_door_connected?: boolean;
+  bottom_door_connected?: boolean;
+  left_door_connected?: boolean;
 }
 
 export interface BackendValidationResult {
@@ -207,20 +252,31 @@ export class TemplateApiService {
   /**
    * List templates with optional filtering
    */
-  async listTemplates(params?: {
-    limit?: number;
-    offset?: number;
-    name_like?: string;
-  }): Promise<BackendListResponse> {
+  async listTemplates(params?: ListTemplatesParams): Promise<BackendListResponse> {
     const searchParams = new URLSearchParams();
-    
+
     if (params?.limit) searchParams.set('limit', params.limit.toString());
     if (params?.offset) searchParams.set('offset', params.offset.toString());
     if (params?.name_like) searchParams.set('name_like', params.name_like);
-    
+    if (params?.room_type) searchParams.set('room_type', params.room_type);
+
+    // Attribute filters
+    if (params?.has_boss !== undefined) searchParams.set('has_boss', params.has_boss.toString());
+    if (params?.has_elite !== undefined) searchParams.set('has_elite', params.has_elite.toString());
+    if (params?.has_mob !== undefined) searchParams.set('has_mob', params.has_mob.toString());
+    if (params?.has_treasure !== undefined) searchParams.set('has_treasure', params.has_treasure.toString());
+    if (params?.has_teleport !== undefined) searchParams.set('has_teleport', params.has_teleport.toString());
+    if (params?.has_story !== undefined) searchParams.set('has_story', params.has_story.toString());
+
+    // Door connectivity filters
+    if (params?.top_door_connected !== undefined) searchParams.set('top_door_connected', params.top_door_connected.toString());
+    if (params?.right_door_connected !== undefined) searchParams.set('right_door_connected', params.right_door_connected.toString());
+    if (params?.bottom_door_connected !== undefined) searchParams.set('bottom_door_connected', params.bottom_door_connected.toString());
+    if (params?.left_door_connected !== undefined) searchParams.set('left_door_connected', params.left_door_connected.toString());
+
     const query = searchParams.toString();
     const endpoint = query ? `/templates?${query}` : '/templates';
-    
+
     return this.makeRequest<BackendListResponse>(endpoint);
   }
 
