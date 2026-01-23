@@ -18,11 +18,12 @@ const (
 
 // BridgeGenerateRequest represents the request for generating a bridge room
 type BridgeGenerateRequest struct {
-	Width       int            `json:"width"`
-	Height      int            `json:"height"`
-	Doors       []DoorPosition `json:"doors"`       // At least 2 doors required
-	StaticCount int            `json:"staticCount"` // Suggested number of statics to place (optional)
-	TurretCount int            `json:"turretCount"` // Suggested number of turrets to place (optional)
+	Width          int            `json:"width"`
+	Height         int            `json:"height"`
+	Doors          []DoorPosition `json:"doors"`          // At least 2 doors required
+	StaticCount    int            `json:"staticCount"`    // Suggested number of statics to place (optional)
+	TurretCount    int            `json:"turretCount"`    // Suggested number of turrets to place (optional)
+	MobGroundCount int            `json:"mobGroundCount"` // Suggested number of mob ground to place (optional)
 }
 
 // BridgeGenerateResponse represents the generated template
@@ -125,6 +126,12 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		generateTurretLayer(turretLayer, ground, emptyLayer, emptyLayer, staticLayer, doorPositions, req.Width, req.Height, req.TurretCount)
 	}
 
+	// Step 5: Generate mob ground layer if requested
+	mobGroundLayer := copyLayer(emptyLayer)
+	if req.MobGroundCount > 0 {
+		generateMobGroundLayer(mobGroundLayer, ground, emptyLayer, emptyLayer, staticLayer, turretLayer, doorPositions, req.Width, req.Height, req.MobGroundCount)
+	}
+
 	// Build payload
 	roomType := "bridge"
 	payload := model.TemplatePayload{
@@ -133,7 +140,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		Bridge:    copyLayer(emptyLayer),
 		Static:    staticLayer,
 		Turret:    turretLayer,
-		MobGround: copyLayer(emptyLayer),
+		MobGround: mobGroundLayer,
 		MobAir:    copyLayer(emptyLayer),
 		Doors:     doorStates,
 		RoomType:  &roomType,
@@ -1233,4 +1240,487 @@ func checkTurretConnectivityAfterPlacement(ground, staticLayer, turretLayer [][]
 	}
 
 	return true
+}
+
+// ============================================================================
+// Mob Ground Layer Generation
+// ============================================================================
+
+// MobGroundStrategy represents placement strategy for mob ground
+type MobGroundStrategy int
+
+const (
+	MobGroundStrategyLargeOpenArea MobGroundStrategy = iota // Place in large open area from center outward
+	MobGroundStrategyNearDoors                              // Place near doors
+	MobGroundStrategyCenterOutward                          // Place from center outward
+)
+
+const (
+	mobGroundMinDoorDistance = 2 // Minimum distance from doors
+)
+
+// generateMobGroundLayer generates the mob ground layer with the given constraints
+func generateMobGroundLayer(mobGroundLayer, ground, softEdge, bridge, staticLayer, turretLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height, targetCount int) {
+
+	if targetCount <= 0 {
+		return
+	}
+
+	// Step 1: Divide count into 2-3 groups
+	groups := divideMobGroundIntoGroups(targetCount)
+	if len(groups) == 0 {
+		return
+	}
+
+	// Step 2: Select strategies for each group (no duplicates)
+	availableStrategies := []MobGroundStrategy{
+		MobGroundStrategyLargeOpenArea,
+		MobGroundStrategyNearDoors,
+		MobGroundStrategyCenterOutward,
+	}
+
+	// Shuffle strategies
+	for i := len(availableStrategies) - 1; i > 0; i-- {
+		j := rand.Intn(i + 1)
+		availableStrategies[i], availableStrategies[j] = availableStrategies[j], availableStrategies[i]
+	}
+
+	// Check if large open area strategy is viable
+	largeOpenAreaCenter := findLargeOpenAreaCenter(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height)
+	if largeOpenAreaCenter.X < 0 {
+		// Remove large open area strategy if not viable
+		for i, s := range availableStrategies {
+			if s == MobGroundStrategyLargeOpenArea {
+				availableStrategies = append(availableStrategies[:i], availableStrategies[i+1:]...)
+				break
+			}
+		}
+	}
+
+	// Step 3: Execute placement for each group
+	centerX, centerY := width/2, height/2
+
+	for i, groupCount := range groups {
+		if i >= len(availableStrategies) {
+			break
+		}
+
+		strategy := availableStrategies[i]
+		placed := executeMobGroundStrategy(mobGroundLayer, ground, softEdge, bridge, staticLayer, turretLayer,
+			doorPositions, width, height, groupCount, strategy, centerX, centerY, largeOpenAreaCenter)
+
+		if placed == 0 {
+			// Strategy failed, continue with next group
+			continue
+		}
+	}
+}
+
+// divideMobGroundIntoGroups divides the target count into 2-3 groups
+func divideMobGroundIntoGroups(targetCount int) []int {
+	if targetCount <= 0 {
+		return nil
+	}
+
+	if targetCount == 1 {
+		return []int{1}
+	}
+
+	if targetCount == 2 {
+		return []int{1, 1}
+	}
+
+	// Try 3 groups first
+	groupCount := 3
+	if targetCount < 3 {
+		groupCount = 2
+	}
+
+	baseSize := targetCount / groupCount
+	remainder := targetCount % groupCount
+
+	groups := make([]int, groupCount)
+	for i := 0; i < groupCount; i++ {
+		groups[i] = baseSize
+		if i < remainder {
+			groups[i]++
+		}
+	}
+
+	// Merge groups if any has less than 1
+	for i := len(groups) - 1; i >= 0; i-- {
+		if groups[i] < 1 && len(groups) > 1 {
+			if i > 0 {
+				groups[i-1] += groups[i]
+			} else if len(groups) > 1 {
+				groups[1] += groups[0]
+			}
+			groups = append(groups[:i], groups[i+1:]...)
+		}
+	}
+
+	return groups
+}
+
+// executeMobGroundStrategy executes a specific placement strategy
+func executeMobGroundStrategy(mobGroundLayer, ground, softEdge, bridge, staticLayer, turretLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height, targetCount int,
+	strategy MobGroundStrategy, centerX, centerY int, largeOpenAreaCenter Point) int {
+
+	placed := 0
+	remaining := targetCount
+	maxAttempts := targetCount * 3
+
+	for remaining > 0 && maxAttempts > 0 {
+		// Find valid positions based on strategy
+		validPositions := findValidMobGroundPositions(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer,
+			doorPositions, width, height)
+
+		if len(validPositions) == 0 {
+			break
+		}
+
+		// Sort positions based on strategy
+		sortMobGroundPositionsByStrategy(validPositions, strategy, centerX, centerY, width, height, doorPositions, largeOpenAreaCenter)
+
+		// Try to place (prefer 2x2, fallback to 1x1)
+		placedOne := false
+		for _, pos := range validPositions {
+			// Try 2x2 first
+			if canPlace2x2MobGround(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) {
+				place2x2MobGround(mobGroundLayer, pos)
+				placed++
+				remaining--
+				placedOne = true
+				break
+			}
+
+			// Try 1x1
+			if canPlace1x1MobGround(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) {
+				mobGroundLayer[pos.Y][pos.X] = 1
+				placed++
+				remaining--
+				placedOne = true
+				break
+			}
+		}
+
+		if !placedOne {
+			maxAttempts--
+		}
+	}
+
+	return placed
+}
+
+// findValidMobGroundPositions finds all valid positions for mob ground placement
+func findValidMobGroundPositions(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height int) []Point {
+
+	var positions []Point
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			pos := Point{X: x, Y: y}
+			if isValidMobGroundPosition(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) {
+				positions = append(positions, pos)
+			}
+		}
+	}
+
+	return positions
+}
+
+// isValidMobGroundPosition checks if a single cell is valid for mob ground
+func isValidMobGroundPosition(pos Point, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height int) bool {
+
+	x, y := pos.X, pos.Y
+
+	// Check bounds
+	if x < 0 || x >= width || y < 0 || y >= height {
+		return false
+	}
+
+	// Must be on ground
+	if ground[y][x] != 1 {
+		return false
+	}
+
+	// Must not overlap with other layers
+	if softEdge[y][x] != 0 || bridge[y][x] != 0 || staticLayer[y][x] != 0 || turretLayer[y][x] != 0 {
+		return false
+	}
+
+	// Must not already have mob ground
+	if mobGroundLayer[y][x] != 0 {
+		return false
+	}
+
+	// Must be at least 2 cells away from doors
+	for _, doorPos := range doorPositions {
+		if manhattanDistance(pos, doorPos) < mobGroundMinDoorDistance {
+			return false
+		}
+	}
+
+	// Must not touch existing mob ground
+	if touchesExistingMobGround(pos, mobGroundLayer, width, height) {
+		return false
+	}
+
+	return true
+}
+
+// touchesExistingMobGround checks if placing mob ground at pos would touch existing mob ground
+func touchesExistingMobGround(pos Point, mobGroundLayer [][]int, width, height int) bool {
+	// Check all 8 neighbors (including diagonals)
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			nx, ny := pos.X+dx, pos.Y+dy
+			if nx >= 0 && nx < width && ny >= 0 && ny < height {
+				if mobGroundLayer[ny][nx] != 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// canPlace2x2MobGround checks if a 2x2 mob ground can be placed at the given top-left corner
+func canPlace2x2MobGround(pos Point, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height int) bool {
+
+	// Check all 4 cells
+	for dy := 0; dy < 2; dy++ {
+		for dx := 0; dx < 2; dx++ {
+			checkPos := Point{X: pos.X + dx, Y: pos.Y + dy}
+			if !isValidMobGroundPosition(checkPos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) {
+				return false
+			}
+		}
+	}
+
+	// Check that 2x2 doesn't touch existing mob ground (expanded check)
+	if touches2x2ExistingMobGround(pos, mobGroundLayer, width, height) {
+		return false
+	}
+
+	return true
+}
+
+// touches2x2ExistingMobGround checks if placing a 2x2 mob ground would touch existing mob ground
+func touches2x2ExistingMobGround(pos Point, mobGroundLayer [][]int, width, height int) bool {
+	// Check a 4x4 area around the 2x2 placement (1 cell buffer on each side)
+	for dy := -1; dy <= 2; dy++ {
+		for dx := -1; dx <= 2; dx++ {
+			// Skip the cells that will be occupied
+			if dx >= 0 && dx < 2 && dy >= 0 && dy < 2 {
+				continue
+			}
+			nx, ny := pos.X+dx, pos.Y+dy
+			if nx >= 0 && nx < width && ny >= 0 && ny < height {
+				if mobGroundLayer[ny][nx] != 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// canPlace1x1MobGround checks if a 1x1 mob ground can be placed
+func canPlace1x1MobGround(pos Point, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height int) bool {
+	return isValidMobGroundPosition(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height)
+}
+
+// place2x2MobGround places a 2x2 mob ground at the given top-left corner
+func place2x2MobGround(mobGroundLayer [][]int, pos Point) {
+	for dy := 0; dy < 2; dy++ {
+		for dx := 0; dx < 2; dx++ {
+			mobGroundLayer[pos.Y+dy][pos.X+dx] = 1
+		}
+	}
+}
+
+// sortMobGroundPositionsByStrategy sorts positions based on the placement strategy
+func sortMobGroundPositionsByStrategy(positions []Point, strategy MobGroundStrategy, centerX, centerY, width, height int,
+	doorPositions map[DoorPosition]Point, largeOpenAreaCenter Point) {
+
+	switch strategy {
+	case MobGroundStrategyLargeOpenArea:
+		// Sort by distance from large open area center (closest first)
+		for i := 0; i < len(positions)-1; i++ {
+			for j := i + 1; j < len(positions); j++ {
+				distI := manhattanDistance(positions[i], largeOpenAreaCenter)
+				distJ := manhattanDistance(positions[j], largeOpenAreaCenter)
+				if distJ < distI {
+					positions[i], positions[j] = positions[j], positions[i]
+				}
+			}
+		}
+
+	case MobGroundStrategyNearDoors:
+		// Sort by distance from nearest door (closest first)
+		for i := 0; i < len(positions)-1; i++ {
+			for j := i + 1; j < len(positions); j++ {
+				distI := minDistanceToDoor(positions[i], doorPositions)
+				distJ := minDistanceToDoor(positions[j], doorPositions)
+				if distJ < distI {
+					positions[i], positions[j] = positions[j], positions[i]
+				}
+			}
+		}
+
+	case MobGroundStrategyCenterOutward:
+		// Sort by distance from center (closest first)
+		center := Point{X: centerX, Y: centerY}
+		for i := 0; i < len(positions)-1; i++ {
+			for j := i + 1; j < len(positions); j++ {
+				distI := manhattanDistance(positions[i], center)
+				distJ := manhattanDistance(positions[j], center)
+				if distJ < distI {
+					positions[i], positions[j] = positions[j], positions[i]
+				}
+			}
+		}
+	}
+}
+
+// minDistanceToDoor returns the minimum distance to any door
+func minDistanceToDoor(pos Point, doorPositions map[DoorPosition]Point) int {
+	minDist := 999999
+	for _, doorPos := range doorPositions {
+		dist := manhattanDistance(pos, doorPos)
+		if dist < minDist {
+			minDist = dist
+		}
+	}
+	return minDist
+}
+
+// findLargeOpenAreaCenter finds the center of a large open area connected to doors
+// Returns Point{-1, -1} if no suitable large open area exists
+func findLargeOpenAreaCenter(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height int) Point {
+
+	// Find all connected regions of walkable ground
+	visited := make([][]bool, height)
+	for y := 0; y < height; y++ {
+		visited[y] = make([]bool, width)
+	}
+
+	// Find the largest region that is connected to at least one door
+	var bestCenter Point
+	bestSize := 0
+	minSizeThreshold := (width * height) / 10 // At least 10% of total area
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if visited[y][x] {
+				continue
+			}
+
+			pos := Point{X: x, Y: y}
+			if !isWalkableForMobGround(pos, ground, softEdge, bridge, staticLayer, turretLayer, width, height) {
+				visited[y][x] = true
+				continue
+			}
+
+			// BFS to find connected region
+			region := findConnectedRegion(pos, ground, softEdge, bridge, staticLayer, turretLayer, visited, width, height)
+			if len(region) == 0 {
+				continue
+			}
+
+			// Check if region is connected to any door
+			connectedToDoor := false
+			for _, doorPos := range doorPositions {
+				for _, regionPos := range region {
+					if manhattanDistance(regionPos, doorPos) <= 2 {
+						connectedToDoor = true
+						break
+					}
+				}
+				if connectedToDoor {
+					break
+				}
+			}
+
+			if connectedToDoor && len(region) > bestSize && len(region) >= minSizeThreshold {
+				bestSize = len(region)
+				bestCenter = calculateRegionCenter(region)
+			}
+		}
+	}
+
+	if bestSize == 0 {
+		return Point{X: -1, Y: -1}
+	}
+
+	return bestCenter
+}
+
+// isWalkableForMobGround checks if a cell is walkable for mob ground placement consideration
+func isWalkableForMobGround(pos Point, ground, softEdge, bridge, staticLayer, turretLayer [][]int, width, height int) bool {
+	x, y := pos.X, pos.Y
+	if x < 0 || x >= width || y < 0 || y >= height {
+		return false
+	}
+	return ground[y][x] == 1 && softEdge[y][x] == 0 && bridge[y][x] == 0 && staticLayer[y][x] == 0 && turretLayer[y][x] == 0
+}
+
+// findConnectedRegion finds all cells connected to the starting point
+func findConnectedRegion(start Point, ground, softEdge, bridge, staticLayer, turretLayer [][]int,
+	visited [][]bool, width, height int) []Point {
+
+	var region []Point
+	queue := []Point{start}
+	visited[start.Y][start.X] = true
+
+	dx := []int{0, 1, 0, -1}
+	dy := []int{-1, 0, 1, 0}
+
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+		region = append(region, curr)
+
+		for i := 0; i < 4; i++ {
+			nx, ny := curr.X+dx[i], curr.Y+dy[i]
+			if nx >= 0 && nx < width && ny >= 0 && ny < height && !visited[ny][nx] {
+				nextPos := Point{X: nx, Y: ny}
+				if isWalkableForMobGround(nextPos, ground, softEdge, bridge, staticLayer, turretLayer, width, height) {
+					visited[ny][nx] = true
+					queue = append(queue, nextPos)
+				}
+			}
+		}
+	}
+
+	return region
+}
+
+// calculateRegionCenter calculates the center of a region
+func calculateRegionCenter(region []Point) Point {
+	if len(region) == 0 {
+		return Point{X: -1, Y: -1}
+	}
+
+	sumX, sumY := 0, 0
+	for _, pos := range region {
+		sumX += pos.X
+		sumY += pos.Y
+	}
+
+	return Point{
+		X: sumX / len(region),
+		Y: sumY / len(region),
+	}
 }

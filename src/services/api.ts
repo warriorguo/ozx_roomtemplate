@@ -337,6 +337,7 @@ export interface BridgeGenerateRequest {
   doors: DoorPosition[];
   staticCount?: number;
   turretCount?: number;
+  mobGroundCount?: number;
 }
 
 export interface BridgeGenerateResponse {

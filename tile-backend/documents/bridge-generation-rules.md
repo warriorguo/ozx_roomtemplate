@@ -145,13 +145,88 @@ Turrets are preferentially placed (in order of priority):
 
 Uses BFS (Breadth-First Search) to verify all doors remain connected after a hypothetical turret placement. A turret placement is rejected if it would block the only path between any two doors.
 
+## Mob Ground Layer Generation
+
+### Input Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `mobGroundCount` | Suggested number of mob ground to place (optional, default 0) |
+
+### Placement Rules
+
+1. **Mob Ground size**: 2×2 (preferred) or 1×1 (fallback)
+2. **Ground requirement**: All cells must be on ground (ground=1)
+3. **Door distance**: Mob ground must be at least **2 cells** (Manhattan distance) away from any door
+4. **No touching**: Mob ground cannot touch each other (including diagonals)
+5. **No overlap**: Mob ground cells must not overlap with softEdge, bridge, static, or turret layers
+6. **Size preference**: Always try 2×2 first, fall back to 1×1 if 2×2 cannot fit
+
+### Placement Strategies
+
+Three strategies are available, each group uses a different strategy:
+
+| Strategy | Description |
+|----------|-------------|
+| Large Open Area | If there's a large walkable area (≥10% of room) connected to doors, place from its center outward |
+| Near Doors | Place around door areas (but respecting minimum distance) |
+| Center Outward | Place from room center outward |
+
+### Placement Steps
+
+1. **Divide into groups**: Split target count into 2-3 groups with roughly equal sizes
+   - If any group has less than 1, merge groups until all have ≥1
+   - Example: count=5 → groups=[2, 2, 1]
+
+2. **Assign strategies**: Each group gets a unique strategy (no duplicates)
+   - Strategies are shuffled randomly
+   - Large Open Area strategy is skipped if no suitable area exists
+
+3. **Execute per group**: For each group:
+   - Find all valid positions based on rules
+   - Sort positions by strategy preference
+   - Place mob ground (prefer 2×2, fallback to 1×1)
+   - Continue until group count reached or placement fails
+
+### Mob Ground Layer Example
+
+```
+mobGroundCount: 4
+
+Ground + Static + Turret + MobGround overlay:
+
+····████████····████
+····████████····████
+····██▓▓████····████
+····██▓▓███T····████
+····████████····████
+████████████████████
+██T████MM███████▓▓██
+████████MM██████▓▓██
+████████████████████
+██████████████M█████
+····████████········
+····███T████········
+····████████········
+····████████····T···
+····████████········
+
+█ = Ground only (walkable)
+▓ = Static on ground (blocked, 2×2 blocks)
+T = Turret on ground (blocked, 1×1 tile)
+M = Mob Ground (2×2 or 1×1 spawn point)
+· = Empty (void)
+
+Note: Mob ground maintains minimum 2-cell distance from doors
+      and cannot touch other mob ground (including diagonals).
+```
+
 ## Other Layers
 
 | Layer | Default Value |
 |-------|---------------|
 | SoftEdge | All 0 |
 | Bridge | All 0 |
-| MobGround | All 0 |
 | MobAir | All 0 |
 
 ## Visual Examples

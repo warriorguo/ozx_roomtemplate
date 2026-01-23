@@ -69,6 +69,7 @@ export const TileTemplateApp: React.FC = () => {
   });
   const [staticCount, setStaticCount] = useState<number>(8);
   const [turretCount, setTurretCount] = useState<number>(4);
+  const [mobGroundCount, setMobGroundCount] = useState<number>(5);
 
   // Toggle door selection
   const toggleDoorSelection = (door: 'top' | 'right' | 'bottom' | 'left') => {
@@ -120,6 +121,7 @@ export const TileTemplateApp: React.FC = () => {
         doors,
         staticCount,
         turretCount,
+        mobGroundCount,
       });
 
       // Load the generated template
@@ -614,6 +616,42 @@ export const TileTemplateApp: React.FC = () => {
                           marginTop: '4px',
                         }}>
                           Number of 1×1 turret tiles to place (0-30)
+                        </div>
+                      </div>
+
+                      {/* MobGround Count */}
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '13px',
+                        }}>
+                          <span style={{ fontWeight: 'bold', color: '#333' }}>
+                            MobGround Count:
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            value={mobGroundCount}
+                            onChange={(e) => setMobGroundCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
+                            style={{
+                              width: '60px',
+                              padding: '6px 8px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '13px',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </label>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#6c757d',
+                          marginTop: '4px',
+                        }}>
+                          Number of mob spawn points to place (2×2 preferred, 1×1 fallback)
                         </div>
                       </div>
 

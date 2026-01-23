@@ -1,6 +1,7 @@
 package generate
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -1078,6 +1079,238 @@ func TestGenerateBridgeRoom_ZeroTurretCount(t *testing.T) {
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
 			assert.Equal(t, 0, resp.Payload.Turret[y][x], "turret should be 0 when TurretCount=0")
+		}
+	}
+}
+
+// ============================================================================
+// Mob Ground Layer Tests
+// ============================================================================
+
+func TestGenerateBridgeRoom_WithMobGroundCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          25,
+		Height:         25,
+		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		MobGroundCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Count mob ground cells
+	mobGroundCount := 0
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobGround[y][x] == 1 {
+				mobGroundCount++
+			}
+		}
+	}
+
+	// Should have placed some mob ground (may be less if space is limited)
+	t.Logf("Placed %d mob ground cells", mobGroundCount)
+	assert.Greater(t, mobGroundCount, 0, "should have placed some mob ground")
+}
+
+func TestGenerateBridgeRoom_MobGroundOnGround(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          20,
+		Height:         20,
+		Doors:          []DoorPosition{DoorTop, DoorBottom},
+		MobGroundCount: 3,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify all mob ground cells are on ground
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobGround[y][x] == 1 {
+				assert.Equal(t, 1, resp.Payload.Ground[y][x],
+					"mob ground at (%d,%d) should be on ground", x, y)
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_MobGroundNotOnOtherLayers(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          30,
+		Height:         30,
+		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount:    3,
+		TurretCount:    4,
+		MobGroundCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify mob ground doesn't overlap with static or turret
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobGround[y][x] == 1 {
+				assert.Equal(t, 0, resp.Payload.Static[y][x],
+					"mob ground at (%d,%d) should not overlap with static", x, y)
+				assert.Equal(t, 0, resp.Payload.Turret[y][x],
+					"mob ground at (%d,%d) should not overlap with turret", x, y)
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_MobGroundDistanceFromDoors(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          20,
+		Height:         20,
+		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		MobGroundCount: 4,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Get door positions
+	doorPositions := getDoorCenterPositions(req.Width, req.Height, req.Doors)
+
+	// Verify mob ground is at least 2 cells away from doors
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobGround[y][x] == 1 {
+				for _, doorPos := range doorPositions {
+					dist := manhattanDistance(Point{X: x, Y: y}, doorPos)
+					assert.GreaterOrEqual(t, dist, mobGroundMinDoorDistance,
+						"mob ground at (%d,%d) should be at least %d cells from door at (%d,%d)",
+						x, y, mobGroundMinDoorDistance, doorPos.X, doorPos.Y)
+				}
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_MobGroundDoNotTouch(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          30,
+		Height:         30,
+		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		MobGroundCount: 6,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Find all mob ground positions
+	var mobGroundPositions []Point
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobGround[y][x] == 1 {
+				mobGroundPositions = append(mobGroundPositions, Point{X: x, Y: y})
+			}
+		}
+	}
+
+	// Group adjacent cells into clusters
+	visited := make(map[Point]bool)
+	var clusters [][]Point
+
+	for _, pos := range mobGroundPositions {
+		if visited[pos] {
+			continue
+		}
+
+		// BFS to find cluster
+		cluster := []Point{pos}
+		visited[pos] = true
+		queue := []Point{pos}
+
+		for len(queue) > 0 {
+			curr := queue[0]
+			queue = queue[1:]
+
+			// Check 4-directional neighbors
+			for _, neighbor := range mobGroundPositions {
+				if !visited[neighbor] {
+					if abs(curr.X-neighbor.X)+abs(curr.Y-neighbor.Y) == 1 {
+						visited[neighbor] = true
+						cluster = append(cluster, neighbor)
+						queue = append(queue, neighbor)
+					}
+				}
+			}
+		}
+		clusters = append(clusters, cluster)
+	}
+
+	// Verify clusters don't touch each other (including diagonals)
+	for i := 0; i < len(clusters); i++ {
+		for j := i + 1; j < len(clusters); j++ {
+			for _, posI := range clusters[i] {
+				for _, posJ := range clusters[j] {
+					// Check if they touch (including diagonals)
+					dx := abs(posI.X - posJ.X)
+					dy := abs(posI.Y - posJ.Y)
+					touching := dx <= 1 && dy <= 1
+					assert.False(t, touching,
+						"mob ground clusters should not touch: (%d,%d) and (%d,%d)",
+						posI.X, posI.Y, posJ.X, posJ.Y)
+				}
+			}
+		}
+	}
+}
+
+func TestDivideMobGroundIntoGroups(t *testing.T) {
+	tests := []struct {
+		count    int
+		expected []int
+	}{
+		{0, nil},
+		{1, []int{1}},
+		{2, []int{1, 1}},
+		{3, []int{1, 1, 1}},
+		{4, []int{2, 1, 1}},
+		{5, []int{2, 2, 1}},
+		{6, []int{2, 2, 2}},
+		{9, []int{3, 3, 3}},
+		{10, []int{4, 3, 3}},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("count_%d", tt.count), func(t *testing.T) {
+			result := divideMobGroundIntoGroups(tt.count)
+			if tt.expected == nil {
+				assert.Nil(t, result)
+			} else {
+				assert.Equal(t, len(tt.expected), len(result), "group count mismatch")
+				// Verify total equals input
+				total := 0
+				for _, g := range result {
+					total += g
+					assert.GreaterOrEqual(t, g, 1, "each group should have at least 1")
+				}
+				assert.Equal(t, tt.count, total, "total should equal input count")
+			}
+		})
+	}
+}
+
+func TestGenerateBridgeRoom_ZeroMobGroundCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          15,
+		Height:         15,
+		Doors:          []DoorPosition{DoorTop, DoorBottom},
+		MobGroundCount: 0,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify mob ground layer is all zeros
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			assert.Equal(t, 0, resp.Payload.MobGround[y][x], "mob ground should be 0 when MobGroundCount=0")
 		}
 	}
 }
