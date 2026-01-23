@@ -72,6 +72,7 @@ export const TileTemplateApp: React.FC = () => {
   const [turretCount, setTurretCount] = useState<number>(4);
   const [mobGroundCount, setMobGroundCount] = useState<number>(5);
   const [mobAirCount, setMobAirCount] = useState<number>(4);
+  const [advancedOptionsExpanded, setAdvancedOptionsExpanded] = useState(false);
 
   // Toggle door selection
   const toggleDoorSelection = (door: 'top' | 'right' | 'bottom' | 'left') => {
@@ -547,190 +548,238 @@ export const TileTemplateApp: React.FC = () => {
                         ))}
                       </div>
 
-                      {/* Soft Edge Count Input */}
+                      {/* Advanced Options - Collapsible */}
                       <div style={{
                         marginBottom: '12px',
+                        border: '1px solid #ddd',
+                        borderRadius: '6px',
+                        overflow: 'hidden',
                       }}>
-                        <label style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '13px',
-                        }}>
-                          <span style={{ fontWeight: 'bold', color: '#333' }}>
-                            Soft Edge Count:
+                        <button
+                          onClick={() => setAdvancedOptionsExpanded(!advancedOptionsExpanded)}
+                          style={{
+                            width: '100%',
+                            padding: '10px 12px',
+                            backgroundColor: '#f8f9fa',
+                            border: 'none',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            fontSize: '13px',
+                            fontWeight: 'bold',
+                            color: '#333',
+                            transition: 'background-color 0.2s',
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = '#e9ecef';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = '#f8f9fa';
+                          }}
+                        >
+                          <span>Advanced Options</span>
+                          <span style={{
+                            transform: advancedOptionsExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                          }}>
+                            ▼
                           </span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="20"
-                            value={softEdgeCount}
-                            onChange={(e) => setSoftEdgeCount(Math.max(0, Math.min(20, parseInt(e.target.value) || 0)))}
-                            style={{
-                              width: '60px',
-                              padding: '6px 8px',
-                              border: '1px solid #ddd',
-                              borderRadius: '4px',
-                              fontSize: '13px',
-                              textAlign: 'center',
-                            }}
-                          />
-                        </label>
-                        <div style={{
-                          fontSize: '11px',
-                          color: '#6c757d',
-                          marginTop: '4px',
-                        }}>
-                          Number of soft edge strips to place (0-20)
-                        </div>
-                      </div>
+                        </button>
 
-                      {/* Static Count Input */}
-                      <div style={{
-                        marginBottom: '12px',
-                      }}>
-                        <label style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '13px',
-                        }}>
-                          <span style={{ fontWeight: 'bold', color: '#333' }}>
-                            Static Count:
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="50"
-                            value={staticCount}
-                            onChange={(e) => setStaticCount(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
-                            style={{
-                              width: '60px',
-                              padding: '6px 8px',
-                              border: '1px solid #ddd',
-                              borderRadius: '4px',
-                              fontSize: '13px',
-                              textAlign: 'center',
-                            }}
-                          />
-                        </label>
-                        <div style={{
-                          fontSize: '11px',
-                          color: '#6c757d',
-                          marginTop: '4px',
-                        }}>
-                          Number of 2×2 static blocks to place (0-50)
-                        </div>
-                      </div>
+                        {advancedOptionsExpanded && (
+                          <div style={{
+                            padding: '12px',
+                            borderTop: '1px solid #ddd',
+                            backgroundColor: 'white',
+                          }}>
+                            {/* Soft Edge Count Input */}
+                            <div style={{
+                              marginBottom: '12px',
+                            }}>
+                              <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontSize: '13px',
+                              }}>
+                                <span style={{ fontWeight: 'bold', color: '#333' }}>
+                                  Soft Edge Count:
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="20"
+                                  value={softEdgeCount}
+                                  onChange={(e) => setSoftEdgeCount(Math.max(0, Math.min(20, parseInt(e.target.value) || 0)))}
+                                  style={{
+                                    width: '60px',
+                                    padding: '6px 8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '13px',
+                                    textAlign: 'center',
+                                  }}
+                                />
+                              </label>
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#6c757d',
+                                marginTop: '4px',
+                              }}>
+                                Number of soft edge strips to place (0-20)
+                              </div>
+                            </div>
 
-                      {/* Turret Count Input */}
-                      <div style={{
-                        marginBottom: '12px',
-                      }}>
-                        <label style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '13px',
-                        }}>
-                          <span style={{ fontWeight: 'bold', color: '#333' }}>
-                            Turret Count:
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="30"
-                            value={turretCount}
-                            onChange={(e) => setTurretCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
-                            style={{
-                              width: '60px',
-                              padding: '6px 8px',
-                              border: '1px solid #ddd',
-                              borderRadius: '4px',
-                              fontSize: '13px',
-                              textAlign: 'center',
-                            }}
-                          />
-                        </label>
-                        <div style={{
-                          fontSize: '11px',
-                          color: '#6c757d',
-                          marginTop: '4px',
-                        }}>
-                          Number of 1×1 turret tiles to place (0-30)
-                        </div>
-                      </div>
+                            {/* Static Count Input */}
+                            <div style={{
+                              marginBottom: '12px',
+                            }}>
+                              <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontSize: '13px',
+                              }}>
+                                <span style={{ fontWeight: 'bold', color: '#333' }}>
+                                  Static Count:
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="50"
+                                  value={staticCount}
+                                  onChange={(e) => setStaticCount(Math.max(0, Math.min(50, parseInt(e.target.value) || 0)))}
+                                  style={{
+                                    width: '60px',
+                                    padding: '6px 8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '13px',
+                                    textAlign: 'center',
+                                  }}
+                                />
+                              </label>
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#6c757d',
+                                marginTop: '4px',
+                              }}>
+                                Number of 2×2 static blocks to place (0-50)
+                              </div>
+                            </div>
 
-                      {/* MobGround Count */}
-                      <div style={{ marginBottom: '12px' }}>
-                        <label style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '13px',
-                        }}>
-                          <span style={{ fontWeight: 'bold', color: '#333' }}>
-                            MobGround Count:
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="30"
-                            value={mobGroundCount}
-                            onChange={(e) => setMobGroundCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
-                            style={{
-                              width: '60px',
-                              padding: '6px 8px',
-                              border: '1px solid #ddd',
-                              borderRadius: '4px',
-                              fontSize: '13px',
-                              textAlign: 'center',
-                            }}
-                          />
-                        </label>
-                        <div style={{
-                          fontSize: '11px',
-                          color: '#6c757d',
-                          marginTop: '4px',
-                        }}>
-                          Number of mob spawn points to place (2×2 preferred, 1×1 fallback)
-                        </div>
-                      </div>
+                            {/* Turret Count Input */}
+                            <div style={{
+                              marginBottom: '12px',
+                            }}>
+                              <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontSize: '13px',
+                              }}>
+                                <span style={{ fontWeight: 'bold', color: '#333' }}>
+                                  Turret Count:
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="30"
+                                  value={turretCount}
+                                  onChange={(e) => setTurretCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
+                                  style={{
+                                    width: '60px',
+                                    padding: '6px 8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '13px',
+                                    textAlign: 'center',
+                                  }}
+                                />
+                              </label>
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#6c757d',
+                                marginTop: '4px',
+                              }}>
+                                Number of 1×1 turret tiles to place (0-30)
+                              </div>
+                            </div>
 
-                      {/* MobAir Count */}
-                      <div style={{ marginBottom: '12px' }}>
-                        <label style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          fontSize: '13px',
-                        }}>
-                          <span style={{ fontWeight: 'bold', color: '#333' }}>
-                            MobAir Count:
-                          </span>
-                          <input
-                            type="number"
-                            min="0"
-                            max="30"
-                            value={mobAirCount}
-                            onChange={(e) => setMobAirCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
-                            style={{
-                              width: '60px',
-                              padding: '6px 8px',
-                              border: '1px solid #ddd',
-                              borderRadius: '4px',
-                              fontSize: '13px',
-                              textAlign: 'center',
-                            }}
-                          />
-                        </label>
-                        <div style={{
-                          fontSize: '11px',
-                          color: '#6c757d',
-                          marginTop: '4px',
-                        }}>
-                          Number of flying mob spawn points to place (1×1)
-                        </div>
+                            {/* MobGround Count */}
+                            <div style={{ marginBottom: '12px' }}>
+                              <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontSize: '13px',
+                              }}>
+                                <span style={{ fontWeight: 'bold', color: '#333' }}>
+                                  MobGround Count:
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="30"
+                                  value={mobGroundCount}
+                                  onChange={(e) => setMobGroundCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
+                                  style={{
+                                    width: '60px',
+                                    padding: '6px 8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '13px',
+                                    textAlign: 'center',
+                                  }}
+                                />
+                              </label>
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#6c757d',
+                                marginTop: '4px',
+                              }}>
+                                Number of mob spawn points to place (2×2 preferred, 1×1 fallback)
+                              </div>
+                            </div>
+
+                            {/* MobAir Count */}
+                            <div style={{ marginBottom: '0' }}>
+                              <label style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                fontSize: '13px',
+                              }}>
+                                <span style={{ fontWeight: 'bold', color: '#333' }}>
+                                  MobAir Count:
+                                </span>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  max="30"
+                                  value={mobAirCount}
+                                  onChange={(e) => setMobAirCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
+                                  style={{
+                                    width: '60px',
+                                    padding: '6px 8px',
+                                    border: '1px solid #ddd',
+                                    borderRadius: '4px',
+                                    fontSize: '13px',
+                                    textAlign: 'center',
+                                  }}
+                                />
+                              </label>
+                              <div style={{
+                                fontSize: '11px',
+                                color: '#6c757d',
+                                marginTop: '4px',
+                              }}>
+                                Number of flying mob spawn points to place (1×1)
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
 
                       <div style={{
