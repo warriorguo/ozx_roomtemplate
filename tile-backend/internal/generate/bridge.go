@@ -36,12 +36,31 @@ type BridgeGenerateResponse struct {
 
 // GenerateDebugInfo contains debug information about the generation process
 type GenerateDebugInfo struct {
-	Ground    *GroundDebugInfo    `json:"ground,omitempty"`
-	SoftEdge  *SoftEdgeDebugInfo  `json:"softEdge,omitempty"`
-	Static    *StaticDebugInfo    `json:"static,omitempty"`
-	Turret    *TurretDebugInfo    `json:"turret,omitempty"`
-	MobGround *MobGroundDebugInfo `json:"mobGround,omitempty"`
-	MobAir    *MobAirDebugInfo    `json:"mobAir,omitempty"`
+	Ground      *GroundDebugInfo      `json:"ground,omitempty"`
+	SoftEdge    *SoftEdgeDebugInfo    `json:"softEdge,omitempty"`
+	BridgeLayer *BridgeLayerDebugInfo `json:"bridgeLayer,omitempty"`
+	Static      *StaticDebugInfo      `json:"static,omitempty"`
+	Turret      *TurretDebugInfo      `json:"turret,omitempty"`
+	MobGround   *MobGroundDebugInfo   `json:"mobGround,omitempty"`
+	MobAir      *MobAirDebugInfo      `json:"mobAir,omitempty"`
+}
+
+// BridgeLayerDebugInfo contains debug info for bridge layer generation
+type BridgeLayerDebugInfo struct {
+	Skipped        bool              `json:"skipped"`
+	SkipReason     string            `json:"skipReason,omitempty"`
+	IslandsFound   int               `json:"islandsFound"`
+	BridgesPlaced  int               `json:"bridgesPlaced"`
+	Connections    []BridgeConnection `json:"connections"`
+	Misses         []MissInfo        `json:"misses,omitempty"`
+}
+
+// BridgeConnection describes a bridge connection between island and ground/island
+type BridgeConnection struct {
+	From     string `json:"from"`     // Island position and size
+	To       string `json:"to"`       // Target (ground or another island)
+	Position string `json:"position"` // Bridge position
+	Size     string `json:"size"`     // Bridge size (2x2)
 }
 
 // SoftEdgeDebugInfo contains debug info for soft edge layer generation
@@ -253,8 +272,10 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		}
 	}
 
-	// Bridge layer (currently empty, placeholder for future)
+	// Step 3.5: Generate bridge layer to connect floating islands
 	bridgeLayer := copyLayer(emptyLayer)
+	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, req.Width, req.Height)
+	debugInfo.BridgeLayer = bridgeLayerDebug
 
 	// Step 4: Generate static layer if requested
 	staticLayer := copyLayer(emptyLayer)
@@ -947,6 +968,373 @@ func isValidIslandPosition(ground [][]int, x, y, islandWidth, islandHeight, grid
 	}
 
 	return hasNearbyGround
+}
+
+// Bridge layer constants
+const bridgeSize = 2 // Bridge is always 2x2
+
+// Island represents a connected region of ground cells
+type Island struct {
+	ID     int
+	Cells  []Point
+	MinX   int
+	MinY   int
+	MaxX   int
+	MaxY   int
+}
+
+// generateBridgeLayerWithDebug generates bridges to connect floating islands to ground/other islands
+func generateBridgeLayerWithDebug(bridgeLayer, ground [][]int, width, height int) *BridgeLayerDebugInfo {
+	debug := &BridgeLayerDebugInfo{}
+
+	// Step 1: Find all connected regions (islands) in the ground layer
+	islands := findAllIslands(ground, width, height)
+
+	if len(islands) <= 1 {
+		debug.Skipped = true
+		debug.SkipReason = "no floating islands found (all ground is connected)"
+		debug.IslandsFound = len(islands)
+		return debug
+	}
+
+	debug.IslandsFound = len(islands)
+
+	// The main ground (usually the largest or the one connected to doors) is island 0
+	// Other islands need to be connected
+	mainIslandID := 0 // Assume the first found island is the main ground
+
+	// Find the largest island as the main ground
+	maxSize := 0
+	for i, island := range islands {
+		if len(island.Cells) > maxSize {
+			maxSize = len(island.Cells)
+			mainIslandID = i
+		}
+	}
+
+	// Track which islands are connected to the main ground
+	connected := make(map[int]bool)
+	connected[mainIslandID] = true
+
+	// Step 2: Connect each floating island to the main ground or another connected island
+	for {
+		// Find an unconnected island
+		unconnectedID := -1
+		for i := range islands {
+			if !connected[i] {
+				unconnectedID = i
+				break
+			}
+		}
+
+		if unconnectedID == -1 {
+			// All islands connected
+			break
+		}
+
+		unconnectedIsland := islands[unconnectedID]
+
+		// Find the nearest connected island/ground
+		bestConnection := findBestBridgeConnection(unconnectedIsland, islands, connected, ground, bridgeLayer, width, height)
+
+		if bestConnection == nil {
+			// Cannot connect this island
+			debug.Misses = append(debug.Misses, MissInfo{
+				Reason: fmt.Sprintf("cannot find valid bridge path for island at (%d,%d)-(%d,%d)",
+					unconnectedIsland.MinX, unconnectedIsland.MinY, unconnectedIsland.MaxX, unconnectedIsland.MaxY),
+			})
+			// Mark as connected anyway to avoid infinite loop
+			connected[unconnectedID] = true
+			continue
+		}
+
+		// Place the bridge
+		placeBridge(bridgeLayer, bestConnection.bridgeX, bestConnection.bridgeY)
+		connected[unconnectedID] = true
+		debug.BridgesPlaced++
+
+		debug.Connections = append(debug.Connections, BridgeConnection{
+			From:     fmt.Sprintf("island (%d,%d)-(%d,%d)", unconnectedIsland.MinX, unconnectedIsland.MinY, unconnectedIsland.MaxX, unconnectedIsland.MaxY),
+			To:       bestConnection.targetDesc,
+			Position: fmt.Sprintf("(%d,%d)", bestConnection.bridgeX, bestConnection.bridgeY),
+			Size:     "2x2",
+		})
+	}
+
+	return debug
+}
+
+// bridgeConnectionResult holds the result of finding a bridge connection
+type bridgeConnectionResult struct {
+	bridgeX    int
+	bridgeY    int
+	targetDesc string
+}
+
+// findBestBridgeConnection finds the best position to place a 2x2 bridge connecting an island to existing ground
+func findBestBridgeConnection(island Island, allIslands []Island, connected map[int]bool, ground, bridgeLayer [][]int, width, height int) *bridgeConnectionResult {
+	// For each edge cell of the island, try to find a valid bridge position
+	// The bridge must touch the island (2x2 fully adjacent) and also touch ground or another connected island
+
+	type candidate struct {
+		bridgeX, bridgeY int
+		distance         int
+		targetDesc       string
+	}
+	var candidates []candidate
+
+	// Check all possible 2x2 bridge positions around the island
+	// A bridge at (bx, by) occupies cells (bx, by), (bx+1, by), (bx, by+1), (bx+1, by+1)
+	// It must touch the island and must connect to existing ground
+
+	for _, cell := range island.Cells {
+		// Try placing bridge in 4 directions from this cell
+		// Direction: bridge placed such that it touches this cell
+
+		directions := []struct {
+			dx, dy int
+			desc   string
+		}{
+			{-2, 0, "left"},   // Bridge to the left of cell
+			{2, 0, "right"},   // Bridge to the right of cell
+			{0, -2, "above"},  // Bridge above cell
+			{0, 2, "below"},   // Bridge below cell
+		}
+
+		for _, dir := range directions {
+			bx := cell.X + dir.dx
+			by := cell.Y + dir.dy
+
+			// For left/right: bridge needs to span 2 cells vertically to touch island
+			// For above/below: bridge needs to span 2 cells horizontally to touch island
+			// Let's check if the bridge can be placed and touches both island and ground
+
+			if !canPlaceBridge(bx, by, ground, bridgeLayer, width, height) {
+				continue
+			}
+
+			// Check if bridge touches the island
+			if !bridgeTouchesIsland(bx, by, island, ground) {
+				continue
+			}
+
+			// Check if bridge touches existing ground (not part of this island)
+			touchesGround, targetDesc := bridgeTouchesExistingGround(bx, by, island, allIslands, connected, ground, width, height)
+			if !touchesGround {
+				continue
+			}
+
+			// Calculate distance (for prioritization)
+			centerX := (island.MinX + island.MaxX) / 2
+			centerY := (island.MinY + island.MaxY) / 2
+			dist := abs(bx-centerX) + abs(by-centerY)
+
+			candidates = append(candidates, candidate{bx, by, dist, targetDesc})
+		}
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// Sort by distance and pick the closest
+	best := candidates[0]
+	for _, c := range candidates[1:] {
+		if c.distance < best.distance {
+			best = c
+		}
+	}
+
+	return &bridgeConnectionResult{
+		bridgeX:    best.bridgeX,
+		bridgeY:    best.bridgeY,
+		targetDesc: best.targetDesc,
+	}
+}
+
+// canPlaceBridge checks if a 2x2 bridge can be placed at (x, y)
+func canPlaceBridge(x, y int, ground, bridgeLayer [][]int, width, height int) bool {
+	// Bridge must be within bounds
+	if x < 0 || x+bridgeSize > width || y < 0 || y+bridgeSize > height {
+		return false
+	}
+
+	// All cells must be void (ground=0) and no existing bridge
+	for dy := 0; dy < bridgeSize; dy++ {
+		for dx := 0; dx < bridgeSize; dx++ {
+			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// bridgeTouchesIsland checks if a 2x2 bridge at (bx, by) fully touches the island (2x2 contact)
+func bridgeTouchesIsland(bx, by int, island Island, ground [][]int) bool {
+	// Check if the bridge has at least 2 adjacent cells touching the island
+	touchCount := 0
+
+	// Check all 4 sides of the bridge
+	bridgeCells := []Point{
+		{bx, by}, {bx + 1, by}, {bx, by + 1}, {bx + 1, by + 1},
+	}
+
+	for _, bc := range bridgeCells {
+		// Check adjacent cells (not diagonal)
+		adjacents := []Point{
+			{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y}, {bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
+		}
+		for _, adj := range adjacents {
+			// Check if adjacent cell is part of the island
+			for _, ic := range island.Cells {
+				if ic.X == adj.X && ic.Y == adj.Y {
+					touchCount++
+					break
+				}
+			}
+		}
+	}
+
+	// Need at least 2 touch points for 2x2 full contact
+	return touchCount >= 2
+}
+
+// bridgeTouchesExistingGround checks if bridge touches ground that's not part of the given island
+func bridgeTouchesExistingGround(bx, by int, excludeIsland Island, allIslands []Island, connected map[int]bool, ground [][]int, width, height int) (bool, string) {
+	// Check all cells adjacent to the bridge
+	bridgeCells := []Point{
+		{bx, by}, {bx + 1, by}, {bx, by + 1}, {bx + 1, by + 1},
+	}
+
+	excludeCells := make(map[Point]bool)
+	for _, c := range excludeIsland.Cells {
+		excludeCells[c] = true
+	}
+
+	touchCount := 0
+	var targetDesc string
+
+	for _, bc := range bridgeCells {
+		adjacents := []Point{
+			{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y}, {bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
+		}
+		for _, adj := range adjacents {
+			if adj.X < 0 || adj.X >= width || adj.Y < 0 || adj.Y >= height {
+				continue
+			}
+			if ground[adj.Y][adj.X] == 1 && !excludeCells[adj] {
+				touchCount++
+				// Find which island this belongs to
+				for i, island := range allIslands {
+					if connected[i] {
+						for _, ic := range island.Cells {
+							if ic.X == adj.X && ic.Y == adj.Y {
+								if i == 0 {
+									targetDesc = "main ground"
+								} else {
+									targetDesc = fmt.Sprintf("island %d", i)
+								}
+								break
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if targetDesc == "" && touchCount >= 2 {
+		targetDesc = "ground"
+	}
+
+	return touchCount >= 2, targetDesc
+}
+
+// placeBridge places a 2x2 bridge at the given position
+func placeBridge(bridgeLayer [][]int, x, y int) {
+	for dy := 0; dy < bridgeSize; dy++ {
+		for dx := 0; dx < bridgeSize; dx++ {
+			bridgeLayer[y+dy][x+dx] = 1
+		}
+	}
+}
+
+// findAllIslands finds all connected regions of ground cells using flood fill
+func findAllIslands(ground [][]int, width, height int) []Island {
+	visited := make([][]bool, height)
+	for y := 0; y < height; y++ {
+		visited[y] = make([]bool, width)
+	}
+
+	var islands []Island
+	islandID := 0
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if ground[y][x] == 1 && !visited[y][x] {
+				// Found a new island, flood fill to find all connected cells
+				island := floodFillIsland(ground, visited, x, y, width, height, islandID)
+				islands = append(islands, island)
+				islandID++
+			}
+		}
+	}
+
+	return islands
+}
+
+// floodFillIsland performs flood fill to find all cells of an island
+func floodFillIsland(ground [][]int, visited [][]bool, startX, startY, width, height, id int) Island {
+	island := Island{
+		ID:   id,
+		MinX: startX,
+		MinY: startY,
+		MaxX: startX,
+		MaxY: startY,
+	}
+
+	// BFS flood fill
+	queue := []Point{{X: startX, Y: startY}}
+	visited[startY][startX] = true
+
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+
+		island.Cells = append(island.Cells, curr)
+
+		// Update bounds
+		if curr.X < island.MinX {
+			island.MinX = curr.X
+		}
+		if curr.X > island.MaxX {
+			island.MaxX = curr.X
+		}
+		if curr.Y < island.MinY {
+			island.MinY = curr.Y
+		}
+		if curr.Y > island.MaxY {
+			island.MaxY = curr.Y
+		}
+
+		// Check 4 neighbors
+		neighbors := []Point{
+			{curr.X - 1, curr.Y}, {curr.X + 1, curr.Y},
+			{curr.X, curr.Y - 1}, {curr.X, curr.Y + 1},
+		}
+
+		for _, n := range neighbors {
+			if n.X >= 0 && n.X < width && n.Y >= 0 && n.Y < height &&
+				ground[n.Y][n.X] == 1 && !visited[n.Y][n.X] {
+				visited[n.Y][n.X] = true
+				queue = append(queue, n)
+			}
+		}
+	}
+
+	return island
 }
 
 // Static placement size (fixed 2x2)

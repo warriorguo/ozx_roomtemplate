@@ -437,9 +437,26 @@ export interface SoftEdgeDebugInfo {
   misses?: MissInfo[];
 }
 
+export interface BridgeConnection {
+  from: string;
+  to: string;
+  position: string;
+  size: string;
+}
+
+export interface BridgeLayerDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  islandsFound: number;
+  bridgesPlaced: number;
+  connections: BridgeConnection[];
+  misses?: MissInfo[];
+}
+
 export interface GenerateDebugInfo {
   ground?: GroundDebugInfo;
   softEdge?: SoftEdgeDebugInfo;
+  bridgeLayer?: BridgeLayerDebugInfo;
   static?: StaticDebugInfo;
   turret?: TurretDebugInfo;
   mobGround?: MobGroundDebugInfo;

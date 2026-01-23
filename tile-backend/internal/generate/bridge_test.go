@@ -121,11 +121,11 @@ func TestGenerateBridgeRoom_ValidInput(t *testing.T) {
 			assert.Equal(t, tt.req.Height, len(resp.Payload.MobGround))
 			assert.Equal(t, tt.req.Height, len(resp.Payload.MobAir))
 
-			// Verify other layers are empty
+			// Verify other layers are empty (except bridge which may have connections)
 			for y := 0; y < tt.req.Height; y++ {
 				for x := 0; x < tt.req.Width; x++ {
 					assert.Equal(t, 0, resp.Payload.SoftEdge[y][x], "softEdge should be 0")
-					assert.Equal(t, 0, resp.Payload.Bridge[y][x], "bridge should be 0")
+					// Bridge layer may have values if floating islands exist
 					assert.Equal(t, 0, resp.Payload.Static[y][x], "static should be 0")
 					assert.Equal(t, 0, resp.Payload.Turret[y][x], "turret should be 0")
 					assert.Equal(t, 0, resp.Payload.MobGround[y][x], "mobGround should be 0")
@@ -2139,4 +2139,152 @@ func TestGenerateBridgeRoom_FloatingIslandsInDebugInfo(t *testing.T) {
 	// FloatingIslands may or may not be populated (50% probability per island)
 	// Just verify the field exists in the response
 	t.Logf("Floating islands: %+v", resp.DebugInfo.Ground.FloatingIslands)
+}
+
+func TestFindAllIslands(t *testing.T) {
+	// Create a ground with two separate islands
+	ground := [][]int{
+		{1, 1, 0, 0, 0, 1, 1, 0},
+		{1, 1, 0, 0, 0, 1, 1, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 0},
+		{0, 0, 1, 1, 0, 0, 0, 0},
+		{0, 0, 1, 1, 0, 0, 0, 0},
+	}
+
+	islands := findAllIslands(ground, 8, 6)
+
+	assert.Equal(t, 3, len(islands), "should find 3 islands")
+
+	// Check each island has the expected cells
+	for i, island := range islands {
+		t.Logf("Island %d: bounds (%d,%d)-(%d,%d), %d cells",
+			i, island.MinX, island.MinY, island.MaxX, island.MaxY, len(island.Cells))
+	}
+}
+
+func TestGenerateBridgeLayerWithDebug_NoIslands(t *testing.T) {
+	// All connected ground - no floating islands
+	ground := [][]int{
+		{1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1},
+	}
+	bridgeLayer := createEmptyLayer(5, 5)
+
+	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, 5, 5)
+
+	assert.True(t, debug.Skipped, "should be skipped when no floating islands")
+	assert.Equal(t, 1, debug.IslandsFound, "should find 1 island (main ground)")
+	assert.Equal(t, 0, debug.BridgesPlaced)
+}
+
+func TestGenerateBridgeLayerWithDebug_WithFloatingIsland(t *testing.T) {
+	// Main ground with a floating island that needs a bridge
+	// Main ground at y=2-3, floating island at y=0-1 with gap at y=... wait need proper layout
+	ground := [][]int{
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=0
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=1
+		{0, 0, 1, 1, 0, 0, 0, 0, 0, 0}, // y=2 - floating island
+		{0, 0, 1, 1, 0, 0, 0, 0, 0, 0}, // y=3
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=4 - gap (void)
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=5 - gap (void)
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=6 - main ground
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=7
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=8
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=9
+	}
+	bridgeLayer := createEmptyLayer(10, 10)
+
+	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, 10, 10)
+
+	t.Logf("BridgeLayer debug: %+v", debug)
+
+	assert.Equal(t, 2, debug.IslandsFound, "should find 2 islands")
+	// Bridge may or may not be placed depending on gap distance
+	// With gap of 2 rows (y=4,5), bridge should be placeable
+}
+
+func TestCanPlaceBridge(t *testing.T) {
+	ground := [][]int{
+		{0, 0, 0, 0},
+		{0, 0, 0, 0},
+		{1, 1, 0, 0},
+		{1, 1, 0, 0},
+	}
+	bridgeLayer := createEmptyLayer(4, 4)
+
+	tests := []struct {
+		name     string
+		x, y     int
+		expected bool
+	}{
+		{"valid position in void", 2, 0, true},
+		{"invalid - overlaps ground", 0, 2, false},
+		{"invalid - out of bounds", 3, 3, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := canPlaceBridge(tt.x, tt.y, ground, bridgeLayer, 4, 4)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestBridgeTouchesIsland(t *testing.T) {
+	ground := [][]int{
+		{0, 0, 0, 0, 0},
+		{0, 0, 0, 0, 0},
+		{0, 0, 1, 1, 0},
+		{0, 0, 1, 1, 0},
+		{0, 0, 0, 0, 0},
+	}
+
+	islands := findAllIslands(ground, 5, 5)
+	require.Equal(t, 1, len(islands))
+	island := islands[0]
+
+	tests := []struct {
+		name     string
+		bx, by   int
+		expected bool
+	}{
+		{"bridge above island - touches", 2, 0, true},
+		{"bridge left of island - touches", 0, 2, true},
+		{"bridge far away - no touch", 0, 0, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := bridgeTouchesIsland(tt.bx, tt.by, island, ground)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestGenerateBridgeRoom_BridgeLayerDebugInfo(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:  30,
+		Height: 30,
+		Doors:  []DoorPosition{DoorTop, DoorBottom},
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp.DebugInfo)
+	require.NotNil(t, resp.DebugInfo.BridgeLayer)
+
+	t.Logf("Bridge layer debug: islandsFound=%d, bridgesPlaced=%d, skipped=%v",
+		resp.DebugInfo.BridgeLayer.IslandsFound,
+		resp.DebugInfo.BridgeLayer.BridgesPlaced,
+		resp.DebugInfo.BridgeLayer.Skipped)
+
+	if len(resp.DebugInfo.BridgeLayer.Connections) > 0 {
+		for _, conn := range resp.DebugInfo.BridgeLayer.Connections {
+			t.Logf("  Connection: %s -> %s at %s", conn.From, conn.To, conn.Position)
+		}
+	}
 }
