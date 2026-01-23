@@ -63,6 +63,48 @@ For each point in the selected strategy's point set, draw a rectangle centered o
 - If draw count = 0 or no strategies remain, exit
 - Otherwise, repeat from step 2.2
 
+### Step 3: Floating Islands (Optional)
+
+After drawing platforms, optionally add floating islands in empty void areas:
+
+#### 3.1 Find Empty Areas
+
+Scan the ground layer to find empty rectangular areas (void regions) that are at least **4×4** cells.
+
+#### 3.2 Island Placement Loop
+
+For each empty area (in random order):
+
+1. **50% probability check**: With 50% probability, skip this area
+2. **Find valid position**: Search for a position within the empty area where an island can be placed:
+   - Island size: Random between **2×2** and the maximum that fits
+   - **Distance constraint**: Island must be exactly **2 cells away** from existing ground (not closer, not farther)
+   - The 2-cell gap ensures islands are visually separated but still close enough to be bridged
+3. **Place island**: If valid position found, draw the island (set ground=1)
+4. **Continue or stop**: Continue to next area, or stop if 50% probability check fails
+
+#### 3.3 Distance Constraint Details
+
+An island position is valid if:
+- **Margin check**: No existing ground within 2 cells of the island (inner margin)
+- **Outer ring check**: Existing ground must exist at exactly 3 cells distance (to ensure island is close enough to be connected by bridges)
+
+```
+Example valid island placement:
+
+     0123456789
+y 0: ··████████   ← Main ground
+y 1: ··████████
+y 2: ··████████
+y 3: ··········   ← 2-cell gap (void)
+y 4: ··········   ← 2-cell gap (void)
+y 5: ····██····   ← Floating island (2×2)
+y 6: ····██····
+y 7: ··········
+
+The island at (4,5)-(5,6) is exactly 2 cells below the ground at y=2.
+```
+
 ## Soft Edge Layer Generation
 
 ### Input Parameters
@@ -398,12 +440,96 @@ Note: Mob air maintains minimum 4-cell distance from doors,
       and cannot touch other mob air (including diagonals).
 ```
 
+## Bridge Layer Generation
+
+The bridge layer connects floating islands to the main ground and fills concave gaps in the ground.
+
+### Purpose
+
+Bridges serve two purposes:
+1. **Connect floating islands**: Ensure all isolated ground regions are reachable
+2. **Fill concave gaps**: Add walkable paths in horizontal void notches within the ground
+
+### Placement Rules
+
+1. **Bridge size**: Fixed at **2×2** cells
+2. **Void requirement**: All 4 cells must be on void (ground=0)
+3. **Touch requirement**: Bridge must fully touch (2+ adjacent cells) both source and target
+4. **No overlap**: Cannot overlap with existing bridges or soft edges
+
+### Step 1: Connect Floating Islands
+
+If the ground layer contains disconnected regions (islands):
+
+1. **Find all islands**: Use flood-fill to identify connected ground regions
+2. **Identify main ground**: The largest connected region is the "main ground"
+3. **Connect each island**: For each unconnected island:
+   - Find the nearest position where a 2×2 bridge can connect the island to main ground (or another connected island)
+   - Bridge must touch 2+ cells of the island AND 2+ cells of the target
+   - Place the bridge
+
+### Step 2: Fill Concave Gaps
+
+Even when all ground is connected, horizontal concave gaps can benefit from bridges:
+
+1. **Find horizontal gaps**: Scan each row for void segments where:
+   - Ground exists on both left and right sides
+   - Gap width is at least **4 cells**
+2. **Check concave condition**: The gap must have ground above it (≥50% coverage of gap width)
+3. **Place bridge**: Place a 2×2 bridge centered in the gap
+
+```
+Example concave gap with bridge:
+
+     01234567890123456789
+y 7: ████████████████████   ← Full ground above
+y 8: ███··········███████   ← Gap from x=3 to x=12
+y 9: ····················   ← Void below
+
+Gap at y=8 (x=3 to x=13, width=10):
+- Ground on left (x=0-2) and right (x=13-19)
+- Ground above (y=7, full row)
+- Bridge placed at center: (7,8)-(8,9)
+
+After bridge placement:
+y 8: ███····BB····███████   B = Bridge (2×2)
+y 9: ········BB··········
+```
+
+### Bridge Layer Debug Info
+
+```json
+{
+  "bridgeLayer": {
+    "skipped": false,
+    "islandsFound": 3,
+    "bridgesPlaced": 4,
+    "connections": [
+      {
+        "from": "island (5,2)-(8,4)",
+        "to": "main ground",
+        "position": "(5,5)",
+        "size": "2x2"
+      }
+    ],
+    "concaveGapBridges": [
+      {
+        "from": "concave gap at y=8",
+        "to": "x=3 to x=12",
+        "position": "(7,8)",
+        "size": "2x2"
+      }
+    ]
+  }
+}
+```
+
 ## Other Layers
 
 | Layer | Description |
 |-------|-------------|
 | SoftEdge | Generated based on `softEdgeCount` parameter (fills void notches) |
-| Bridge | All 0 (placeholder for future use) |
+| Bridge | Connects floating islands and fills concave gaps (auto-generated) |
 
 ## Visual Examples
 
@@ -530,6 +656,42 @@ Each layer's debug info includes:
           "points": ["(10,10)"],
           "mirror": "none"
         }
+      ],
+      "floatingIslands": [
+        {
+          "position": "(4,10)",
+          "size": "3x2",
+          "fromArea": "(0,8) 8x6",
+          "skipped": false
+        },
+        {
+          "position": "",
+          "size": "",
+          "fromArea": "",
+          "skipped": true,
+          "skipReason": "stopped by 50% probability check"
+        }
+      ]
+    },
+    "bridgeLayer": {
+      "skipped": false,
+      "islandsFound": 2,
+      "bridgesPlaced": 2,
+      "connections": [
+        {
+          "from": "island (4,10)-(6,11)",
+          "to": "main ground",
+          "position": "(4,8)",
+          "size": "2x2"
+        }
+      ],
+      "concaveGapBridges": [
+        {
+          "from": "concave gap at y=15",
+          "to": "x=5 to x=14",
+          "position": "(8,15)",
+          "size": "2x2"
+        }
       ]
     },
     "softEdge": {
@@ -643,7 +805,9 @@ When a layer's count is 0 or not specified:
 
 | Layer | Possible Miss Reasons |
 |-------|----------------------|
+| Ground (Floating Islands) | `stopped by 50% probability check`, `no valid position found in empty area` |
 | Soft Edge | `no valid concave areas found in ground layer`, `overlapping with already placed soft edge`, `only N valid placements available, needed M more` |
+| Bridge | `no floating islands found (all ground is connected)`, `cannot find valid bridge path for island at (x,y)-(x,y)`, `no bridges needed (no floating islands and no concave gaps)` |
 | Static | `no valid 2x2 positions found`, `position invalidated by previous placement (touching existing static)`, `position would block door connectivity`, `reached max strategy attempts` |
 | Turret | `no valid positions found`, `position invalidated (too close to existing turret or blocked)`, `position would block door connectivity` |
 | Mob Ground | `large_open_area strategy not viable (no 4x4 open area found)`, `group N skipped: no more strategies available`, `no valid positions available`, `positions found but neither 2x2 nor 1x1 placement possible` |
@@ -654,7 +818,9 @@ When a layer's count is 0 or not specified:
 | Layer | Strategies |
 |-------|------------|
 | Ground Platforms | `center`, `left_right_doors`, `left_right_midpoints`, `top_bottom_doors`, `top_bottom_midpoints`, `all_doors`, `all_midpoints` |
+| Floating Islands | N/A (probabilistic placement in empty areas) |
 | Soft Edge | N/A (finds concave areas automatically) |
+| Bridge | N/A (connects islands via flood-fill + fills concave gaps) |
 | Static | `center_outward`, `edge_inward` (alternating) |
 | Turret | Priority-based: `ground corner (90° right angle)`, `ground corner (270° inner corner)`, `near room corner`, `near room edge`, `center outward placement` |
 | Mob Ground | `large_open_area`, `near_doors`, `center_outward` |
