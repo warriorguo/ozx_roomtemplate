@@ -357,9 +357,18 @@ export interface PlatformInfo {
   mirror: string;
 }
 
+export interface FloatingIslandInfo {
+  position: string;
+  size: string;
+  fromArea: string;
+  skipped?: boolean;
+  skipReason?: string;
+}
+
 export interface GroundDebugInfo {
   doorConnections: DoorConnectionInfo[];
   platforms: PlatformInfo[];
+  floatingIslands?: FloatingIslandInfo[];
 }
 
 export interface PlaceInfo {

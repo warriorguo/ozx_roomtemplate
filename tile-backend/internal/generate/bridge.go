@@ -64,6 +64,16 @@ type MissInfo struct {
 type GroundDebugInfo struct {
 	DoorConnections []DoorConnectionInfo `json:"doorConnections"`
 	Platforms       []PlatformInfo       `json:"platforms"`
+	FloatingIslands []FloatingIslandInfo `json:"floatingIslands,omitempty"`
+}
+
+// FloatingIslandInfo describes a floating island placement
+type FloatingIslandInfo struct {
+	Position   string `json:"position"` // Center position of the island
+	Size       string `json:"size"`     // Size of the island (WxH)
+	FromArea   string `json:"fromArea"` // The empty area it was placed in
+	Skipped    bool   `json:"skipped,omitempty"`
+	SkipReason string `json:"skipReason,omitempty"`
 }
 
 // DoorConnectionInfo describes a door connection
@@ -215,6 +225,9 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 
 	// Step 2: Draw small platforms
 	drawPlatformsWithDebug(ground, req.Width, req.Height, req.Doors, doorPositions, groundDebug)
+
+	// Step 2.5: Draw floating islands in void areas (50% probability per island)
+	drawFloatingIslandsWithDebug(ground, req.Width, req.Height, groundDebug)
 	debugInfo.Ground = groundDebug
 
 	// Create empty layers for other layers
@@ -684,6 +697,256 @@ func abs(x int) int {
 		return -x
 	}
 	return x
+}
+
+// EmptyArea represents a rectangular void region
+type EmptyArea struct {
+	X, Y          int // Top-left corner
+	Width, Height int
+}
+
+// Minimum empty area size for floating island consideration
+const minEmptyAreaSize = 4
+
+// Minimum floating island size
+const minIslandSize = 2
+
+// Minimum distance from existing ground
+const minIslandGroundDistance = 2
+
+// findEmptyAreas finds all rectangular void regions >= 4x4 in size
+func findEmptyAreas(ground [][]int, width, height int) []EmptyArea {
+	var areas []EmptyArea
+
+	// Use a visited map to avoid duplicate areas
+	visited := make([][]bool, height)
+	for y := 0; y < height; y++ {
+		visited[y] = make([]bool, width)
+	}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Skip if already visited or not void
+			if visited[y][x] || ground[y][x] != 0 {
+				continue
+			}
+
+			// Find the maximum rectangle starting from this point
+			area := findMaxRectangle(ground, visited, x, y, width, height)
+			if area.Width >= minEmptyAreaSize && area.Height >= minEmptyAreaSize {
+				areas = append(areas, area)
+			}
+		}
+	}
+
+	return areas
+}
+
+// findMaxRectangle finds the maximum rectangle of void cells starting from (startX, startY)
+func findMaxRectangle(ground [][]int, visited [][]bool, startX, startY, width, height int) EmptyArea {
+	// Find max width from starting point
+	maxWidth := 0
+	for x := startX; x < width && ground[startY][x] == 0; x++ {
+		maxWidth++
+	}
+
+	// Find max height that maintains at least minEmptyAreaSize width
+	maxHeight := 0
+	currentWidth := maxWidth
+	for y := startY; y < height && currentWidth >= minEmptyAreaSize; y++ {
+		// Check this row's void width
+		rowWidth := 0
+		for x := startX; x < width && x < startX+currentWidth && ground[y][x] == 0; x++ {
+			rowWidth++
+		}
+		if rowWidth < minEmptyAreaSize {
+			break
+		}
+		currentWidth = rowWidth
+		maxHeight++
+	}
+
+	// Mark visited cells for the found rectangle
+	for y := startY; y < startY+maxHeight && y < height; y++ {
+		for x := startX; x < startX+currentWidth && x < width; x++ {
+			visited[y][x] = true
+		}
+	}
+
+	return EmptyArea{
+		X:      startX,
+		Y:      startY,
+		Width:  currentWidth,
+		Height: maxHeight,
+	}
+}
+
+// drawFloatingIslandsWithDebug draws floating islands in void areas with 50% probability per attempt
+func drawFloatingIslandsWithDebug(ground [][]int, width, height int, debug *GroundDebugInfo) {
+	// Step 1: Find all empty areas >= 4x4
+	emptyAreas := findEmptyAreas(ground, width, height)
+	if len(emptyAreas) == 0 {
+		if debug != nil {
+			debug.FloatingIslands = append(debug.FloatingIslands, FloatingIslandInfo{
+				Skipped:    true,
+				SkipReason: "no empty areas >= 4x4 found",
+			})
+		}
+		return
+	}
+
+	// Shuffle the empty areas
+	rand.Shuffle(len(emptyAreas), func(i, j int) {
+		emptyAreas[i], emptyAreas[j] = emptyAreas[j], emptyAreas[i]
+	})
+
+	// Step 2-4: Loop with 50% probability
+	for len(emptyAreas) > 0 {
+		// Step 2: 50% chance to continue
+		if rand.Float64() >= 0.8 {
+			if debug != nil {
+				debug.FloatingIslands = append(debug.FloatingIslands, FloatingIslandInfo{
+					Skipped:    true,
+					SkipReason: "stopped by 50% probability check",
+				})
+			}
+			break
+		}
+
+		// Step 3: Pop an empty area
+		area := emptyAreas[0]
+		emptyAreas = emptyAreas[1:]
+
+		// Try to place a floating island in this area
+		placed := tryPlaceFloatingIsland(ground, area, width, height, debug)
+		if !placed && debug != nil {
+			debug.FloatingIslands = append(debug.FloatingIslands, FloatingIslandInfo{
+				FromArea:   fmt.Sprintf("(%d,%d) %dx%d", area.X, area.Y, area.Width, area.Height),
+				Skipped:    true,
+				SkipReason: "could not find valid position with min distance 2 from ground",
+			})
+		}
+	}
+}
+
+// tryPlaceFloatingIsland attempts to place a floating island in the given empty area
+func tryPlaceFloatingIsland(ground [][]int, area EmptyArea, gridWidth, gridHeight int, debug *GroundDebugInfo) bool {
+	// Collect all valid (position, size) combinations
+	// The margin can extend outside the empty area (to grid edge or other void cells)
+	// So we try all sizes that fit within the area and let isValidIslandPosition check margins
+	type placement struct {
+		x, y, w, h int
+	}
+	var validPlacements []placement
+
+	// Try all possible sizes from minIslandSize up to area size
+	maxW := area.Width
+	maxH := area.Height
+
+	for islandHeight := minIslandSize; islandHeight <= maxH; islandHeight++ {
+		for islandWidth := minIslandSize; islandWidth <= maxW; islandWidth++ {
+			// Find valid positions for this size
+			for y := area.Y; y <= area.Y+area.Height-islandHeight; y++ {
+				for x := area.X; x <= area.X+area.Width-islandWidth; x++ {
+					if isValidIslandPosition(ground, x, y, islandWidth, islandHeight, gridWidth, gridHeight) {
+						validPlacements = append(validPlacements, placement{x, y, islandWidth, islandHeight})
+					}
+				}
+			}
+		}
+	}
+
+	if len(validPlacements) == 0 {
+		return false
+	}
+
+	// Pick a random valid placement
+	p := validPlacements[rand.Intn(len(validPlacements))]
+
+	// Draw the island
+	for dy := 0; dy < p.h; dy++ {
+		for dx := 0; dx < p.w; dx++ {
+			ground[p.y+dy][p.x+dx] = 1
+		}
+	}
+
+	// Record debug info
+	if debug != nil {
+		centerX := p.x + p.w/2
+		centerY := p.y + p.h/2
+		debug.FloatingIslands = append(debug.FloatingIslands, FloatingIslandInfo{
+			Position: fmt.Sprintf("(%d,%d)", centerX, centerY),
+			Size:     fmt.Sprintf("%dx%d", p.w, p.h),
+			FromArea: fmt.Sprintf("(%d,%d) %dx%d", area.X, area.Y, area.Width, area.Height),
+		})
+	}
+
+	return true
+}
+
+// isValidIslandPosition checks if an island can be placed at (x, y) with exactly minIslandGroundDistance from existing ground
+func isValidIslandPosition(ground [][]int, x, y, islandWidth, islandHeight, gridWidth, gridHeight int) bool {
+	// Check that the island area and its surrounding margin are all void
+	// Margin is minIslandGroundDistance on each side
+	checkStartX := x - minIslandGroundDistance
+	checkStartY := y - minIslandGroundDistance
+	checkEndX := x + islandWidth + minIslandGroundDistance
+	checkEndY := y + islandHeight + minIslandGroundDistance
+
+	for cy := checkStartY; cy < checkEndY; cy++ {
+		for cx := checkStartX; cx < checkEndX; cx++ {
+			// Skip cells outside the grid (they're fine, considered void)
+			if cx < 0 || cx >= gridWidth || cy < 0 || cy >= gridHeight {
+				continue
+			}
+
+			// If this cell is inside the island area, it should be void (we'll place ground there)
+			isInsideIsland := cx >= x && cx < x+islandWidth && cy >= y && cy < y+islandHeight
+			if isInsideIsland {
+				// The island area must currently be void
+				if ground[cy][cx] != 0 {
+					return false
+				}
+			} else {
+				// The margin area must be void (no existing ground within minIslandGroundDistance)
+				if ground[cy][cx] != 0 {
+					return false
+				}
+			}
+		}
+	}
+
+	// Additionally, check that there IS ground just outside the margin (at distance exactly minIslandGroundDistance+1)
+	// This ensures the island is placed close to existing ground, not in the middle of nowhere
+	hasNearbyGround := false
+	outerDist := minIslandGroundDistance + 1
+	outerStartX := x - outerDist
+	outerStartY := y - outerDist
+	outerEndX := x + islandWidth + outerDist
+	outerEndY := y + islandHeight + outerDist
+
+	for cy := outerStartY; cy < outerEndY; cy++ {
+		for cx := outerStartX; cx < outerEndX; cx++ {
+			// Skip cells inside the already-checked margin area
+			if cx >= checkStartX && cx < checkEndX && cy >= checkStartY && cy < checkEndY {
+				continue
+			}
+			// Skip cells outside the grid
+			if cx < 0 || cx >= gridWidth || cy < 0 || cy >= gridHeight {
+				continue
+			}
+			// Check if there's ground at this outer ring
+			if ground[cy][cx] == 1 {
+				hasNearbyGround = true
+				break
+			}
+		}
+		if hasNearbyGround {
+			break
+		}
+	}
+
+	return hasNearbyGround
 }
 
 // Static placement size (fixed 2x2)
