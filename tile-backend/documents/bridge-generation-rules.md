@@ -9,8 +9,11 @@ This document describes the auto-generation algorithm for bridge-type rooms.
 | `width` | Room width (4-200) |
 | `height` | Room height (4-200) |
 | `doors` | Doors to connect (at least 2 required: top, right, bottom, left) |
+| `softEdgeCount` | Suggested number of soft edges to place (optional, default 0) |
 | `staticCount` | Suggested number of statics to place (optional, default 0) |
 | `turretCount` | Suggested number of turrets to place (optional, default 0) |
+| `mobGroundCount` | Suggested number of mob ground to place (optional, default 0) |
+| `mobAirCount` | Suggested number of mob air (fly) to place (optional, default 0) |
 
 ## Ground Layer Generation
 
@@ -59,6 +62,99 @@ For each point in the selected strategy's point set, draw a rectangle centered o
 - Remove the used strategy from the available strategies
 - If draw count = 0 or no strategies remain, exit
 - Otherwise, repeat from step 2.2
+
+## Soft Edge Layer Generation
+
+### Input Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `softEdgeCount` | Suggested number of soft edges to place (optional, default 0) |
+
+### Placement Rules
+
+1. **Soft Edge shape**: 1×N or N×1 strips where N > 2 (minimum 3 cells)
+2. **Void placement**: Soft edges are placed in void cells (ground=0), NOT on ground
+3. **Concave placement**: Soft edges fill void "notches" that are surrounded by ground on multiple sides
+4. **No overlap**: Cannot place in the same location twice
+5. **Door distance**: Must be at least **2 cells** (Manhattan distance) away from any door
+
+### Concave Area Definition (Void Notches)
+
+A **concave area** (or **void notch**) is a strip of void cells that is surrounded by ground, forming a U-shaped depression:
+
+- **Horizontal concave (1×N)**: Void cells where:
+  - Ground exists above OR below for the entire strip (forming the "floor" or "ceiling" of the notch)
+  - Ground exists on both left and right ends (closing the notch)
+  - Void exists on the opposite horizontal side (the opening)
+
+- **Vertical concave (N×1)**: Void cells where:
+  - Ground exists to the left OR to the right for the entire strip (forming the "wall" of the notch)
+  - Ground exists on both top and bottom ends (closing the notch)
+  - Void exists on the opposite vertical side (the opening)
+
+### Visual Example of Concave Areas
+
+```
+Ground layer showing concave notches:
+
+     01234567890123456789
+y 0: ·······██████·······
+y 1: ·······██████·······
+y 2: ·······██████·······
+y 3: ███····██████···████   ← Concave notches at (3-6,3) and (13-15,3)
+y 4: ████████████████████
+y 5: ████████████████████
+y 6: ████████████████████
+y 7: ████████████████████
+y 8: ███····██████···████   ← Concave notches at (3-6,8) and (13-15,8)
+y 9: ····················
+
+The notches at row 3: void cells (3,3)-(6,3) and (13,3)-(15,3)
+  - Ground below (row 4)
+  - Ground on left and right ends
+  - Void above (rows 0-2)
+  → These are valid horizontal concaves opening upward
+
+The notches at row 8: void cells (3,8)-(6,8) and (13,8)-(15,8)
+  - Ground above (row 7)
+  - Ground on left and right ends
+  - Void below (rows 9+)
+  → These are valid horizontal concaves opening downward
+```
+
+### Placement Steps
+
+1. **Find valid placements**: Scan all void positions to find horizontal and vertical concave notches that:
+   - Are at least 3 cells long
+   - Are closed on both ends by ground
+   - Have ground on one horizontal/vertical side
+   - Are far enough from doors
+   - Don't overlap with existing soft edges
+2. **Shuffle placements**: Randomize the order for variety
+3. **Place until done**: Place soft edges until target count reached or all valid placements exhausted
+
+### Soft Edge Layer Example
+
+```
+Ground layer with soft edges filling concave notches:
+
+     01234567890123456789
+y 0: ·······██████·······
+y 1: ·······██████·······
+y 2: ·······██████·······
+y 3: ███SSSS██████SSS████   S = Soft Edge filling void notches
+y 4: ████████████████████
+y 5: ████████████████████
+y 6: ████████████████████
+y 7: ████████████████████
+y 8: ███SSSS██████SSS████   S = Soft Edge filling void notches
+y 9: ····················
+
+█ = Ground (walkable)
+S = Soft Edge (in void notch)
+· = Empty void
+```
 
 ## Static Layer Generation
 
@@ -221,13 +317,93 @@ Note: Mob ground maintains minimum 2-cell distance from doors
       and cannot touch other mob ground (including diagonals).
 ```
 
+## Mob Air (Fly) Layer Generation
+
+### Input Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `mobAirCount` | Suggested number of mob air (fly) to place (optional, default 0) |
+
+### Placement Rules
+
+1. **Mob Air size**: Fixed at 1×1 cell
+2. **No ground requirement**: Flying mobs can spawn anywhere (ground=0 or ground=1)
+3. **Door distance**: Mob air must be at least **4 cells** (Manhattan distance) away from any door
+4. **Edge distance**: Mob air must be at least **2 cells** away from room edges (all four sides)
+5. **No touching**: Mob air cannot touch each other (including diagonals)
+6. **No overlap**: Mob air cells must not overlap with softEdge, bridge, static, turret, or mobGround layers
+
+### Placement Strategies
+
+One strategy is randomly selected:
+
+| Strategy | Description |
+|----------|-------------|
+| Center Outward | Place from room center outward, closest to center first |
+| Evenly Spaced | Distribute mob air evenly across the map using grid-based selection calculated from target count |
+
+### Placement Steps
+
+1. **Select strategy**: Randomly choose between Center Outward or Evenly Spaced
+2. **Find valid positions**: Collect all cells that satisfy placement rules
+3. **Sort/arrange positions**:
+   - Center Outward: Sort by distance from center (closest first)
+   - Evenly Spaced: Calculate grid dimensions based on target count (cols × rows ≥ targetCount), then select nearest valid position to each grid cell center
+4. **Place mob air**: Place 1×1 mob air at valid positions until target count reached
+
+### Evenly Spaced Algorithm
+
+For even distribution based on target count:
+1. **Calculate grid dimensions**: Determine cols and rows such that `cols × rows ≥ targetCount`, maintaining aspect ratio similar to room dimensions
+   - Example: For `targetCount=4` in a 20×20 room → 2×2 grid
+   - Example: For `targetCount=6` in a 30×20 room → 3×2 or similar grid
+2. **Calculate cell size**: `cellWidth = width / cols`, `cellHeight = height / rows`
+3. **Find ideal positions**: For each grid cell, calculate its center point
+4. **Select nearest valid position**: For each cell center, find the nearest valid position from the available positions
+5. **Fill remaining**: If more positions needed, fill from remaining valid positions
+
+### Mob Air Layer Example
+
+```
+mobAirCount: 4
+
+Ground + Static + Turret + MobGround + MobAir overlay:
+
+····████████····████
+····████████····████
+····██▓▓██A█····████
+····██▓▓███T····████
+····████████····████
+████████████████████
+██T████MM██A████▓▓██
+████████MM██████▓▓██
+████████████████████
+██████████████M█████
+····██A█████········
+····███T████········
+····████████····A···
+····████████····T···
+····████████········
+
+█ = Ground only (walkable)
+▓ = Static on ground (blocked, 2×2 blocks)
+T = Turret on ground (blocked, 1×1 tile)
+M = Mob Ground (2×2 or 1×1 spawn point)
+A = Mob Air (1×1 flying mob spawn point)
+· = Empty (void)
+
+Note: Mob air maintains minimum 4-cell distance from doors,
+      minimum 2-cell distance from room edges,
+      and cannot touch other mob air (including diagonals).
+```
+
 ## Other Layers
 
-| Layer | Default Value |
-|-------|---------------|
-| SoftEdge | All 0 |
-| Bridge | All 0 |
-| MobAir | All 0 |
+| Layer | Description |
+|-------|-------------|
+| SoftEdge | Generated based on `softEdgeCount` parameter (fills void notches) |
+| Bridge | All 0 (placeholder for future use) |
 
 ## Visual Examples
 
@@ -319,3 +495,167 @@ T = Turret on ground (blocked, 1×1 tile)
 Note: Turrets maintain minimum 4-cell distance from doors
       and minimum 2-cell distance from each other.
 ```
+
+## API Response Debug Info
+
+The API response includes a `debugInfo` field that provides detailed information about the generation process.
+
+### Debug Info Structure
+
+Each layer's debug info includes:
+- `skipped`: Boolean indicating if generation was skipped (when count=0)
+- `skipReason`: String explaining why generation was skipped (only when skipped=true)
+- `targetCount`: Requested placement count
+- `placedCount`: Actual number placed
+- `placements`: Array of successful placements
+- `misses`: Array of failed placement attempts with reasons
+
+```json
+{
+  "payload": { ... },
+  "debugInfo": {
+    "ground": {
+      "doorConnections": [
+        {
+          "from": "top (10,0)",
+          "to": "bottom (10,19)",
+          "pathType": "direct",
+          "brushSize": "4x4"
+        }
+      ],
+      "platforms": [
+        {
+          "strategy": "center",
+          "brushSize": "6x6",
+          "points": ["(10,10)"],
+          "mirror": "none"
+        }
+      ]
+    },
+    "softEdge": {
+      "skipped": false,
+      "targetCount": 3,
+      "placedCount": 3,
+      "placements": [
+        {
+          "position": "(3,3)",
+          "size": "4x1",
+          "reason": "ground concave area"
+        }
+      ],
+      "misses": [
+        {
+          "reason": "overlapping with already placed soft edge",
+          "count": 1
+        }
+      ]
+    },
+    "static": {
+      "skipped": false,
+      "targetCount": 3,
+      "placedCount": 3,
+      "placements": [
+        {
+          "position": "(5,5)",
+          "size": "2x2",
+          "reason": "strategy: center_outward, valid position with connectivity preserved"
+        }
+      ],
+      "misses": [
+        {
+          "reason": "position would block door connectivity",
+          "count": 5
+        }
+      ]
+    },
+    "turret": {
+      "skipped": false,
+      "targetCount": 4,
+      "placedCount": 4,
+      "placements": [
+        {
+          "position": "(15,3)",
+          "size": "1x1",
+          "reason": "ground corner (90° right angle)"
+        }
+      ]
+    },
+    "mobGround": {
+      "skipped": false,
+      "targetCount": 3,
+      "placedCount": 3,
+      "groups": [
+        {
+          "groupIndex": 0,
+          "strategy": "center_outward",
+          "targetCount": 1,
+          "placedCount": 1,
+          "placements": [
+            {
+              "position": "(8,8)",
+              "size": "2x2",
+              "reason": "preferred 2x2 placement via center_outward strategy"
+            }
+          ],
+          "misses": []
+        }
+      ],
+      "misses": [
+        {
+          "reason": "large_open_area strategy not viable (no 4x4 open area found)"
+        }
+      ]
+    },
+    "mobAir": {
+      "skipped": false,
+      "targetCount": 4,
+      "placedCount": 4,
+      "strategy": "evenly_spaced",
+      "placements": [
+        {
+          "position": "(3,3)",
+          "size": "1x1",
+          "reason": "placed via evenly_spaced strategy (on void, flying mob)"
+        }
+      ]
+    }
+  }
+}
+```
+
+### Skipped Generation Example
+
+When a layer's count is 0 or not specified:
+
+```json
+{
+  "softEdge": {
+    "skipped": true,
+    "skipReason": "softEdgeCount is 0 or not specified",
+    "targetCount": 0,
+    "placedCount": 0,
+    "placements": null
+  }
+}
+```
+
+### Common Miss Reasons
+
+| Layer | Possible Miss Reasons |
+|-------|----------------------|
+| Soft Edge | `no valid concave areas found in ground layer`, `overlapping with already placed soft edge`, `only N valid placements available, needed M more` |
+| Static | `no valid 2x2 positions found`, `position invalidated by previous placement (touching existing static)`, `position would block door connectivity`, `reached max strategy attempts` |
+| Turret | `no valid positions found`, `position invalidated (too close to existing turret or blocked)`, `position would block door connectivity` |
+| Mob Ground | `large_open_area strategy not viable (no 4x4 open area found)`, `group N skipped: no more strategies available`, `no valid positions available`, `positions found but neither 2x2 nor 1x1 placement possible` |
+| Mob Air | `no valid positions found`, `position invalidated by previous placement (already occupied)`, `exhausted all N valid positions, needed M more` |
+
+### Strategy Names
+
+| Layer | Strategies |
+|-------|------------|
+| Ground Platforms | `center`, `left_right_doors`, `left_right_midpoints`, `top_bottom_doors`, `top_bottom_midpoints`, `all_doors`, `all_midpoints` |
+| Soft Edge | N/A (finds concave areas automatically) |
+| Static | `center_outward`, `edge_inward` (alternating) |
+| Turret | Priority-based: `ground corner (90° right angle)`, `ground corner (270° inner corner)`, `near room corner`, `near room edge`, `center outward placement` |
+| Mob Ground | `large_open_area`, `near_doors`, `center_outward` |
+| Mob Air | `center_outward`, `evenly_spaced` |
