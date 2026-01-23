@@ -47,12 +47,13 @@ type GenerateDebugInfo struct {
 
 // BridgeLayerDebugInfo contains debug info for bridge layer generation
 type BridgeLayerDebugInfo struct {
-	Skipped        bool              `json:"skipped"`
-	SkipReason     string            `json:"skipReason,omitempty"`
-	IslandsFound   int               `json:"islandsFound"`
-	BridgesPlaced  int               `json:"bridgesPlaced"`
-	Connections    []BridgeConnection `json:"connections"`
-	Misses         []MissInfo        `json:"misses,omitempty"`
+	Skipped           bool               `json:"skipped"`
+	SkipReason        string             `json:"skipReason,omitempty"`
+	IslandsFound      int                `json:"islandsFound"`
+	BridgesPlaced     int                `json:"bridgesPlaced"`
+	Connections       []BridgeConnection `json:"connections"`
+	ConcaveGapBridges []BridgeConnection `json:"concaveGapBridges,omitempty"`
+	Misses            []MissInfo         `json:"misses,omitempty"`
 }
 
 // BridgeConnection describes a bridge connection between island and ground/island
@@ -989,76 +990,83 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground [][]int, width, height int
 
 	// Step 1: Find all connected regions (islands) in the ground layer
 	islands := findAllIslands(ground, width, height)
-
-	if len(islands) <= 1 {
-		debug.Skipped = true
-		debug.SkipReason = "no floating islands found (all ground is connected)"
-		debug.IslandsFound = len(islands)
-		return debug
-	}
-
 	debug.IslandsFound = len(islands)
 
-	// The main ground (usually the largest or the one connected to doors) is island 0
-	// Other islands need to be connected
-	mainIslandID := 0 // Assume the first found island is the main ground
+	// Step 2: Connect disconnected islands (if any)
+	if len(islands) > 1 {
+		// The main ground (usually the largest or the one connected to doors) is island 0
+		// Other islands need to be connected
+		mainIslandID := 0 // Assume the first found island is the main ground
 
-	// Find the largest island as the main ground
-	maxSize := 0
-	for i, island := range islands {
-		if len(island.Cells) > maxSize {
-			maxSize = len(island.Cells)
-			mainIslandID = i
-		}
-	}
-
-	// Track which islands are connected to the main ground
-	connected := make(map[int]bool)
-	connected[mainIslandID] = true
-
-	// Step 2: Connect each floating island to the main ground or another connected island
-	for {
-		// Find an unconnected island
-		unconnectedID := -1
-		for i := range islands {
-			if !connected[i] {
-				unconnectedID = i
-				break
+		// Find the largest island as the main ground
+		maxSize := 0
+		for i, island := range islands {
+			if len(island.Cells) > maxSize {
+				maxSize = len(island.Cells)
+				mainIslandID = i
 			}
 		}
 
-		if unconnectedID == -1 {
-			// All islands connected
-			break
-		}
+		// Track which islands are connected to the main ground
+		connected := make(map[int]bool)
+		connected[mainIslandID] = true
 
-		unconnectedIsland := islands[unconnectedID]
+		// Connect each floating island to the main ground or another connected island
+		for {
+			// Find an unconnected island
+			unconnectedID := -1
+			for i := range islands {
+				if !connected[i] {
+					unconnectedID = i
+					break
+				}
+			}
 
-		// Find the nearest connected island/ground
-		bestConnection := findBestBridgeConnection(unconnectedIsland, islands, connected, ground, bridgeLayer, width, height)
+			if unconnectedID == -1 {
+				// All islands connected
+				break
+			}
 
-		if bestConnection == nil {
-			// Cannot connect this island
-			debug.Misses = append(debug.Misses, MissInfo{
-				Reason: fmt.Sprintf("cannot find valid bridge path for island at (%d,%d)-(%d,%d)",
-					unconnectedIsland.MinX, unconnectedIsland.MinY, unconnectedIsland.MaxX, unconnectedIsland.MaxY),
-			})
-			// Mark as connected anyway to avoid infinite loop
+			unconnectedIsland := islands[unconnectedID]
+
+			// Find the nearest connected island/ground
+			bestConnection := findBestBridgeConnection(unconnectedIsland, islands, connected, ground, bridgeLayer, width, height)
+
+			if bestConnection == nil {
+				// Cannot connect this island
+				debug.Misses = append(debug.Misses, MissInfo{
+					Reason: fmt.Sprintf("cannot find valid bridge path for island at (%d,%d)-(%d,%d)",
+						unconnectedIsland.MinX, unconnectedIsland.MinY, unconnectedIsland.MaxX, unconnectedIsland.MaxY),
+				})
+				// Mark as connected anyway to avoid infinite loop
+				connected[unconnectedID] = true
+				continue
+			}
+
+			// Place the bridge
+			placeBridge(bridgeLayer, bestConnection.bridgeX, bestConnection.bridgeY)
 			connected[unconnectedID] = true
-			continue
+			debug.BridgesPlaced++
+
+			debug.Connections = append(debug.Connections, BridgeConnection{
+				From:     fmt.Sprintf("island (%d,%d)-(%d,%d)", unconnectedIsland.MinX, unconnectedIsland.MinY, unconnectedIsland.MaxX, unconnectedIsland.MaxY),
+				To:       bestConnection.targetDesc,
+				Position: fmt.Sprintf("(%d,%d)", bestConnection.bridgeX, bestConnection.bridgeY),
+				Size:     "2x2",
+			})
 		}
+	}
 
-		// Place the bridge
-		placeBridge(bridgeLayer, bestConnection.bridgeX, bestConnection.bridgeY)
-		connected[unconnectedID] = true
-		debug.BridgesPlaced++
+	// Step 3: Fill concave gaps with bridges
+	// Look for horizontal gaps where ground exists on both sides but void in middle,
+	// and ground exists above the void (creating a concave shape)
+	concaveGapBridges := fillConcaveGapsWithBridges(bridgeLayer, ground, width, height)
+	debug.ConcaveGapBridges = concaveGapBridges
+	debug.BridgesPlaced += len(concaveGapBridges)
 
-		debug.Connections = append(debug.Connections, BridgeConnection{
-			From:     fmt.Sprintf("island (%d,%d)-(%d,%d)", unconnectedIsland.MinX, unconnectedIsland.MinY, unconnectedIsland.MaxX, unconnectedIsland.MaxY),
-			To:       bestConnection.targetDesc,
-			Position: fmt.Sprintf("(%d,%d)", bestConnection.bridgeX, bestConnection.bridgeY),
-			Size:     "2x2",
-		})
+	if debug.BridgesPlaced == 0 {
+		debug.Skipped = true
+		debug.SkipReason = "no bridges needed (no floating islands and no concave gaps)"
 	}
 
 	return debug
@@ -1259,6 +1267,131 @@ func placeBridge(bridgeLayer [][]int, x, y int) {
 			bridgeLayer[y+dy][x+dx] = 1
 		}
 	}
+}
+
+// Minimum gap size for placing a bridge in concave areas
+const minConcaveGapSize = 4
+
+// fillConcaveGapsWithBridges finds horizontal concave gaps and places bridges to fill them
+// A concave gap is: ground on both sides of a row, void in middle, and ground exists above the void
+func fillConcaveGapsWithBridges(bridgeLayer, ground [][]int, width, height int) []BridgeConnection {
+	var connections []BridgeConnection
+
+	// Scan each row for horizontal concave gaps
+	for y := 1; y < height-1; y++ { // Skip first and last row
+		// Find gaps in this row: segments of void cells between ground cells
+		gaps := findHorizontalGaps(ground, y, width)
+
+		for _, gap := range gaps {
+			// Check if this is a concave gap (ground exists above the void)
+			if !isConcaveGap(ground, gap.startX, gap.endX, y, width, height) {
+				continue
+			}
+
+			// Gap is wide enough and concave - place a bridge in the center
+			gapWidth := gap.endX - gap.startX
+			if gapWidth < minConcaveGapSize {
+				continue
+			}
+
+			// Calculate center position for bridge (2x2)
+			bridgeX := gap.startX + (gapWidth-bridgeSize)/2
+			bridgeY := y
+
+			// Ensure bridge fits and all cells are void
+			if !canPlaceBridgeAt(bridgeLayer, ground, bridgeX, bridgeY, width, height) {
+				continue
+			}
+
+			// Place the bridge
+			placeBridge(bridgeLayer, bridgeX, bridgeY)
+
+			connections = append(connections, BridgeConnection{
+				From:     fmt.Sprintf("concave gap at y=%d", y),
+				To:       fmt.Sprintf("x=%d to x=%d", gap.startX, gap.endX-1),
+				Position: fmt.Sprintf("(%d,%d)", bridgeX, bridgeY),
+				Size:     "2x2",
+			})
+		}
+	}
+
+	return connections
+}
+
+// horizontalGap represents a gap in a row
+type horizontalGap struct {
+	startX int // First void cell (inclusive)
+	endX   int // Last void cell (exclusive)
+}
+
+// findHorizontalGaps finds all horizontal gaps (void segments between ground) in a row
+func findHorizontalGaps(ground [][]int, y, width int) []horizontalGap {
+	var gaps []horizontalGap
+
+	inGap := false
+	gapStart := 0
+
+	for x := 0; x < width; x++ {
+		if ground[y][x] == 0 {
+			// Void cell
+			if !inGap {
+				inGap = true
+				gapStart = x
+			}
+		} else {
+			// Ground cell
+			if inGap {
+				// End of gap - but only count if we started after ground
+				if gapStart > 0 {
+					gaps = append(gaps, horizontalGap{startX: gapStart, endX: x})
+				}
+				inGap = false
+			}
+		}
+	}
+
+	// Don't include gaps that extend to the right edge (they're not between ground)
+
+	return gaps
+}
+
+// isConcaveGap checks if a gap has ground above it (making it concave)
+func isConcaveGap(ground [][]int, startX, endX, y, width, height int) bool {
+	if y == 0 {
+		return false // No row above
+	}
+
+	// Check if there's ground in the row above, within the gap region
+	// A concave gap needs ground above the void area
+	groundAboveCount := 0
+	for x := startX; x < endX; x++ {
+		if ground[y-1][x] == 1 {
+			groundAboveCount++
+		}
+	}
+
+	// Need significant ground coverage above (at least 50% of gap width)
+	gapWidth := endX - startX
+	return groundAboveCount >= gapWidth/2
+}
+
+// canPlaceBridgeAt checks if a 2x2 bridge can be placed at the given position
+func canPlaceBridgeAt(bridgeLayer, ground [][]int, x, y, width, height int) bool {
+	// Bridge must be within bounds
+	if x < 0 || x+bridgeSize > width || y < 0 || y+bridgeSize > height {
+		return false
+	}
+
+	// All cells must be void (ground=0) and no existing bridge
+	for dy := 0; dy < bridgeSize; dy++ {
+		for dx := 0; dx < bridgeSize; dx++ {
+			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // findAllIslands finds all connected regions of ground cells using flood fill

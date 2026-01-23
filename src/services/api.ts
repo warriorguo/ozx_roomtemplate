@@ -450,6 +450,7 @@ export interface BridgeLayerDebugInfo {
   islandsFound: number;
   bridgesPlaced: number;
   connections: BridgeConnection[];
+  concaveGapBridges?: BridgeConnection[];
   misses?: MissInfo[];
 }
 

@@ -2288,3 +2288,89 @@ func TestGenerateBridgeRoom_BridgeLayerDebugInfo(t *testing.T) {
 		}
 	}
 }
+
+func TestFillConcaveGapsWithBridges(t *testing.T) {
+	// Test case matching user's example:
+	// y=7: full ground
+	// y=8: ground at x=0-2 and x=16-19, gap at x=3-15
+	// This creates a concave gap that should have a bridge placed
+	ground := [][]int{
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=0
+		{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0}, // y=1
+		{1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1}, // y=2
+		{1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1}, // y=3
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=4
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=5
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=6
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=7
+		{1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1}, // y=8 - concave gap
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=9
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=10
+		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=11
+	}
+
+	width := 20
+	height := 12
+	bridgeLayer := createEmptyLayer(width, height)
+
+	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, width, height)
+
+	t.Logf("Islands found: %d", debug.IslandsFound)
+	t.Logf("Bridges placed: %d", debug.BridgesPlaced)
+	t.Logf("Concave gap bridges: %d", len(debug.ConcaveGapBridges))
+
+	for _, conn := range debug.ConcaveGapBridges {
+		t.Logf("  Concave gap bridge: %s -> %s at %s", conn.From, conn.To, conn.Position)
+	}
+
+	// Verify a bridge was placed in the concave gap at y=8
+	assert.Equal(t, 1, debug.IslandsFound, "all ground should be connected as 1 island")
+	assert.GreaterOrEqual(t, len(debug.ConcaveGapBridges), 1, "should place at least one bridge in concave gap")
+
+	// Check that bridge is placed in the gap area (x=3 to x=15, y=8 or y=9)
+	bridgePlaced := false
+	for y := 8; y <= 9; y++ {
+		for x := 3; x < 15; x++ {
+			if bridgeLayer[y][x] == 1 {
+				bridgePlaced = true
+				t.Logf("Bridge cell at (%d,%d)", x, y)
+			}
+		}
+	}
+	assert.True(t, bridgePlaced, "bridge should be placed in the concave gap area")
+}
+
+func TestFindHorizontalGaps(t *testing.T) {
+	// Row with ground on both sides and gap in middle
+	ground := [][]int{
+		{1, 1, 0, 0, 0, 0, 1, 1, 1, 1},
+	}
+
+	gaps := findHorizontalGaps(ground, 0, 10)
+
+	assert.Equal(t, 1, len(gaps), "should find 1 gap")
+	if len(gaps) > 0 {
+		assert.Equal(t, 2, gaps[0].startX, "gap should start at x=2")
+		assert.Equal(t, 6, gaps[0].endX, "gap should end at x=6 (exclusive)")
+	}
+}
+
+func TestIsConcaveGap(t *testing.T) {
+	ground := [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1}, // y=0: full ground
+		{1, 1, 0, 0, 0, 0, 1, 1}, // y=1: gap in middle
+	}
+
+	// Gap at y=1, x=2 to x=6 - should be concave because ground above
+	isConcave := isConcaveGap(ground, 2, 6, 1, 8, 2)
+	assert.True(t, isConcave, "should detect concave gap when ground exists above")
+
+	// Test with no ground above
+	ground2 := [][]int{
+		{0, 0, 0, 0, 0, 0, 0, 0}, // y=0: no ground
+		{1, 1, 0, 0, 0, 0, 1, 1}, // y=1: gap in middle
+	}
+
+	isConcave2 := isConcaveGap(ground2, 2, 6, 1, 8, 2)
+	assert.False(t, isConcave2, "should not detect concave gap when no ground above")
+}
