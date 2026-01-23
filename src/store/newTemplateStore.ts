@@ -767,7 +767,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       if (jsonData.payload && jsonData.name) {
         // Format from Copy JSON: { name: string, payload: { ground, static, ..., meta } }
         const payload = jsonData.payload;
-        
+
         // Construct backend template format
         backendTemplate = {
           id: 'pasted-template',
@@ -776,6 +776,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
           height: payload.meta?.height || 12,
           payload: {
             ground: payload.ground,
+            softEdge: payload.softEdge,
             bridge: payload.bridge,
             static: payload.static,
             turret: payload.turret,
@@ -813,6 +814,11 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         throw new Error('Invalid template: Missing required layer data (ground, bridge, static, turret, mobGround, mobAir)');
       }
       
+      // Initialize softEdge layer if not present (for backward compatibility)
+      if (!payload.softEdge) {
+        payload.softEdge = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
+      }
+
       // Initialize bridge layer if not present (for backward compatibility)
       if (!payload.bridge) {
         payload.bridge = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));

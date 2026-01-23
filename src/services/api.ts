@@ -335,13 +335,111 @@ export interface BridgeGenerateRequest {
   width: number;
   height: number;
   doors: DoorPosition[];
+  softEdgeCount?: number;
   staticCount?: number;
   turretCount?: number;
   mobGroundCount?: number;
+  mobAirCount?: number;
+}
+
+// Debug info types for bridge generation
+export interface DoorConnectionInfo {
+  from: string;
+  to: string;
+  pathType: string;
+  brushSize: string;
+}
+
+export interface PlatformInfo {
+  strategy: string;
+  brushSize: string;
+  points: string[];
+  mirror: string;
+}
+
+export interface GroundDebugInfo {
+  doorConnections: DoorConnectionInfo[];
+  platforms: PlatformInfo[];
+}
+
+export interface PlaceInfo {
+  position: string;
+  size: string;
+  reason?: string;
+}
+
+export interface MissInfo {
+  reason: string;
+  count?: number;
+}
+
+export interface StaticDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  targetCount: number;
+  placedCount: number;
+  placements: PlaceInfo[];
+  misses?: MissInfo[];
+}
+
+export interface TurretDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  targetCount: number;
+  placedCount: number;
+  placements: PlaceInfo[];
+  misses?: MissInfo[];
+}
+
+export interface MobGroupInfo {
+  groupIndex: number;
+  strategy: string;
+  targetCount: number;
+  placedCount: number;
+  placements: PlaceInfo[];
+  misses?: MissInfo[];
+}
+
+export interface MobGroundDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  targetCount: number;
+  placedCount: number;
+  groups: MobGroupInfo[];
+  misses?: MissInfo[];
+}
+
+export interface MobAirDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  targetCount: number;
+  placedCount: number;
+  strategy: string;
+  placements: PlaceInfo[];
+  misses?: MissInfo[];
+}
+
+export interface SoftEdgeDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  targetCount: number;
+  placedCount: number;
+  placements: PlaceInfo[];
+  misses?: MissInfo[];
+}
+
+export interface GenerateDebugInfo {
+  ground?: GroundDebugInfo;
+  softEdge?: SoftEdgeDebugInfo;
+  static?: StaticDebugInfo;
+  turret?: TurretDebugInfo;
+  mobGround?: MobGroundDebugInfo;
+  mobAir?: MobAirDebugInfo;
 }
 
 export interface BridgeGenerateResponse {
   payload: BackendTemplatePayload;
+  debugInfo?: GenerateDebugInfo;
 }
 
 // Create singleton instance

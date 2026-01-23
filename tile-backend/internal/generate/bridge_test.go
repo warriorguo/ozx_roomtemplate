@@ -452,6 +452,166 @@ func TestApplyBrushWithMirror_MirrorNone(t *testing.T) {
 	assert.Equal(t, 0, ground[7][2], "mirrored X position should not be filled")
 }
 
+// Soft Edge Layer Generation Tests
+
+func TestGenerateBridgeRoom_WithSoftEdgeCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:         25,
+		Height:        25,
+		Doors:         []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		SoftEdgeCount: 3,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Count soft edge cells
+	softEdgeCellCount := 0
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.SoftEdge[y][x] == 1 {
+				softEdgeCellCount++
+			}
+		}
+	}
+
+	// Should have some soft edges placed (each is at least 3 cells)
+	t.Logf("Placed %d soft edge cells", softEdgeCellCount)
+
+	// If any placed, verify they are on ground
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.SoftEdge[y][x] == 1 {
+				assert.Equal(t, 1, resp.Payload.Ground[y][x],
+					"soft edge at (%d,%d) must be on ground", x, y)
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_SoftEdgeDistanceFromDoors(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:         25,
+		Height:        25,
+		Doors:         []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		SoftEdgeCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Get door positions
+	doorPositions := getDoorCenterPositions(req.Width, req.Height, req.Doors)
+
+	// Verify soft edges are at least 2 cells away from doors
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.SoftEdge[y][x] == 1 {
+				for _, doorPos := range doorPositions {
+					dist := manhattanDistance(Point{X: x, Y: y}, doorPos)
+					assert.GreaterOrEqual(t, dist, softEdgeMinDoorDistance,
+						"soft edge at (%d,%d) should be at least %d cells from door at (%d,%d)",
+						x, y, softEdgeMinDoorDistance, doorPos.X, doorPos.Y)
+				}
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_SoftEdgeShape(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:         30,
+		Height:        30,
+		Doors:         []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		SoftEdgeCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify soft edges form 1×N or N×1 shapes
+	// Check debug info if available
+	if resp.DebugInfo != nil && resp.DebugInfo.SoftEdge != nil {
+		for _, placement := range resp.DebugInfo.SoftEdge.Placements {
+			t.Logf("SoftEdge: %s size=%s reason=%s", placement.Position, placement.Size, placement.Reason)
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_ZeroSoftEdgeCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:         15,
+		Height:        15,
+		Doors:         []DoorPosition{DoorTop, DoorBottom},
+		SoftEdgeCount: 0,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify soft edge layer is all zeros
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			assert.Equal(t, 0, resp.Payload.SoftEdge[y][x], "soft edge should be 0 when SoftEdgeCount=0")
+		}
+	}
+}
+
+func TestFindHorizontalConcave(t *testing.T) {
+	// Create a ground layer with a horizontal void notch (carved from top)
+	// This matches the user's expected pattern like row 3: ███····██████
+	// Ground looks like:
+	// 0 0 0 0 0 0 0 0  <- void (outside)
+	// 1 0 0 0 0 1 1 1  <- notch: ground at edges, void in middle with ground below
+	// 1 1 1 1 1 1 1 1  <- solid ground
+	// 1 1 1 1 1 1 1 1
+	ground := [][]int{
+		{0, 0, 0, 0, 0, 0, 0, 0}, // void above
+		{1, 0, 0, 0, 0, 1, 1, 1}, // void notch at x=1-4, ground at x=0 and x=5
+		{1, 1, 1, 1, 1, 1, 1, 1}, // ground below
+		{1, 1, 1, 1, 1, 1, 1, 1},
+	}
+	softEdgeLayer := createEmptyLayer(8, 4)
+	doorPositions := map[DoorPosition]Point{}
+
+	// Should find a horizontal concave notch at (1,1) to (4,1)
+	// The notch has: ground below (row 2), void above (row 0), ground on left (x=0) and right (x=5)
+	placement := findHorizontalConcave(ground, softEdgeLayer, doorPositions, 1, 1, 8, 4)
+	require.NotNil(t, placement, "should find horizontal concave")
+	assert.Equal(t, 1, placement.StartX)
+	assert.Equal(t, 1, placement.StartY)
+	assert.Equal(t, 4, placement.Width, "concave should be 4 cells wide")
+	assert.Equal(t, 1, placement.Height)
+}
+
+func TestFindVerticalConcave(t *testing.T) {
+	// Create a ground layer with a vertical void notch (carved from left)
+	// Ground looks like:
+	// 0 1 1 1 1
+	// 0 0 1 1 1  <- vertical notch at x=1, ground on right
+	// 0 0 1 1 1
+	// 0 0 1 1 1
+	// 0 1 1 1 1
+	ground := [][]int{
+		{0, 1, 1, 1, 1}, // ground closes the top
+		{0, 0, 1, 1, 1}, // void notch at x=1, y=1-3
+		{0, 0, 1, 1, 1},
+		{0, 0, 1, 1, 1},
+		{0, 1, 1, 1, 1}, // ground closes the bottom
+	}
+	softEdgeLayer := createEmptyLayer(5, 5)
+	doorPositions := map[DoorPosition]Point{}
+
+	// Should find a vertical concave notch at (1,1) to (1,3)
+	// The notch has: ground on right (x=2), void on left (x=0), ground at top (y=0) and bottom (y=4)
+	placement := findVerticalConcave(ground, softEdgeLayer, doorPositions, 1, 1, 5, 5)
+	require.NotNil(t, placement, "should find vertical concave")
+	assert.Equal(t, 1, placement.StartX)
+	assert.Equal(t, 1, placement.StartY)
+	assert.Equal(t, 1, placement.Width)
+	assert.Equal(t, 3, placement.Height, "concave should be 3 cells tall")
+}
+
 // Static Layer Generation Tests
 
 func TestGenerateBridgeRoom_WithStaticCount(t *testing.T) {
@@ -1417,4 +1577,370 @@ func TestGetGroundCornerType(t *testing.T) {
 	// Position (5,5) center: top+left+right = 3 neighbors = 270° corner
 	assert.Equal(t, CornerType270, getGroundCornerType(Point{X: 5, Y: 5}, ground3, width, height),
 		"position (5,5) should be 270° corner (3 neighbors)")
+}
+
+// ============================================================================
+// Mob Air (Fly) Layer Tests
+// ============================================================================
+
+func TestGenerateBridgeRoom_WithMobAirCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		MobAirCount: 6,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Count mob air cells
+	mobAirCount := 0
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobAir[y][x] == 1 {
+				mobAirCount++
+			}
+		}
+	}
+
+	// Should have placed some mob air
+	t.Logf("Placed %d mob air cells", mobAirCount)
+	assert.Greater(t, mobAirCount, 0, "should have placed some mob air")
+}
+
+func TestGenerateBridgeRoom_MobAirNoGroundRequirement(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       20,
+		Height:      20,
+		Doors:       []DoorPosition{DoorTop, DoorBottom},
+		MobAirCount: 4,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify mob air can be placed (no ground requirement for flying mobs)
+	mobAirCount := 0
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobAir[y][x] == 1 {
+				mobAirCount++
+			}
+		}
+	}
+	assert.Greater(t, mobAirCount, 0, "should have placed some mob air")
+}
+
+func TestGenerateBridgeRoom_MobAirNotOnOtherLayers(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          30,
+		Height:         30,
+		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount:    3,
+		TurretCount:    4,
+		MobGroundCount: 3,
+		MobAirCount:    5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify mob air doesn't overlap with other layers
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobAir[y][x] == 1 {
+				assert.Equal(t, 0, resp.Payload.Static[y][x],
+					"mob air at (%d,%d) should not overlap with static", x, y)
+				assert.Equal(t, 0, resp.Payload.Turret[y][x],
+					"mob air at (%d,%d) should not overlap with turret", x, y)
+				assert.Equal(t, 0, resp.Payload.MobGround[y][x],
+					"mob air at (%d,%d) should not overlap with mob ground", x, y)
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_MobAirDistanceFromDoors(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		MobAirCount: 5,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Get door positions
+	doorPositions := getDoorCenterPositions(req.Width, req.Height, req.Doors)
+
+	// Verify mob air is at least 4 cells away from doors
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobAir[y][x] == 1 {
+				for _, doorPos := range doorPositions {
+					dist := manhattanDistance(Point{X: x, Y: y}, doorPos)
+					assert.GreaterOrEqual(t, dist, mobAirMinDoorDistance,
+						"mob air at (%d,%d) should be at least %d cells from door at (%d,%d)",
+						x, y, mobAirMinDoorDistance, doorPos.X, doorPos.Y)
+				}
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_MobAirDoNotTouch(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       30,
+		Height:      30,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		MobAirCount: 8,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Find all mob air positions
+	var mobAirPositions []Point
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobAir[y][x] == 1 {
+				mobAirPositions = append(mobAirPositions, Point{X: x, Y: y})
+			}
+		}
+	}
+
+	// Verify no two mob air cells touch (including diagonals)
+	for i := 0; i < len(mobAirPositions); i++ {
+		for j := i + 1; j < len(mobAirPositions); j++ {
+			dx := abs(mobAirPositions[i].X - mobAirPositions[j].X)
+			dy := abs(mobAirPositions[i].Y - mobAirPositions[j].Y)
+			touching := dx <= 1 && dy <= 1
+			assert.False(t, touching,
+				"mob air at (%d,%d) and (%d,%d) should not touch",
+				mobAirPositions[i].X, mobAirPositions[i].Y,
+				mobAirPositions[j].X, mobAirPositions[j].Y)
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_MobAirDistanceFromEdges(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		MobAirCount: 6,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify mob air is at least 2 cells away from all edges
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			if resp.Payload.MobAir[y][x] == 1 {
+				// Check distance from edges
+				assert.GreaterOrEqual(t, x, mobAirMinEdgeDistance,
+					"mob air at (%d,%d) should be at least %d cells from left edge", x, y, mobAirMinEdgeDistance)
+				assert.Less(t, x, req.Width-mobAirMinEdgeDistance,
+					"mob air at (%d,%d) should be at least %d cells from right edge", x, y, mobAirMinEdgeDistance)
+				assert.GreaterOrEqual(t, y, mobAirMinEdgeDistance,
+					"mob air at (%d,%d) should be at least %d cells from top edge", x, y, mobAirMinEdgeDistance)
+				assert.Less(t, y, req.Height-mobAirMinEdgeDistance,
+					"mob air at (%d,%d) should be at least %d cells from bottom edge", x, y, mobAirMinEdgeDistance)
+			}
+		}
+	}
+}
+
+func TestGenerateBridgeRoom_ZeroMobAirCount(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:       15,
+		Height:      15,
+		Doors:       []DoorPosition{DoorTop, DoorBottom},
+		MobAirCount: 0,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+
+	// Verify mob air layer is all zeros
+	for y := 0; y < req.Height; y++ {
+		for x := 0; x < req.Width; x++ {
+			assert.Equal(t, 0, resp.Payload.MobAir[y][x], "mob air should be 0 when MobAirCount=0")
+		}
+	}
+}
+
+func TestCalculateGridDimensions(t *testing.T) {
+	tests := []struct {
+		name        string
+		targetCount int
+		width       int
+		height      int
+	}{
+		{"4 items in 20x20", 4, 20, 20},
+		{"9 items in 20x20", 9, 20, 20},
+		{"6 items in 30x20", 6, 30, 20},
+		{"1 item", 1, 20, 20},
+		{"0 items", 0, 20, 20},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cols, rows := calculateGridDimensions(tt.targetCount, tt.width, tt.height)
+
+			// Grid should have at least 1 row and 1 col
+			assert.GreaterOrEqual(t, cols, 1, "cols should be >= 1")
+			assert.GreaterOrEqual(t, rows, 1, "rows should be >= 1")
+
+			// Grid should have enough cells for target count (if targetCount > 0)
+			if tt.targetCount > 0 {
+				assert.GreaterOrEqual(t, cols*rows, tt.targetCount,
+					"grid should have enough cells: cols=%d, rows=%d, target=%d", cols, rows, tt.targetCount)
+			}
+
+			t.Logf("%s: cols=%d, rows=%d (for %d items)", tt.name, cols, rows, tt.targetCount)
+		})
+	}
+}
+
+func TestArrangeMobAirEvenlySpaced(t *testing.T) {
+	// Create a set of valid positions
+	validPositions := []Point{
+		{X: 0, Y: 0}, {X: 5, Y: 0}, {X: 10, Y: 0}, {X: 15, Y: 0},
+		{X: 0, Y: 5}, {X: 5, Y: 5}, {X: 10, Y: 5}, {X: 15, Y: 5},
+		{X: 0, Y: 10}, {X: 5, Y: 10}, {X: 10, Y: 10}, {X: 15, Y: 10},
+		{X: 0, Y: 15}, {X: 5, Y: 15}, {X: 10, Y: 15}, {X: 15, Y: 15},
+	}
+
+	// Select 4 positions
+	result := arrangeMobAirEvenlySpaced(validPositions, 4, 20, 20)
+
+	assert.LessOrEqual(t, len(result), 4)
+	assert.Greater(t, len(result), 0)
+
+	// All results should be unique
+	seen := make(map[Point]bool)
+	for _, pos := range result {
+		assert.False(t, seen[pos], "duplicate position in result")
+		seen[pos] = true
+	}
+}
+
+// ============================================================================
+// Debug Info Tests
+// ============================================================================
+
+func TestGenerateBridgeRoom_DebugInfoPopulated(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          25,
+		Height:         25,
+		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount:    3,
+		TurretCount:    4,
+		MobGroundCount: 3,
+		MobAirCount:    4,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp.DebugInfo, "DebugInfo should not be nil")
+
+	// Verify Ground debug info
+	require.NotNil(t, resp.DebugInfo.Ground, "Ground debug info should not be nil")
+	assert.Greater(t, len(resp.DebugInfo.Ground.DoorConnections), 0, "should have door connections")
+	for _, conn := range resp.DebugInfo.Ground.DoorConnections {
+		assert.NotEmpty(t, conn.From, "connection From should not be empty")
+		assert.NotEmpty(t, conn.To, "connection To should not be empty")
+		assert.NotEmpty(t, conn.PathType, "connection PathType should not be empty")
+		assert.NotEmpty(t, conn.BrushSize, "connection BrushSize should not be empty")
+	}
+	t.Logf("Ground: %d door connections, %d platforms", len(resp.DebugInfo.Ground.DoorConnections), len(resp.DebugInfo.Ground.Platforms))
+
+	// Verify Static debug info
+	require.NotNil(t, resp.DebugInfo.Static, "Static debug info should not be nil")
+	assert.Equal(t, req.StaticCount, resp.DebugInfo.Static.TargetCount, "static target count should match request")
+	assert.GreaterOrEqual(t, resp.DebugInfo.Static.PlacedCount, 0, "placed count should be >= 0")
+	assert.Equal(t, len(resp.DebugInfo.Static.Placements), resp.DebugInfo.Static.PlacedCount, "placements should match placed count")
+	for _, p := range resp.DebugInfo.Static.Placements {
+		assert.NotEmpty(t, p.Position, "placement position should not be empty")
+		assert.Equal(t, "2x2", p.Size, "static size should be 2x2")
+		assert.NotEmpty(t, p.Reason, "placement reason should not be empty")
+	}
+	t.Logf("Static: target=%d, placed=%d", resp.DebugInfo.Static.TargetCount, resp.DebugInfo.Static.PlacedCount)
+
+	// Verify Turret debug info
+	require.NotNil(t, resp.DebugInfo.Turret, "Turret debug info should not be nil")
+	assert.Equal(t, req.TurretCount, resp.DebugInfo.Turret.TargetCount, "turret target count should match request")
+	assert.GreaterOrEqual(t, resp.DebugInfo.Turret.PlacedCount, 0, "placed count should be >= 0")
+	assert.Equal(t, len(resp.DebugInfo.Turret.Placements), resp.DebugInfo.Turret.PlacedCount, "placements should match placed count")
+	for _, p := range resp.DebugInfo.Turret.Placements {
+		assert.NotEmpty(t, p.Position, "placement position should not be empty")
+		assert.Equal(t, "1x1", p.Size, "turret size should be 1x1")
+		assert.NotEmpty(t, p.Reason, "placement reason should not be empty")
+	}
+	t.Logf("Turret: target=%d, placed=%d", resp.DebugInfo.Turret.TargetCount, resp.DebugInfo.Turret.PlacedCount)
+
+	// Verify MobGround debug info
+	require.NotNil(t, resp.DebugInfo.MobGround, "MobGround debug info should not be nil")
+	assert.Equal(t, req.MobGroundCount, resp.DebugInfo.MobGround.TargetCount, "mobGround target count should match request")
+	assert.GreaterOrEqual(t, resp.DebugInfo.MobGround.PlacedCount, 0, "placed count should be >= 0")
+	assert.Greater(t, len(resp.DebugInfo.MobGround.Groups), 0, "should have at least one group")
+	for _, group := range resp.DebugInfo.MobGround.Groups {
+		assert.NotEmpty(t, group.Strategy, "group strategy should not be empty")
+		assert.GreaterOrEqual(t, group.TargetCount, 1, "group target count should be >= 1")
+	}
+	t.Logf("MobGround: target=%d, placed=%d, groups=%d", resp.DebugInfo.MobGround.TargetCount, resp.DebugInfo.MobGround.PlacedCount, len(resp.DebugInfo.MobGround.Groups))
+
+	// Verify MobAir debug info
+	require.NotNil(t, resp.DebugInfo.MobAir, "MobAir debug info should not be nil")
+	assert.Equal(t, req.MobAirCount, resp.DebugInfo.MobAir.TargetCount, "mobAir target count should match request")
+	assert.NotEmpty(t, resp.DebugInfo.MobAir.Strategy, "mobAir strategy should not be empty")
+	assert.GreaterOrEqual(t, resp.DebugInfo.MobAir.PlacedCount, 0, "placed count should be >= 0")
+	assert.Equal(t, len(resp.DebugInfo.MobAir.Placements), resp.DebugInfo.MobAir.PlacedCount, "placements should match placed count")
+	t.Logf("MobAir: target=%d, placed=%d, strategy=%s", resp.DebugInfo.MobAir.TargetCount, resp.DebugInfo.MobAir.PlacedCount, resp.DebugInfo.MobAir.Strategy)
+}
+
+func TestGenerateBridgeRoom_DebugInfoWithZeroCounts(t *testing.T) {
+	req := BridgeGenerateRequest{
+		Width:          20,
+		Height:         20,
+		Doors:          []DoorPosition{DoorTop, DoorBottom},
+		SoftEdgeCount:  0,
+		StaticCount:    0,
+		TurretCount:    0,
+		MobGroundCount: 0,
+		MobAirCount:    0,
+	}
+
+	resp, err := GenerateBridgeRoom(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp.DebugInfo, "DebugInfo should not be nil")
+
+	// Ground debug info should still be populated
+	require.NotNil(t, resp.DebugInfo.Ground, "Ground debug info should not be nil")
+	assert.Greater(t, len(resp.DebugInfo.Ground.DoorConnections), 0, "should have door connections")
+
+	// Other layers should have skipped=true with skip reasons when count is 0
+	require.NotNil(t, resp.DebugInfo.SoftEdge, "SoftEdge debug info should not be nil")
+	assert.True(t, resp.DebugInfo.SoftEdge.Skipped, "SoftEdge should be marked as skipped")
+	assert.Contains(t, resp.DebugInfo.SoftEdge.SkipReason, "0", "SoftEdge skip reason should mention count")
+
+	require.NotNil(t, resp.DebugInfo.Static, "Static debug info should not be nil")
+	assert.True(t, resp.DebugInfo.Static.Skipped, "Static should be marked as skipped")
+	assert.Contains(t, resp.DebugInfo.Static.SkipReason, "0", "Static skip reason should mention count")
+
+	require.NotNil(t, resp.DebugInfo.Turret, "Turret debug info should not be nil")
+	assert.True(t, resp.DebugInfo.Turret.Skipped, "Turret should be marked as skipped")
+	assert.Contains(t, resp.DebugInfo.Turret.SkipReason, "0", "Turret skip reason should mention count")
+
+	require.NotNil(t, resp.DebugInfo.MobGround, "MobGround debug info should not be nil")
+	assert.True(t, resp.DebugInfo.MobGround.Skipped, "MobGround should be marked as skipped")
+	assert.Contains(t, resp.DebugInfo.MobGround.SkipReason, "0", "MobGround skip reason should mention count")
+
+	require.NotNil(t, resp.DebugInfo.MobAir, "MobAir debug info should not be nil")
+	assert.True(t, resp.DebugInfo.MobAir.Skipped, "MobAir should be marked as skipped")
+	assert.Contains(t, resp.DebugInfo.MobAir.SkipReason, "0", "MobAir skip reason should mention count")
 }

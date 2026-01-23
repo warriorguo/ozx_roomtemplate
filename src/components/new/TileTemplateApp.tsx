@@ -67,9 +67,11 @@ export const TileTemplateApp: React.FC = () => {
     bottom: false,
     left: false,
   });
+  const [softEdgeCount, setSoftEdgeCount] = useState<number>(3);
   const [staticCount, setStaticCount] = useState<number>(8);
   const [turretCount, setTurretCount] = useState<number>(4);
   const [mobGroundCount, setMobGroundCount] = useState<number>(5);
+  const [mobAirCount, setMobAirCount] = useState<number>(4);
 
   // Toggle door selection
   const toggleDoorSelection = (door: 'top' | 'right' | 'bottom' | 'left') => {
@@ -119,9 +121,11 @@ export const TileTemplateApp: React.FC = () => {
         width: template.width,
         height: template.height,
         doors,
+        softEdgeCount,
         staticCount,
         turretCount,
         mobGroundCount,
+        mobAirCount,
       });
 
       // Load the generated template
@@ -543,6 +547,44 @@ export const TileTemplateApp: React.FC = () => {
                         ))}
                       </div>
 
+                      {/* Soft Edge Count Input */}
+                      <div style={{
+                        marginBottom: '12px',
+                      }}>
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '13px',
+                        }}>
+                          <span style={{ fontWeight: 'bold', color: '#333' }}>
+                            Soft Edge Count:
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="20"
+                            value={softEdgeCount}
+                            onChange={(e) => setSoftEdgeCount(Math.max(0, Math.min(20, parseInt(e.target.value) || 0)))}
+                            style={{
+                              width: '60px',
+                              padding: '6px 8px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '13px',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </label>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#6c757d',
+                          marginTop: '4px',
+                        }}>
+                          Number of soft edge strips to place (0-20)
+                        </div>
+                      </div>
+
                       {/* Static Count Input */}
                       <div style={{
                         marginBottom: '12px',
@@ -652,6 +694,42 @@ export const TileTemplateApp: React.FC = () => {
                           marginTop: '4px',
                         }}>
                           Number of mob spawn points to place (2×2 preferred, 1×1 fallback)
+                        </div>
+                      </div>
+
+                      {/* MobAir Count */}
+                      <div style={{ marginBottom: '12px' }}>
+                        <label style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          fontSize: '13px',
+                        }}>
+                          <span style={{ fontWeight: 'bold', color: '#333' }}>
+                            MobAir Count:
+                          </span>
+                          <input
+                            type="number"
+                            min="0"
+                            max="30"
+                            value={mobAirCount}
+                            onChange={(e) => setMobAirCount(Math.max(0, Math.min(30, parseInt(e.target.value) || 0)))}
+                            style={{
+                              width: '60px',
+                              padding: '6px 8px',
+                              border: '1px solid #ddd',
+                              borderRadius: '4px',
+                              fontSize: '13px',
+                              textAlign: 'center',
+                            }}
+                          />
+                        </label>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#6c757d',
+                          marginTop: '4px',
+                        }}>
+                          Number of flying mob spawn points to place (1×1)
                         </div>
                       </div>
 

@@ -21,14 +21,123 @@ type BridgeGenerateRequest struct {
 	Width          int            `json:"width"`
 	Height         int            `json:"height"`
 	Doors          []DoorPosition `json:"doors"`          // At least 2 doors required
+	SoftEdgeCount  int            `json:"softEdgeCount"`  // Suggested number of soft edges to place (optional)
 	StaticCount    int            `json:"staticCount"`    // Suggested number of statics to place (optional)
 	TurretCount    int            `json:"turretCount"`    // Suggested number of turrets to place (optional)
 	MobGroundCount int            `json:"mobGroundCount"` // Suggested number of mob ground to place (optional)
+	MobAirCount    int            `json:"mobAirCount"`    // Suggested number of mob air (fly) to place (optional)
 }
 
 // BridgeGenerateResponse represents the generated template
 type BridgeGenerateResponse struct {
-	Payload model.TemplatePayload `json:"payload"`
+	Payload   model.TemplatePayload `json:"payload"`
+	DebugInfo *GenerateDebugInfo    `json:"debugInfo,omitempty"`
+}
+
+// GenerateDebugInfo contains debug information about the generation process
+type GenerateDebugInfo struct {
+	Ground    *GroundDebugInfo    `json:"ground,omitempty"`
+	SoftEdge  *SoftEdgeDebugInfo  `json:"softEdge,omitempty"`
+	Static    *StaticDebugInfo    `json:"static,omitempty"`
+	Turret    *TurretDebugInfo    `json:"turret,omitempty"`
+	MobGround *MobGroundDebugInfo `json:"mobGround,omitempty"`
+	MobAir    *MobAirDebugInfo    `json:"mobAir,omitempty"`
+}
+
+// SoftEdgeDebugInfo contains debug info for soft edge layer generation
+type SoftEdgeDebugInfo struct {
+	Skipped     bool        `json:"skipped"`
+	SkipReason  string      `json:"skipReason,omitempty"`
+	TargetCount int         `json:"targetCount"`
+	PlacedCount int         `json:"placedCount"`
+	Placements  []PlaceInfo `json:"placements"`
+	Misses      []MissInfo  `json:"misses,omitempty"`
+}
+
+// MissInfo describes a failed placement attempt
+type MissInfo struct {
+	Reason string `json:"reason"`
+	Count  int    `json:"count,omitempty"` // Number of times this reason occurred
+}
+
+// GroundDebugInfo contains debug info for ground layer generation
+type GroundDebugInfo struct {
+	DoorConnections []DoorConnectionInfo `json:"doorConnections"`
+	Platforms       []PlatformInfo       `json:"platforms"`
+}
+
+// DoorConnectionInfo describes a door connection
+type DoorConnectionInfo struct {
+	From      string `json:"from"`
+	To        string `json:"to"`
+	PathType  string `json:"pathType"` // "direct" or "L-shaped"
+	BrushSize string `json:"brushSize"`
+}
+
+// PlatformInfo describes a platform placement
+type PlatformInfo struct {
+	Strategy  string   `json:"strategy"`
+	BrushSize string   `json:"brushSize"`
+	Points    []string `json:"points"`
+	Mirror    string   `json:"mirror"`
+}
+
+// StaticDebugInfo contains debug info for static layer generation
+type StaticDebugInfo struct {
+	Skipped     bool        `json:"skipped"`
+	SkipReason  string      `json:"skipReason,omitempty"`
+	TargetCount int         `json:"targetCount"`
+	PlacedCount int         `json:"placedCount"`
+	Placements  []PlaceInfo `json:"placements"`
+	Misses      []MissInfo  `json:"misses,omitempty"`
+}
+
+// TurretDebugInfo contains debug info for turret layer generation
+type TurretDebugInfo struct {
+	Skipped     bool        `json:"skipped"`
+	SkipReason  string      `json:"skipReason,omitempty"`
+	TargetCount int         `json:"targetCount"`
+	PlacedCount int         `json:"placedCount"`
+	Placements  []PlaceInfo `json:"placements"`
+	Misses      []MissInfo  `json:"misses,omitempty"`
+}
+
+// MobGroundDebugInfo contains debug info for mob ground layer generation
+type MobGroundDebugInfo struct {
+	Skipped     bool           `json:"skipped"`
+	SkipReason  string         `json:"skipReason,omitempty"`
+	TargetCount int            `json:"targetCount"`
+	PlacedCount int            `json:"placedCount"`
+	Groups      []MobGroupInfo `json:"groups"`
+	Misses      []MissInfo     `json:"misses,omitempty"`
+}
+
+// MobGroupInfo describes a placement group
+type MobGroupInfo struct {
+	GroupIndex  int         `json:"groupIndex"`
+	Strategy    string      `json:"strategy"`
+	TargetCount int         `json:"targetCount"`
+	PlacedCount int         `json:"placedCount"`
+	Placements  []PlaceInfo `json:"placements"`
+	Misses      []MissInfo  `json:"misses,omitempty"`
+}
+
+// MobAirDebugInfo contains debug info for mob air layer generation
+type MobAirDebugInfo struct {
+	Skipped     bool        `json:"skipped"`
+	SkipReason  string      `json:"skipReason,omitempty"`
+	TargetCount int         `json:"targetCount"`
+	PlacedCount int         `json:"placedCount"`
+	Strategy    string      `json:"strategy"`
+	Placements  []PlaceInfo `json:"placements"`
+	Misses      []MissInfo  `json:"misses,omitempty"`
+}
+
+// PlaceInfo describes a single placement
+type PlaceInfo struct {
+	Position string `json:"position"`
+	Size     string `json:"size"`
+	Reason   string `json:"reason,omitempty"` // Why this position was chosen
 }
 
 // Point represents a coordinate
@@ -88,6 +197,9 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		doorSet[door] = true
 	}
 
+	// Initialize debug info
+	debugInfo := &GenerateDebugInfo{}
+
 	// Initialize empty ground layer
 	ground := make([][]int, req.Height)
 	for y := 0; y < req.Height; y++ {
@@ -98,10 +210,12 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	doorPositions := getDoorCenterPositions(req.Width, req.Height, req.Doors)
 
 	// Step 1: Connect all doors
-	connectDoors(ground, doorPositions, req.Width, req.Height)
+	groundDebug := &GroundDebugInfo{}
+	connectDoorsWithDebug(ground, doorPositions, req.Width, req.Height, groundDebug)
 
 	// Step 2: Draw small platforms
-	drawPlatforms(ground, req.Width, req.Height, req.Doors, doorPositions)
+	drawPlatformsWithDebug(ground, req.Width, req.Height, req.Doors, doorPositions, groundDebug)
+	debugInfo.Ground = groundDebug
 
 	// Create empty layers for other layers
 	emptyLayer := createEmptyLayer(req.Width, req.Height)
@@ -114,34 +228,79 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		Left:   boolToInt(doorSet[DoorLeft]),
 	}
 
-	// Step 3: Generate static layer if requested
+	// Step 3: Generate soft edge layer if requested
+	softEdgeLayer := copyLayer(emptyLayer)
+	if req.SoftEdgeCount > 0 {
+		softEdgeDebug := generateSoftEdgeLayerWithDebug(softEdgeLayer, ground, doorPositions, req.Width, req.Height, req.SoftEdgeCount)
+		debugInfo.SoftEdge = softEdgeDebug
+	} else {
+		debugInfo.SoftEdge = &SoftEdgeDebugInfo{
+			Skipped:    true,
+			SkipReason: "softEdgeCount is 0 or not specified",
+		}
+	}
+
+	// Bridge layer (currently empty, placeholder for future)
+	bridgeLayer := copyLayer(emptyLayer)
+
+	// Step 4: Generate static layer if requested
 	staticLayer := copyLayer(emptyLayer)
 	if req.StaticCount > 0 {
-		generateStaticLayer(staticLayer, ground, emptyLayer, emptyLayer, doorPositions, req.Width, req.Height, req.StaticCount)
+		staticDebug := generateStaticLayerWithDebug(staticLayer, ground, softEdgeLayer, bridgeLayer, doorPositions, req.Width, req.Height, req.StaticCount)
+		debugInfo.Static = staticDebug
+	} else {
+		debugInfo.Static = &StaticDebugInfo{
+			Skipped:    true,
+			SkipReason: "staticCount is 0 or not specified",
+		}
 	}
 
-	// Step 4: Generate turret layer if requested
+	// Step 5: Generate turret layer if requested
 	turretLayer := copyLayer(emptyLayer)
 	if req.TurretCount > 0 {
-		generateTurretLayer(turretLayer, ground, emptyLayer, emptyLayer, staticLayer, doorPositions, req.Width, req.Height, req.TurretCount)
+		turretDebug := generateTurretLayerWithDebug(turretLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, doorPositions, req.Width, req.Height, req.TurretCount)
+		debugInfo.Turret = turretDebug
+	} else {
+		debugInfo.Turret = &TurretDebugInfo{
+			Skipped:    true,
+			SkipReason: "turretCount is 0 or not specified",
+		}
 	}
 
-	// Step 5: Generate mob ground layer if requested
+	// Step 6: Generate mob ground layer if requested
 	mobGroundLayer := copyLayer(emptyLayer)
 	if req.MobGroundCount > 0 {
-		generateMobGroundLayer(mobGroundLayer, ground, emptyLayer, emptyLayer, staticLayer, turretLayer, doorPositions, req.Width, req.Height, req.MobGroundCount)
+		mobGroundDebug := generateMobGroundLayerWithDebug(mobGroundLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, turretLayer, doorPositions, req.Width, req.Height, req.MobGroundCount)
+		debugInfo.MobGround = mobGroundDebug
+	} else {
+		debugInfo.MobGround = &MobGroundDebugInfo{
+			Skipped:    true,
+			SkipReason: "mobGroundCount is 0 or not specified",
+		}
+	}
+
+	// Step 7: Generate mob air layer if requested
+	mobAirLayer := copyLayer(emptyLayer)
+	if req.MobAirCount > 0 {
+		mobAirDebug := generateMobAirLayerWithDebug(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, turretLayer, mobGroundLayer, doorPositions, req.Width, req.Height, req.MobAirCount)
+		debugInfo.MobAir = mobAirDebug
+	} else {
+		debugInfo.MobAir = &MobAirDebugInfo{
+			Skipped:    true,
+			SkipReason: "mobAirCount is 0 or not specified",
+		}
 	}
 
 	// Build payload
 	roomType := "bridge"
 	payload := model.TemplatePayload{
 		Ground:    ground,
-		SoftEdge:  copyLayer(emptyLayer),
-		Bridge:    copyLayer(emptyLayer),
+		SoftEdge:  softEdgeLayer,
+		Bridge:    bridgeLayer,
 		Static:    staticLayer,
 		Turret:    turretLayer,
 		MobGround: mobGroundLayer,
-		MobAir:    copyLayer(emptyLayer),
+		MobAir:    mobAirLayer,
 		Doors:     doorStates,
 		RoomType:  &roomType,
 		Meta: model.TemplateMeta{
@@ -152,7 +311,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		},
 	}
 
-	return &BridgeGenerateResponse{Payload: payload}, nil
+	return &BridgeGenerateResponse{Payload: payload, DebugInfo: debugInfo}, nil
 }
 
 // getDoorCenterPositions returns the center position of each door
@@ -175,6 +334,11 @@ func getDoorCenterPositions(width, height int, doors []DoorPosition) map[DoorPos
 
 // connectDoors connects all doors using random brushes with straight or L-shaped paths
 func connectDoors(ground [][]int, doorPositions map[DoorPosition]Point, width, height int) {
+	connectDoorsWithDebug(ground, doorPositions, width, height, nil)
+}
+
+// connectDoorsWithDebug connects all doors and records debug info
+func connectDoorsWithDebug(ground [][]int, doorPositions map[DoorPosition]Point, width, height int, debug *GroundDebugInfo) {
 	doors := make([]DoorPosition, 0, len(doorPositions))
 	for door := range doorPositions {
 		doors = append(doors, door)
@@ -201,7 +365,10 @@ func connectDoors(ground [][]int, doorPositions map[DoorPosition]Point, width, h
 			// Connect the two doors
 			from := doorPositions[targetDoor]
 			to := doorPositions[door]
-			connectTwoPoints(ground, from, to, width, height)
+			connInfo := connectTwoPointsWithDebug(ground, from, to, width, height, string(targetDoor), string(door))
+			if debug != nil {
+				debug.DoorConnections = append(debug.DoorConnections, connInfo)
+			}
 			connected[door] = true
 		}
 	}
@@ -209,19 +376,33 @@ func connectDoors(ground [][]int, doorPositions map[DoorPosition]Point, width, h
 
 // connectTwoPoints connects two points with a straight line or L-shaped path through center
 func connectTwoPoints(ground [][]int, from, to Point, width, height int) {
+	connectTwoPointsWithDebug(ground, from, to, width, height, "", "")
+}
+
+// connectTwoPointsWithDebug connects two points and returns debug info
+func connectTwoPointsWithDebug(ground [][]int, from, to Point, width, height int, fromName, toName string) DoorConnectionInfo {
 	brush := connectionBrushes[rand.Intn(len(connectionBrushes))]
 
 	// Calculate center point
 	centerX, centerY := width/2, height/2
 
+	pathType := "direct"
 	if from.X != to.X && from.Y != to.Y {
 		// L-shaped path through center point
+		pathType = "L-shaped via center"
 		centerPoint := Point{X: centerX, Y: centerY}
 		drawLine(ground, from, centerPoint, brush, width, height)
 		drawLine(ground, centerPoint, to, brush, width, height)
 	} else {
 		// Straight line (works for aligned points or random choice)
 		drawLine(ground, from, to, brush, width, height)
+	}
+
+	return DoorConnectionInfo{
+		From:      fmt.Sprintf("%s (%d,%d)", fromName, from.X, from.Y),
+		To:        fmt.Sprintf("%s (%d,%d)", toName, to.X, to.Y),
+		PathType:  pathType,
+		BrushSize: fmt.Sprintf("%dx%d", brush.Width, brush.Height),
 	}
 }
 
@@ -297,6 +478,11 @@ func applyBrushWithMirror(ground [][]int, centerX, centerY int, brush BrushSize,
 
 // drawPlatforms draws small platforms according to the probability-based strategy
 func drawPlatforms(ground [][]int, width, height int, doors []DoorPosition, doorPositions map[DoorPosition]Point) {
+	drawPlatformsWithDebug(ground, width, height, doors, doorPositions, nil)
+}
+
+// drawPlatformsWithDebug draws platforms and records debug info
+func drawPlatformsWithDebug(ground [][]int, width, height int, doors []DoorPosition, doorPositions map[DoorPosition]Point, debug *GroundDebugInfo) {
 	// Determine number of draws (1-3)
 	drawCount := rand.Intn(3) + 1
 
@@ -316,6 +502,27 @@ func drawPlatforms(ground [][]int, width, height int, doors []DoorPosition, door
 		brush := platformBrushes[rand.Intn(len(platformBrushes))]
 		for _, point := range strategy.Points {
 			applyBrushWithMirror(ground, point.X, point.Y, brush, width, height, strategy.Mirror)
+		}
+
+		// Record debug info
+		if debug != nil {
+			points := make([]string, len(strategy.Points))
+			for j, p := range strategy.Points {
+				points[j] = fmt.Sprintf("(%d,%d)", p.X, p.Y)
+			}
+			mirrorStr := "none"
+			switch strategy.Mirror {
+			case MirrorX:
+				mirrorStr = "top-bottom"
+			case MirrorY:
+				mirrorStr = "left-right"
+			}
+			debug.Platforms = append(debug.Platforms, PlatformInfo{
+				Strategy:  strategy.Name,
+				BrushSize: fmt.Sprintf("%dx%d", brush.Width, brush.Height),
+				Points:    points,
+				Mirror:    mirrorStr,
+			})
 		}
 
 		// Remove selected strategy
@@ -1723,4 +1930,1159 @@ func calculateRegionCenter(region []Point) Point {
 		X: sumX / len(region),
 		Y: sumY / len(region),
 	}
+}
+
+// ============================================================================
+// Mob Air (Fly) Layer Generation
+// ============================================================================
+
+// MobAirStrategy represents placement strategy for mob air
+type MobAirStrategy int
+
+const (
+	MobAirStrategyCenterOutward MobAirStrategy = iota // Place from center outward
+	MobAirStrategyEvenlySpaced                        // Distribute with roughly equal spacing
+)
+
+const (
+	mobAirMinDoorDistance = 4 // Minimum distance from doors
+	mobAirMinEdgeDistance = 2 // Minimum distance from room edges
+)
+
+// generateMobAirLayer generates the mob air layer with the given constraints
+func generateMobAirLayer(mobAirLayer, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height, targetCount int) {
+
+	if targetCount <= 0 {
+		return
+	}
+
+	// Select strategy randomly
+	strategy := MobAirStrategy(rand.Intn(2))
+
+	// Find all valid positions
+	validPositions := findValidMobAirPositions(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, mobAirLayer,
+		doorPositions, width, height)
+
+	if len(validPositions) == 0 {
+		return
+	}
+
+	// Sort/arrange positions based on strategy
+	centerX, centerY := width/2, height/2
+
+	switch strategy {
+	case MobAirStrategyCenterOutward:
+		sortMobAirPositionsCenterOutward(validPositions, centerX, centerY)
+	case MobAirStrategyEvenlySpaced:
+		validPositions = arrangeMobAirEvenlySpaced(validPositions, targetCount, width, height)
+	}
+
+	// Place mob air
+	remaining := targetCount
+	for _, pos := range validPositions {
+		if remaining <= 0 {
+			break
+		}
+
+		// Verify position is still valid (may have been invalidated by previous placements)
+		if !isValidMobAirPosition(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, mobAirLayer,
+			doorPositions, width, height) {
+			continue
+		}
+
+		// Place mob air
+		mobAirLayer[pos.Y][pos.X] = 1
+		remaining--
+	}
+}
+
+// findValidMobAirPositions finds all valid positions for mob air placement
+func findValidMobAirPositions(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, mobAirLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height int) []Point {
+
+	var positions []Point
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			pos := Point{X: x, Y: y}
+			if isValidMobAirPosition(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, mobAirLayer,
+				doorPositions, width, height) {
+				positions = append(positions, pos)
+			}
+		}
+	}
+
+	return positions
+}
+
+// isValidMobAirPosition checks if a single cell is valid for mob air
+// Note: Mob Air (flying mobs) do NOT require ground=1, they can spawn anywhere
+func isValidMobAirPosition(pos Point, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, mobAirLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height int) bool {
+
+	x, y := pos.X, pos.Y
+
+	// Check bounds
+	if x < 0 || x >= width || y < 0 || y >= height {
+		return false
+	}
+
+	// Must be at least 2 cells away from room edges
+	if x < mobAirMinEdgeDistance || x >= width-mobAirMinEdgeDistance ||
+		y < mobAirMinEdgeDistance || y >= height-mobAirMinEdgeDistance {
+		return false
+	}
+
+	// No ground requirement - flying mobs can spawn anywhere
+
+	// Must not overlap with other layers
+	if softEdge[y][x] != 0 || bridge[y][x] != 0 || staticLayer[y][x] != 0 ||
+		turretLayer[y][x] != 0 || mobGroundLayer[y][x] != 0 {
+		return false
+	}
+
+	// Must not already have mob air
+	if mobAirLayer[y][x] != 0 {
+		return false
+	}
+
+	// Must be at least 4 cells away from doors
+	for _, doorPos := range doorPositions {
+		if manhattanDistance(pos, doorPos) < mobAirMinDoorDistance {
+			return false
+		}
+	}
+
+	// Must not touch existing mob air
+	if touchesExistingMobAir(pos, mobAirLayer, width, height) {
+		return false
+	}
+
+	return true
+}
+
+// touchesExistingMobAir checks if placing mob air at pos would touch existing mob air
+func touchesExistingMobAir(pos Point, mobAirLayer [][]int, width, height int) bool {
+	// Check all 8 neighbors (including diagonals)
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			nx, ny := pos.X+dx, pos.Y+dy
+			if nx >= 0 && nx < width && ny >= 0 && ny < height {
+				if mobAirLayer[ny][nx] != 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// sortMobAirPositionsCenterOutward sorts positions by distance from center (closest first)
+func sortMobAirPositionsCenterOutward(positions []Point, centerX, centerY int) {
+	center := Point{X: centerX, Y: centerY}
+	for i := 0; i < len(positions)-1; i++ {
+		for j := i + 1; j < len(positions); j++ {
+			distI := manhattanDistance(positions[i], center)
+			distJ := manhattanDistance(positions[j], center)
+			if distJ < distI {
+				positions[i], positions[j] = positions[j], positions[i]
+			}
+		}
+	}
+}
+
+// arrangeMobAirEvenlySpaced arranges positions to be roughly evenly spaced
+// Returns a subset of positions that are well-distributed across the map
+// The grid is calculated based on targetCount to ensure even distribution
+func arrangeMobAirEvenlySpaced(validPositions []Point, targetCount int, width, height int) []Point {
+	if len(validPositions) == 0 || targetCount <= 0 {
+		return nil
+	}
+
+	if len(validPositions) <= targetCount {
+		return validPositions
+	}
+
+	// Calculate grid dimensions based on targetCount
+	// We want to create a grid where gridCols * gridRows >= targetCount
+	// and the grid cells are as square as possible
+	gridCols, gridRows := calculateGridDimensions(targetCount, width, height)
+
+	// Create a grid-based selection
+	selected := make([]Point, 0, targetCount)
+	used := make(map[Point]bool)
+
+	// Calculate cell size
+	cellWidth := float64(width) / float64(gridCols)
+	cellHeight := float64(height) / float64(gridRows)
+
+	// Iterate through grid cells and find nearest valid position to each cell center
+	for row := 0; row < gridRows && len(selected) < targetCount; row++ {
+		for col := 0; col < gridCols && len(selected) < targetCount; col++ {
+			// Calculate ideal position at cell center
+			idealX := int(float64(col)*cellWidth + cellWidth/2)
+			idealY := int(float64(row)*cellHeight + cellHeight/2)
+			idealPos := Point{X: idealX, Y: idealY}
+
+			// Find nearest valid position to this ideal position
+			nearest := findNearestValidPosition(validPositions, idealPos, used)
+			if nearest.X >= 0 {
+				selected = append(selected, nearest)
+				used[nearest] = true
+			}
+		}
+	}
+
+	// If we still need more, fill from remaining valid positions
+	for _, pos := range validPositions {
+		if len(selected) >= targetCount {
+			break
+		}
+		if !used[pos] {
+			selected = append(selected, pos)
+			used[pos] = true
+		}
+	}
+
+	return selected
+}
+
+// calculateGridDimensions calculates grid cols and rows based on target count
+// The grid is designed to distribute targetCount items evenly across width x height
+func calculateGridDimensions(targetCount, width, height int) (cols, rows int) {
+	if targetCount <= 0 {
+		return 1, 1
+	}
+
+	if targetCount == 1 {
+		return 1, 1
+	}
+
+	// Calculate aspect ratio
+	aspectRatio := float64(width) / float64(height)
+
+	// Calculate grid dimensions that:
+	// 1. Have cols * rows >= targetCount
+	// 2. Maintain aspect ratio similar to room dimensions
+	// 3. Create roughly square cells
+
+	// Start with sqrt(targetCount) and adjust for aspect ratio
+	sqrtCount := int(float64(targetCount)*0.5 + 0.5)
+	if sqrtCount < 1 {
+		sqrtCount = 1
+	}
+
+	// Adjust cols and rows based on aspect ratio
+	if aspectRatio >= 1 {
+		// Wider than tall
+		cols = int(float64(sqrtCount)*aspectRatio + 0.5)
+		if cols < 1 {
+			cols = 1
+		}
+		rows = (targetCount + cols - 1) / cols
+		if rows < 1 {
+			rows = 1
+		}
+	} else {
+		// Taller than wide
+		rows = int(float64(sqrtCount)/aspectRatio + 0.5)
+		if rows < 1 {
+			rows = 1
+		}
+		cols = (targetCount + rows - 1) / rows
+		if cols < 1 {
+			cols = 1
+		}
+	}
+
+	// Ensure we have enough cells
+	for cols*rows < targetCount {
+		if float64(width)/float64(cols) > float64(height)/float64(rows) {
+			cols++
+		} else {
+			rows++
+		}
+	}
+
+	return cols, rows
+}
+
+// findNearestValidPosition finds the valid position nearest to the target
+func findNearestValidPosition(validPositions []Point, target Point, used map[Point]bool) Point {
+	bestPos := Point{X: -1, Y: -1}
+	bestDist := 999999
+
+	for _, pos := range validPositions {
+		if used[pos] {
+			continue
+		}
+
+		dist := manhattanDistance(pos, target)
+		if dist < bestDist {
+			bestDist = dist
+			bestPos = pos
+		}
+	}
+
+	return bestPos
+}
+
+// ============================================================================
+// Soft Edge Layer Generation
+// ============================================================================
+
+const (
+	softEdgeMinDoorDistance = 2 // Minimum distance from doors
+	softEdgeMinLength       = 3 // Minimum length (N > 2, so N >= 3)
+)
+
+// SoftEdgePlacement represents a potential soft edge placement
+type SoftEdgePlacement struct {
+	StartX, StartY int
+	Width, Height  int // Either (1, N) or (N, 1) where N >= 3
+}
+
+// generateSoftEdgeLayerWithDebug generates the soft edge layer with debug info
+// Soft edges are 1×N or N×1 strips (N > 2) placed in ground concave areas
+func generateSoftEdgeLayerWithDebug(softEdgeLayer, ground [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int) *SoftEdgeDebugInfo {
+	debug := &SoftEdgeDebugInfo{
+		TargetCount: targetCount,
+		PlacedCount: 0,
+		Placements:  []PlaceInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	if targetCount <= 0 {
+		debug.Skipped = true
+		debug.SkipReason = "targetCount is 0"
+		return debug
+	}
+
+	// Find all valid soft edge placements (concave areas)
+	placements := findValidSoftEdgePlacements(ground, softEdgeLayer, doorPositions, width, height)
+	if len(placements) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "no valid concave areas found in ground layer",
+		})
+		return debug
+	}
+
+	// Shuffle placements for variety
+	for i := len(placements) - 1; i > 0; i-- {
+		j := rand.Intn(i + 1)
+		placements[i], placements[j] = placements[j], placements[i]
+	}
+
+	// Place soft edges until target count reached or placements exhausted
+	remaining := targetCount
+	overlapCount := 0
+	for _, placement := range placements {
+		if remaining <= 0 {
+			break
+		}
+
+		// Verify placement is still valid (not overlapping with already placed)
+		if !canPlaceSoftEdge(placement, softEdgeLayer, width, height) {
+			overlapCount++
+			continue
+		}
+
+		// Place the soft edge
+		placeSoftEdge(softEdgeLayer, placement)
+		remaining--
+		debug.PlacedCount++
+
+		// Record placement
+		debug.Placements = append(debug.Placements, PlaceInfo{
+			Position: fmt.Sprintf("(%d,%d)", placement.StartX, placement.StartY),
+			Size:     fmt.Sprintf("%dx%d", placement.Width, placement.Height),
+			Reason:   "ground concave area",
+		})
+	}
+
+	// Record miss info
+	if overlapCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "overlapping with already placed soft edge",
+			Count:  overlapCount,
+		})
+	}
+	if remaining > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("only %d valid placements available, needed %d more", len(placements), remaining),
+		})
+	}
+
+	return debug
+}
+
+// findValidSoftEdgePlacements finds all valid positions for soft edge placement
+// A valid soft edge is a 1×N or N×1 strip (N >= 3) in a ground concave area
+func findValidSoftEdgePlacements(ground, softEdgeLayer [][]int, doorPositions map[DoorPosition]Point, width, height int) []SoftEdgePlacement {
+	var placements []SoftEdgePlacement
+
+	// Find horizontal soft edges (1×N, height=1, width=N)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Try to find a horizontal concave area starting at (x, y)
+			if placement := findHorizontalConcave(ground, softEdgeLayer, doorPositions, x, y, width, height); placement != nil {
+				placements = append(placements, *placement)
+			}
+		}
+	}
+
+	// Find vertical soft edges (N×1, height=N, width=1)
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			// Try to find a vertical concave area starting at (x, y)
+			if placement := findVerticalConcave(ground, softEdgeLayer, doorPositions, x, y, width, height); placement != nil {
+				placements = append(placements, *placement)
+			}
+		}
+	}
+
+	return placements
+}
+
+// findHorizontalConcave finds a horizontal concave area (1×N) starting at (x, y)
+// A horizontal concave is a void notch: void cells with ground on one horizontal edge (top or bottom)
+// and ground cells on both ends (left and right), forming a U-shaped depression
+func findHorizontalConcave(ground, softEdgeLayer [][]int, doorPositions map[DoorPosition]Point, startX, startY, width, height int) *SoftEdgePlacement {
+	// Check if starting position is valid
+	if startX >= width || startY >= height {
+		return nil
+	}
+
+	// Starting position must be VOID (this is a void notch)
+	if ground[startY][startX] != 0 {
+		return nil
+	}
+
+	// Must have ground immediately to the left (this is the start of the notch)
+	if startX == 0 || ground[startY][startX-1] != 1 {
+		return nil
+	}
+
+	// Check door distance for starting position
+	if !isFarEnoughFromDoors(startX, startY, doorPositions, softEdgeMinDoorDistance) {
+		return nil
+	}
+
+	// Determine if this is a top-notch (ground below) or bottom-notch (ground above)
+	hasGroundAbove := startY > 0 && ground[startY-1][startX] == 1
+	hasGroundBelow := startY < height-1 && ground[startY+1][startX] == 1
+
+	// Must have ground on exactly one horizontal side (forming a U-shape)
+	if !hasGroundAbove && !hasGroundBelow {
+		return nil // Not a concave notch - no ground on either horizontal side
+	}
+	if hasGroundAbove && hasGroundBelow {
+		return nil // This is a tunnel, not a notch
+	}
+
+	// Find the length of this horizontal notch
+	length := 1
+	for x := startX + 1; x < width; x++ {
+		// Must be void to continue the notch
+		if ground[startY][x] != 0 {
+			break
+		}
+
+		// Must maintain the same concave property
+		gAbove := startY > 0 && ground[startY-1][x] == 1
+		gBelow := startY < height-1 && ground[startY+1][x] == 1
+
+		if hasGroundAbove && !gAbove {
+			break // Ground above ended
+		}
+		if hasGroundBelow && !gBelow {
+			break // Ground below ended
+		}
+
+		// Check door distance
+		if !isFarEnoughFromDoors(x, startY, doorPositions, softEdgeMinDoorDistance) {
+			break
+		}
+
+		length++
+	}
+
+	// Check if there's ground on the right side (closing the notch)
+	endX := startX + length
+	if endX >= width || ground[startY][endX] != 1 {
+		return nil // Notch is open on the right, not a proper concave
+	}
+
+	// Must be at least 3 cells long
+	if length < softEdgeMinLength {
+		return nil
+	}
+
+	return &SoftEdgePlacement{
+		StartX: startX,
+		StartY: startY,
+		Width:  length,
+		Height: 1,
+	}
+}
+
+// findVerticalConcave finds a vertical concave area (N×1) starting at (x, y)
+// A vertical concave is a void notch: void cells with ground on one vertical edge (left or right)
+// and ground cells on both ends (top and bottom), forming a U-shaped depression
+func findVerticalConcave(ground, softEdgeLayer [][]int, doorPositions map[DoorPosition]Point, startX, startY, width, height int) *SoftEdgePlacement {
+	// Check if starting position is valid
+	if startX >= width || startY >= height {
+		return nil
+	}
+
+	// Starting position must be VOID (this is a void notch)
+	if ground[startY][startX] != 0 {
+		return nil
+	}
+
+	// Must have ground immediately above (this is the start of the notch)
+	if startY == 0 || ground[startY-1][startX] != 1 {
+		return nil
+	}
+
+	// Check door distance for starting position
+	if !isFarEnoughFromDoors(startX, startY, doorPositions, softEdgeMinDoorDistance) {
+		return nil
+	}
+
+	// Determine if this is a left-notch (ground to the right) or right-notch (ground to the left)
+	hasGroundLeft := startX > 0 && ground[startY][startX-1] == 1
+	hasGroundRight := startX < width-1 && ground[startY][startX+1] == 1
+
+	// Must have ground on exactly one vertical side (forming a U-shape)
+	if !hasGroundLeft && !hasGroundRight {
+		return nil // Not a concave notch - no ground on either vertical side
+	}
+	if hasGroundLeft && hasGroundRight {
+		return nil // This is a tunnel, not a notch
+	}
+
+	// Find the length of this vertical notch
+	length := 1
+	for y := startY + 1; y < height; y++ {
+		// Must be void to continue the notch
+		if ground[y][startX] != 0 {
+			break
+		}
+
+		// Must maintain the same concave property
+		gLeft := startX > 0 && ground[y][startX-1] == 1
+		gRight := startX < width-1 && ground[y][startX+1] == 1
+
+		if hasGroundLeft && !gLeft {
+			break // Ground on left ended
+		}
+		if hasGroundRight && !gRight {
+			break // Ground on right ended
+		}
+
+		// Check door distance
+		if !isFarEnoughFromDoors(startX, y, doorPositions, softEdgeMinDoorDistance) {
+			break
+		}
+
+		length++
+	}
+
+	// Check if there's ground on the bottom side (closing the notch)
+	endY := startY + length
+	if endY >= height || ground[endY][startX] != 1 {
+		return nil // Notch is open on the bottom, not a proper concave
+	}
+
+	// Must be at least 3 cells long
+	if length < softEdgeMinLength {
+		return nil
+	}
+
+	return &SoftEdgePlacement{
+		StartX: startX,
+		StartY: startY,
+		Width:  1,
+		Height: length,
+	}
+}
+
+// isFarEnoughFromDoors checks if a position is far enough from all doors
+func isFarEnoughFromDoors(x, y int, doorPositions map[DoorPosition]Point, minDistance int) bool {
+	pos := Point{X: x, Y: y}
+	for _, doorPos := range doorPositions {
+		if manhattanDistance(pos, doorPos) < minDistance {
+			return false
+		}
+	}
+	return true
+}
+
+// canPlaceSoftEdge checks if a soft edge can be placed (not overlapping)
+func canPlaceSoftEdge(placement SoftEdgePlacement, softEdgeLayer [][]int, width, height int) bool {
+	for dy := 0; dy < placement.Height; dy++ {
+		for dx := 0; dx < placement.Width; dx++ {
+			x := placement.StartX + dx
+			y := placement.StartY + dy
+
+			if x >= width || y >= height {
+				return false
+			}
+
+			if softEdgeLayer[y][x] != 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// placeSoftEdge places a soft edge on the layer
+func placeSoftEdge(softEdgeLayer [][]int, placement SoftEdgePlacement) {
+	for dy := 0; dy < placement.Height; dy++ {
+		for dx := 0; dx < placement.Width; dx++ {
+			x := placement.StartX + dx
+			y := placement.StartY + dy
+			softEdgeLayer[y][x] = 1
+		}
+	}
+}
+
+// ============================================================================
+// Debug-enabled layer generation functions
+// ============================================================================
+
+// generateStaticLayerWithDebug generates the static layer with debug info
+func generateStaticLayerWithDebug(staticLayer, ground, softEdge, bridge [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int) *StaticDebugInfo {
+	debug := &StaticDebugInfo{
+		TargetCount: targetCount,
+		PlacedCount: 0,
+		Placements:  []PlaceInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	// Get all door cells and their adjacent cells (forbidden zone)
+	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
+
+	// Find all valid 2x2 positions for static placement
+	validPositions := findValidStaticPositions(ground, softEdge, bridge, staticLayer, forbiddenCells, width, height)
+	if len(validPositions) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "no valid 2x2 positions found (all positions blocked by ground, doors, softEdge, or bridge)",
+		})
+		return debug
+	}
+
+	// Sort positions by strategy (will be re-sorted on each strategy switch)
+	centerX, centerY := width/2, height/2
+	currentStrategy := StrategyCenterOutward
+
+	remaining := targetCount
+	strategyAttempts := 0
+	maxStrategyAttempts := 2 * targetCount // Prevent infinite loop
+	invalidatedCount := 0
+	connectivityBlockedCount := 0
+
+	for remaining > 0 && strategyAttempts < maxStrategyAttempts {
+		// Sort valid positions based on current strategy
+		sortPositionsByStrategy(validPositions, currentStrategy, centerX, centerY, width, height)
+
+		strategyName := "center_outward"
+		if currentStrategy == StrategyEdgeInward {
+			strategyName = "edge_inward"
+		}
+
+		// Try to place one static
+		placed := false
+		for i, pos := range validPositions {
+			// Check if this position is still valid (may have been invalidated by previous placements)
+			if !isValidStaticPosition(pos, ground, softEdge, bridge, staticLayer, forbiddenCells, width, height) {
+				invalidatedCount++
+				continue
+			}
+
+			// Check connectivity after placement
+			if !checkConnectivityAfterPlacement(ground, staticLayer, doorPositions, pos, width, height) {
+				connectivityBlockedCount++
+				continue
+			}
+
+			// Place the static (2x2)
+			placeStatic(staticLayer, pos)
+			remaining--
+			placed = true
+			debug.PlacedCount++
+
+			// Record placement info
+			debug.Placements = append(debug.Placements, PlaceInfo{
+				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+				Size:     "2x2",
+				Reason:   fmt.Sprintf("strategy: %s, valid position with connectivity preserved", strategyName),
+			})
+
+			// Remove this position and update valid positions
+			validPositions = append(validPositions[:i], validPositions[i+1:]...)
+
+			// Filter out positions that now touch this static
+			validPositions = filterTouchingPositions(validPositions, pos)
+			break
+		}
+
+		if !placed {
+			// Switch strategy and try again
+			strategyAttempts++
+		}
+
+		// Alternate strategy after each placement or failed attempt
+		if currentStrategy == StrategyCenterOutward {
+			currentStrategy = StrategyEdgeInward
+		} else {
+			currentStrategy = StrategyCenterOutward
+		}
+	}
+
+	// Record miss info
+	if invalidatedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position invalidated by previous placement (touching existing static)",
+			Count:  invalidatedCount,
+		})
+	}
+	if connectivityBlockedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position would block door connectivity",
+			Count:  connectivityBlockedCount,
+		})
+	}
+	if remaining > 0 && strategyAttempts >= maxStrategyAttempts {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("reached max strategy attempts (%d), could not place %d more statics", maxStrategyAttempts, remaining),
+		})
+	} else if remaining > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("exhausted all %d valid positions, needed %d more", len(validPositions), remaining),
+		})
+	}
+
+	return debug
+}
+
+// generateTurretLayerWithDebug generates the turret layer with debug info
+func generateTurretLayerWithDebug(turretLayer, ground, softEdge, bridge, staticLayer [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int) *TurretDebugInfo {
+	debug := &TurretDebugInfo{
+		TargetCount: targetCount,
+		PlacedCount: 0,
+		Placements:  []PlaceInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	// Find all valid positions for turret placement
+	validPositions := findValidTurretPositions(ground, softEdge, bridge, staticLayer, turretLayer, doorPositions, width, height)
+	if len(validPositions) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "no valid positions found (all positions blocked by ground, doors, static, softEdge, or bridge)",
+		})
+		return debug
+	}
+
+	initialValidCount := len(validPositions)
+
+	// Sort positions by preference (ground corners first, then room corners and edges, then by distance from center)
+	centerX, centerY := width/2, height/2
+	sortTurretPositionsByPreference(validPositions, centerX, centerY, width, height, ground)
+
+	remaining := targetCount
+	maxAttempts := 2 * targetCount // Prevent infinite loop
+	invalidatedCount := 0
+	connectivityBlockedCount := 0
+
+	for remaining > 0 && maxAttempts > 0 {
+		placed := false
+
+		for i, pos := range validPositions {
+			// Check if this position is still valid
+			if !isValidTurretPosition(pos, ground, softEdge, bridge, staticLayer, turretLayer, doorPositions, width, height) {
+				invalidatedCount++
+				continue
+			}
+
+			// Check connectivity after placement
+			if !checkTurretConnectivityAfterPlacement(ground, staticLayer, turretLayer, doorPositions, pos, width, height) {
+				connectivityBlockedCount++
+				continue
+			}
+
+			// Determine reason based on position characteristics
+			reason := getTurretPlacementReason(pos, centerX, centerY, width, height, ground)
+
+			// Place the turret (1 tile)
+			turretLayer[pos.Y][pos.X] = 1
+			remaining--
+			placed = true
+			debug.PlacedCount++
+
+			// Record placement info
+			debug.Placements = append(debug.Placements, PlaceInfo{
+				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+				Size:     "1x1",
+				Reason:   reason,
+			})
+
+			// Remove this position from valid positions
+			validPositions = append(validPositions[:i], validPositions[i+1:]...)
+
+			// Filter out positions that are too close to this turret
+			validPositions = filterTurretsTooClose(validPositions, pos)
+			break
+		}
+
+		if !placed {
+			maxAttempts--
+		}
+	}
+
+	// Record miss info
+	if invalidatedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position invalidated (too close to existing turret or blocked)",
+			Count:  invalidatedCount,
+		})
+	}
+	if connectivityBlockedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position would block door connectivity",
+			Count:  connectivityBlockedCount,
+		})
+	}
+	if remaining > 0 && maxAttempts <= 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("reached max attempts, could not place %d more turrets", remaining),
+		})
+	} else if remaining > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("exhausted all %d valid positions, needed %d more", initialValidCount, remaining),
+		})
+	}
+
+	return debug
+}
+
+// getTurretPlacementReason returns a human-readable reason for turret placement
+func getTurretPlacementReason(pos Point, centerX, centerY, width, height int, ground [][]int) string {
+	cornerType := getGroundCornerType(pos, ground, width, height)
+	if cornerType == CornerType90 {
+		return "ground corner (90° right angle)"
+	}
+	if cornerType == CornerType270 {
+		return "ground corner (270° inner corner)"
+	}
+
+	if isNearCorner(pos, width, height, turretEdgePreference) {
+		return "near room corner"
+	}
+
+	distToEdge := minDistanceToEdge(pos, width, height)
+	if distToEdge <= turretEdgePreference {
+		return "near room edge"
+	}
+
+	return "center outward placement"
+}
+
+// generateMobGroundLayerWithDebug generates the mob ground layer with debug info
+func generateMobGroundLayerWithDebug(mobGroundLayer, ground, softEdge, bridge, staticLayer, turretLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height, targetCount int) *MobGroundDebugInfo {
+
+	debug := &MobGroundDebugInfo{
+		TargetCount: targetCount,
+		PlacedCount: 0,
+		Groups:      []MobGroupInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	if targetCount <= 0 {
+		debug.Skipped = true
+		debug.SkipReason = "targetCount is 0"
+		return debug
+	}
+
+	// Step 1: Divide count into 2-3 groups
+	groups := divideMobGroundIntoGroups(targetCount)
+	if len(groups) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "failed to divide target count into groups",
+		})
+		return debug
+	}
+
+	// Step 2: Select strategies for each group (no duplicates)
+	availableStrategies := []MobGroundStrategy{
+		MobGroundStrategyLargeOpenArea,
+		MobGroundStrategyNearDoors,
+		MobGroundStrategyCenterOutward,
+	}
+
+	// Shuffle strategies
+	for i := len(availableStrategies) - 1; i > 0; i-- {
+		j := rand.Intn(i + 1)
+		availableStrategies[i], availableStrategies[j] = availableStrategies[j], availableStrategies[i]
+	}
+
+	// Check if large open area strategy is viable
+	largeOpenAreaCenter := findLargeOpenAreaCenter(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height)
+	if largeOpenAreaCenter.X < 0 {
+		// Remove large open area strategy if not viable
+		for i, s := range availableStrategies {
+			if s == MobGroundStrategyLargeOpenArea {
+				availableStrategies = append(availableStrategies[:i], availableStrategies[i+1:]...)
+				break
+			}
+		}
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "large_open_area strategy not viable (no 4x4 open area found)",
+		})
+	}
+
+	// Step 3: Execute placement for each group
+	centerX, centerY := width/2, height/2
+
+	for i, groupCount := range groups {
+		if i >= len(availableStrategies) {
+			debug.Misses = append(debug.Misses, MissInfo{
+				Reason: fmt.Sprintf("group %d skipped: no more strategies available", i),
+			})
+			break
+		}
+
+		strategy := availableStrategies[i]
+		strategyName := getMobGroundStrategyName(strategy)
+
+		groupDebug := MobGroupInfo{
+			GroupIndex:  i,
+			Strategy:    strategyName,
+			TargetCount: groupCount,
+			PlacedCount: 0,
+			Placements:  []PlaceInfo{},
+			Misses:      []MissInfo{},
+		}
+
+		placed := executeMobGroundStrategyWithDebug(mobGroundLayer, ground, softEdge, bridge, staticLayer, turretLayer,
+			doorPositions, width, height, groupCount, strategy, centerX, centerY, largeOpenAreaCenter, &groupDebug)
+
+		groupDebug.PlacedCount = placed
+		debug.PlacedCount += placed
+		debug.Groups = append(debug.Groups, groupDebug)
+	}
+
+	return debug
+}
+
+// getMobGroundStrategyName returns the name of a mob ground strategy
+func getMobGroundStrategyName(strategy MobGroundStrategy) string {
+	switch strategy {
+	case MobGroundStrategyLargeOpenArea:
+		return "large_open_area"
+	case MobGroundStrategyNearDoors:
+		return "near_doors"
+	case MobGroundStrategyCenterOutward:
+		return "center_outward"
+	default:
+		return "unknown"
+	}
+}
+
+// executeMobGroundStrategyWithDebug executes a specific placement strategy with debug info
+func executeMobGroundStrategyWithDebug(mobGroundLayer, ground, softEdge, bridge, staticLayer, turretLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height, targetCount int,
+	strategy MobGroundStrategy, centerX, centerY int, largeOpenAreaCenter Point, groupDebug *MobGroupInfo) int {
+
+	placed := 0
+	remaining := targetCount
+	maxAttempts := targetCount * 3
+	noValidPositionsCount := 0
+	no2x2Or1x1Count := 0
+
+	for remaining > 0 && maxAttempts > 0 {
+		// Find valid positions based on strategy
+		validPositions := findValidMobGroundPositions(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer,
+			doorPositions, width, height)
+
+		if len(validPositions) == 0 {
+			noValidPositionsCount++
+			break
+		}
+
+		// Sort positions based on strategy
+		sortMobGroundPositionsByStrategy(validPositions, strategy, centerX, centerY, width, height, doorPositions, largeOpenAreaCenter)
+
+		// Try to place (prefer 2x2, fallback to 1x1)
+		placedOne := false
+		for _, pos := range validPositions {
+			// Try 2x2 first
+			if canPlace2x2MobGround(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) {
+				place2x2MobGround(mobGroundLayer, pos)
+				placed++
+				remaining--
+				placedOne = true
+
+				groupDebug.Placements = append(groupDebug.Placements, PlaceInfo{
+					Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+					Size:     "2x2",
+					Reason:   fmt.Sprintf("preferred 2x2 placement via %s strategy", getMobGroundStrategyName(strategy)),
+				})
+				break
+			}
+
+			// Try 1x1
+			if canPlace1x1MobGround(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) {
+				mobGroundLayer[pos.Y][pos.X] = 1
+				placed++
+				remaining--
+				placedOne = true
+
+				groupDebug.Placements = append(groupDebug.Placements, PlaceInfo{
+					Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+					Size:     "1x1",
+					Reason:   fmt.Sprintf("fallback 1x1 placement via %s strategy", getMobGroundStrategyName(strategy)),
+				})
+				break
+			}
+		}
+
+		if !placedOne {
+			no2x2Or1x1Count++
+			maxAttempts--
+		}
+	}
+
+	// Record miss info for this group
+	if noValidPositionsCount > 0 {
+		groupDebug.Misses = append(groupDebug.Misses, MissInfo{
+			Reason: "no valid positions available (all blocked by ground/static/turret/doors/existing mobs)",
+		})
+	}
+	if no2x2Or1x1Count > 0 {
+		groupDebug.Misses = append(groupDebug.Misses, MissInfo{
+			Reason: "positions found but neither 2x2 nor 1x1 placement possible",
+			Count:  no2x2Or1x1Count,
+		})
+	}
+	if remaining > 0 && maxAttempts <= 0 {
+		groupDebug.Misses = append(groupDebug.Misses, MissInfo{
+			Reason: fmt.Sprintf("reached max attempts, could not place %d more mobs", remaining),
+		})
+	} else if remaining > 0 {
+		groupDebug.Misses = append(groupDebug.Misses, MissInfo{
+			Reason: fmt.Sprintf("exhausted all valid positions, needed %d more", remaining),
+		})
+	}
+
+	return placed
+}
+
+// generateMobAirLayerWithDebug generates the mob air layer with debug info
+func generateMobAirLayerWithDebug(mobAirLayer, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height, targetCount int) *MobAirDebugInfo {
+
+	debug := &MobAirDebugInfo{
+		TargetCount: targetCount,
+		PlacedCount: 0,
+		Strategy:    "",
+		Placements:  []PlaceInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	if targetCount <= 0 {
+		debug.Skipped = true
+		debug.SkipReason = "targetCount is 0"
+		return debug
+	}
+
+	// Select strategy randomly
+	strategy := MobAirStrategy(rand.Intn(2))
+
+	switch strategy {
+	case MobAirStrategyCenterOutward:
+		debug.Strategy = "center_outward"
+	case MobAirStrategyEvenlySpaced:
+		debug.Strategy = "evenly_spaced"
+	}
+
+	// Find all valid positions
+	validPositions := findValidMobAirPositions(ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, mobAirLayer,
+		doorPositions, width, height)
+
+	if len(validPositions) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "no valid positions found (all positions blocked by static/turret/mobGround/doors or too close to room edges)",
+		})
+		return debug
+	}
+
+	initialValidCount := len(validPositions)
+
+	// Sort/arrange positions based on strategy
+	centerX, centerY := width/2, height/2
+
+	switch strategy {
+	case MobAirStrategyCenterOutward:
+		sortMobAirPositionsCenterOutward(validPositions, centerX, centerY)
+	case MobAirStrategyEvenlySpaced:
+		validPositions = arrangeMobAirEvenlySpaced(validPositions, targetCount, width, height)
+	}
+
+	// Place mob air
+	remaining := targetCount
+	invalidatedCount := 0
+	for _, pos := range validPositions {
+		if remaining <= 0 {
+			break
+		}
+
+		// Verify position is still valid (may have been invalidated by previous placements)
+		if !isValidMobAirPosition(pos, ground, softEdge, bridge, staticLayer, turretLayer, mobGroundLayer, mobAirLayer,
+			doorPositions, width, height) {
+			invalidatedCount++
+			continue
+		}
+
+		// Place mob air
+		mobAirLayer[pos.Y][pos.X] = 1
+		remaining--
+		debug.PlacedCount++
+
+		// Determine placement reason
+		reason := fmt.Sprintf("placed via %s strategy", debug.Strategy)
+		if ground[pos.Y][pos.X] == 0 {
+			reason += " (on void, flying mob)"
+		} else {
+			reason += " (on ground)"
+		}
+
+		debug.Placements = append(debug.Placements, PlaceInfo{
+			Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+			Size:     "1x1",
+			Reason:   reason,
+		})
+	}
+
+	// Record miss info
+	if invalidatedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position invalidated by previous placement (already occupied)",
+			Count:  invalidatedCount,
+		})
+	}
+	if remaining > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("exhausted all %d valid positions, needed %d more", initialValidCount, remaining),
+		})
+	}
+
+	return debug
 }
