@@ -899,9 +899,9 @@ func generateTurretLayer(turretLayer, ground, softEdge, bridge, staticLayer [][]
 		return
 	}
 
-	// Sort positions by preference (corners and edges first, then by distance from center)
+	// Sort positions by preference (ground corners first, then room corners and edges, then by distance from center)
 	centerX, centerY := width/2, height/2
-	sortTurretPositionsByPreference(validPositions, centerX, centerY, width, height)
+	sortTurretPositionsByPreference(validPositions, centerX, centerY, width, height, ground)
 
 	remaining := targetCount
 	maxAttempts := 2 * targetCount // Prevent infinite loop
@@ -1032,8 +1032,8 @@ func tooCloseToExistingTurret(pos Point, turretLayer [][]int, width, height int)
 }
 
 // sortTurretPositionsByPreference sorts positions by placement preference
-// Priority: corners and edges first, then by distance from center (center first)
-func sortTurretPositionsByPreference(positions []Point, centerX, centerY, width, height int) {
+// Priority: ground corners (90°/270°) first, then room corners and edges, then by distance from center
+func sortTurretPositionsByPreference(positions []Point, centerX, centerY, width, height int, ground [][]int) {
 	// Calculate preference score for each position
 	type scoredPos struct {
 		pos   Point
@@ -1042,7 +1042,7 @@ func sortTurretPositionsByPreference(positions []Point, centerX, centerY, width,
 
 	scored := make([]scoredPos, len(positions))
 	for i, pos := range positions {
-		score := calculateTurretPreferenceScore(pos, centerX, centerY, width, height)
+		score := calculateTurretPreferenceScore(pos, centerX, centerY, width, height, ground)
 		scored[i] = scoredPos{pos: pos, score: score}
 	}
 
@@ -1063,12 +1063,19 @@ func sortTurretPositionsByPreference(positions []Point, centerX, centerY, width,
 
 // calculateTurretPreferenceScore calculates a preference score for turret placement
 // Lower score means higher preference
-func calculateTurretPreferenceScore(pos Point, centerX, centerY, width, height int) int {
-	// Calculate distance from edges
-	distToEdge := minDistanceToEdge(pos, width, height)
-
+func calculateTurretPreferenceScore(pos Point, centerX, centerY, width, height int, ground [][]int) int {
 	// Calculate distance from center
 	distToCenter := abs(pos.X-centerX) + abs(pos.Y-centerY)
+
+	// Highest priority: ground right angles (90°) and inner corners (270°)
+	// This is where ground forms an L-shape
+	groundCornerType := getGroundCornerType(pos, ground, width, height)
+	if groundCornerType == CornerType90 || groundCornerType == CornerType270 {
+		return -200 + distToCenter // Strongest preference for ground corners
+	}
+
+	// Calculate distance from edges
+	distToEdge := minDistanceToEdge(pos, width, height)
 
 	// Prefer positions near edges (within turretEdgePreference) or corners
 	// But also prefer positions closer to center among valid positions
@@ -1080,11 +1087,60 @@ func calculateTurretPreferenceScore(pos Point, centerX, centerY, width, height i
 	// Check if it's a corner-like position (near two edges)
 	isCornerLike := isNearCorner(pos, width, height, turretEdgePreference)
 	if isCornerLike {
-		edgeBonus -= 50 // Extra bonus for corners
+		edgeBonus -= 50 // Extra bonus for room corners
 	}
 
 	// Combine: edge bonus + distance from center (prefer closer to center among valid positions)
 	return edgeBonus + distToCenter
+}
+
+// CornerType represents the type of corner a ground tile forms
+type CornerType int
+
+const (
+	CornerTypeNone CornerType = iota
+	CornerType90              // Right angle: 2 adjacent ground tiles at 90°
+	CornerType270             // Inner corner: 3 adjacent ground tiles at 270°
+)
+
+// getGroundCornerType determines if a position is at a ground corner (90° or 270°)
+// A 90° corner has exactly 2 orthogonal neighbors that are adjacent to each other (L-shape)
+// A 270° corner has exactly 3 orthogonal neighbors (inverted L-shape)
+func getGroundCornerType(pos Point, ground [][]int, width, height int) CornerType {
+	x, y := pos.X, pos.Y
+
+	// Count orthogonal ground neighbors
+	// 0=top, 1=right, 2=bottom, 3=left
+	neighbors := [4]bool{}
+	dx := []int{0, 1, 0, -1}
+	dy := []int{-1, 0, 1, 0}
+
+	groundCount := 0
+	for i := 0; i < 4; i++ {
+		nx, ny := x+dx[i], y+dy[i]
+		if nx >= 0 && nx < width && ny >= 0 && ny < height && ground[ny][nx] == 1 {
+			neighbors[i] = true
+			groundCount++
+		}
+	}
+
+	// 90° right angle: exactly 2 adjacent neighbors forming an L
+	// Valid L-shapes: top+right, right+bottom, bottom+left, left+top
+	if groundCount == 2 {
+		if (neighbors[0] && neighbors[1]) || // top + right
+			(neighbors[1] && neighbors[2]) || // right + bottom
+			(neighbors[2] && neighbors[3]) || // bottom + left
+			(neighbors[3] && neighbors[0]) { // left + top
+			return CornerType90
+		}
+	}
+
+	// 270° inner corner: exactly 3 neighbors (one side missing)
+	if groundCount == 3 {
+		return CornerType270
+	}
+
+	return CornerTypeNone
 }
 
 // minDistanceToEdge calculates the minimum distance to any edge

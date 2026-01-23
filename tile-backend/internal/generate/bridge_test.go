@@ -1081,3 +1081,107 @@ func TestGenerateBridgeRoom_ZeroTurretCount(t *testing.T) {
 		}
 	}
 }
+
+func TestGetGroundCornerType(t *testing.T) {
+	width, height := 10, 10
+	ground := createEmptyLayer(width, height)
+
+	// Create an L-shaped ground pattern:
+	// · · · · ·
+	// · █ █ █ ·
+	// · █ · · ·
+	// · █ · · ·
+	// · · · · ·
+	ground[1][1] = 1
+	ground[1][2] = 1
+	ground[1][3] = 1
+	ground[2][1] = 1
+	ground[3][1] = 1
+
+	// 90° corner: position (1,1) has neighbors at (1,2) right and (2,1) bottom - forms an L
+	// Actually (1,1) has top=(0,1)=0, right=(2,1)=1, bottom=(1,2)=1, left=(0,1)=0
+	// So it has 2 neighbors: right and bottom - this is a 90° corner
+	assert.Equal(t, CornerType90, getGroundCornerType(Point{X: 1, Y: 1}, ground, width, height),
+		"position (1,1) should be 90° corner (right+bottom neighbors)")
+
+	// 270° corner: position (2,1) has neighbors at top=(1,1)=1, right=(3,1)=1, bottom=(2,2)=0, left=(1,1)=1
+	// Wait, let me recalculate. ground[y][x], so:
+	// ground[1][1]=1, ground[1][2]=1, ground[1][3]=1, ground[2][1]=1, ground[3][1]=1
+	// Position (2,1) means x=2, y=1
+	// top: (2,0) = 0, right: (3,1) = ground[1][3] = 1, bottom: (2,2) = ground[2][2] = 0, left: (1,1) = ground[1][1] = 1
+	// So 2 neighbors (right, left) - not adjacent, so not a corner
+
+	// Let me reconsider the pattern. Let me use x,y coordinates properly:
+	// ground[y][x]
+	// (1,1): ground[1][1] = 1
+	// (2,1): ground[1][2] = 1
+	// (3,1): ground[1][3] = 1
+	// (1,2): ground[2][1] = 1
+	// (1,3): ground[3][1] = 1
+
+	// So the pattern is:
+	// Row 0: · · · · ·
+	// Row 1: · █ █ █ ·   (y=1: x=1,2,3)
+	// Row 2: · █ · · ·   (y=2: x=1)
+	// Row 3: · █ · · ·   (y=3: x=1)
+	// Row 4: · · · · ·
+
+	// Position (1,1) x=1,y=1: check neighbors
+	// top: (1,0) = ground[0][1] = 0
+	// right: (2,1) = ground[1][2] = 1
+	// bottom: (1,2) = ground[2][1] = 1
+	// left: (0,1) = ground[1][0] = 0
+	// So 2 neighbors: right+bottom = adjacent = 90° corner ✓
+
+	// Position (2,1) x=2,y=1:
+	// top: (2,0) = ground[0][2] = 0
+	// right: (3,1) = ground[1][3] = 1
+	// bottom: (2,2) = ground[2][2] = 0
+	// left: (1,1) = ground[1][1] = 1
+	// So 2 neighbors: right+left = not adjacent (opposite sides) = not a corner
+	assert.Equal(t, CornerTypeNone, getGroundCornerType(Point{X: 2, Y: 1}, ground, width, height),
+		"position (2,1) should not be a corner (left+right neighbors, not adjacent)")
+
+	// Position (3,1) x=3,y=1:
+	// top: (3,0) = ground[0][3] = 0
+	// right: (4,1) = ground[1][4] = 0
+	// bottom: (3,2) = ground[2][3] = 0
+	// left: (2,1) = ground[1][2] = 1
+	// So 1 neighbor: not a corner
+	assert.Equal(t, CornerTypeNone, getGroundCornerType(Point{X: 3, Y: 1}, ground, width, height),
+		"position (3,1) should not be a corner (only 1 neighbor)")
+
+	// Position (1,2) x=1,y=2:
+	// top: (1,1) = ground[1][1] = 1
+	// right: (2,2) = ground[2][2] = 0
+	// bottom: (1,3) = ground[3][1] = 1
+	// left: (0,2) = ground[2][0] = 0
+	// So 2 neighbors: top+bottom = not adjacent = not a corner
+	assert.Equal(t, CornerTypeNone, getGroundCornerType(Point{X: 1, Y: 2}, ground, width, height),
+		"position (1,2) should not be a corner (top+bottom neighbors, not adjacent)")
+
+	// Now test 270° corner - need 3 neighbors
+	// Create a + shaped ground pattern at center:
+	ground2 := createEmptyLayer(width, height)
+	ground2[4][5] = 1 // top
+	ground2[5][4] = 1 // left
+	ground2[5][5] = 1 // center
+	ground2[5][6] = 1 // right
+	ground2[6][5] = 1 // bottom
+
+	// Position (5,5) center: has 4 neighbors = not a corner (straight through)
+	assert.Equal(t, CornerTypeNone, getGroundCornerType(Point{X: 5, Y: 5}, ground2, width, height),
+		"position (5,5) should not be a corner (4 neighbors)")
+
+	// Create T-shaped pattern for 270° test
+	ground3 := createEmptyLayer(width, height)
+	ground3[4][5] = 1 // top
+	ground3[5][4] = 1 // left
+	ground3[5][5] = 1 // center
+	ground3[5][6] = 1 // right
+	// No bottom neighbor
+
+	// Position (5,5) center: top+left+right = 3 neighbors = 270° corner
+	assert.Equal(t, CornerType270, getGroundCornerType(Point{X: 5, Y: 5}, ground3, width, height),
+		"position (5,5) should be 270° corner (3 neighbors)")
+}

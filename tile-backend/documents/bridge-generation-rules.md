@@ -122,10 +122,13 @@ Uses BFS (Breadth-First Search) to verify all doors remain connected after a hyp
 
 ### Placement Preference
 
-Turrets are preferentially placed:
-1. **Near corners**: Within 2 cells of room corners (highest priority)
-2. **Near edges**: Within 2 cells of room edges
-3. **Center outward**: Among valid positions, closer to center is preferred
+Turrets are preferentially placed (in order of priority):
+1. **Ground corners (90°/270°)**: Tiles where ground forms an L-shape (highest priority)
+   - **90° right angle**: Ground tile with exactly 2 orthogonal neighbors that are adjacent (L-shape corner)
+   - **270° inner corner**: Ground tile with exactly 3 orthogonal neighbors (inverted L-shape)
+2. **Near room corners**: Within 2 cells of room corners
+3. **Near room edges**: Within 2 cells of room edges
+4. **Center outward**: Among valid positions, closer to center is preferred
 
 ### Placement Steps
 
