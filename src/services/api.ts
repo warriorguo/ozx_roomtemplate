@@ -326,6 +326,16 @@ export class TemplateApiService {
       body: JSON.stringify(request),
     });
   }
+
+  /**
+   * Generate a platform-type room
+   */
+  async generatePlatform(request: PlatformGenerateRequest): Promise<PlatformGenerateResponse> {
+    return this.makeRequest<PlatformGenerateResponse>('/generate/platform', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
 }
 
 // Bridge generation types
@@ -467,6 +477,54 @@ export interface GenerateDebugInfo {
 export interface BridgeGenerateResponse {
   payload: BackendTemplatePayload;
   debugInfo?: GenerateDebugInfo;
+}
+
+// Platform generation types
+export interface PlatformGenerateRequest {
+  width: number;
+  height: number;
+  doors: DoorPosition[];
+  softEdgeCount?: number;
+  staticCount?: number;
+  turretCount?: number;
+  mobGroundCount?: number;
+  mobAirCount?: number;
+}
+
+export interface PlatformPlaceInfo {
+  position: string;
+  size: string;
+  group?: string;
+}
+
+export interface EraserOpInfo {
+  method: string;
+  position: string;
+  size: string;
+  rolledBack?: boolean;
+  reason?: string;
+}
+
+export interface PlatformGroundDebugInfo {
+  strategy: string;
+  platforms: PlatformPlaceInfo[];
+  doorConnections: DoorConnectionInfo[];
+  eraserOps?: EraserOpInfo[];
+}
+
+export interface PlatformDebugInfo {
+  ground?: PlatformGroundDebugInfo;
+  softEdge?: SoftEdgeDebugInfo;
+  bridgeLayer?: BridgeLayerDebugInfo;
+  static?: StaticDebugInfo;
+  turret?: TurretDebugInfo;
+  mobGround?: MobGroundDebugInfo;
+  mobAir?: MobAirDebugInfo;
+}
+
+export interface PlatformGenerateResponse {
+  payload: BackendTemplatePayload;
+  debugInfo?: PlatformDebugInfo;
 }
 
 // Create singleton instance

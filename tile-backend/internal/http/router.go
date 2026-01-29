@@ -49,6 +49,7 @@ func SetupRouter(templateStore store.TemplateStore, logger *zap.Logger, corsOrig
 		// Generation endpoints
 		r.Route("/generate", func(r chi.Router) {
 			r.Post("/bridge", templateHandler.GenerateBridge)
+			r.Post("/platform", templateHandler.GeneratePlatform)
 		})
 	})
 
