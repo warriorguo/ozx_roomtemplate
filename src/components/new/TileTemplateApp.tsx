@@ -118,7 +118,8 @@ export const TileTemplateApp: React.FC = () => {
     setGenerateError(null);
 
     try {
-      const response = await templateApi.generateBridge({
+      // Call the appropriate API based on room type
+      const generateRequest = {
         width: template.width,
         height: template.height,
         doors,
@@ -127,7 +128,11 @@ export const TileTemplateApp: React.FC = () => {
         turretCount,
         mobGroundCount,
         mobAirCount,
-      });
+      };
+
+      const response = template.roomType === 'platform'
+        ? await templateApi.generatePlatform(generateRequest)
+        : await templateApi.generateBridge(generateRequest);
 
       // Load the generated template
       await loadTemplateFromJSON({
@@ -489,8 +494,8 @@ export const TileTemplateApp: React.FC = () => {
                     ))}
                   </div>
 
-                  {/* Generate Room Panel */}
-                  {template.roomType === 'bridge' && (
+                  {/* Generate Room Panel - shown for bridge and platform room types */}
+                  {(template.roomType === 'bridge' || template.roomType === 'platform') && (
                     <div style={{
                       marginTop: '12px',
                       paddingTop: '12px',
@@ -499,8 +504,25 @@ export const TileTemplateApp: React.FC = () => {
                       <div style={{
                         fontWeight: 'bold',
                         fontSize: '13px',
-                        marginBottom: '10px',
+                        marginBottom: '6px',
                         color: '#333',
+                      }}>
+                        Generate {template.roomType === 'platform' ? 'Platform' : 'Bridge'} Room
+                      </div>
+                      <div style={{
+                        fontSize: '11px',
+                        color: '#6c757d',
+                        marginBottom: '10px',
+                      }}>
+                        {template.roomType === 'platform'
+                          ? 'Large platforms with eraser operations for open arena layouts'
+                          : 'Connected paths between doors for corridor-style layouts'}
+                      </div>
+                      <div style={{
+                        fontWeight: 'bold',
+                        fontSize: '12px',
+                        marginBottom: '8px',
+                        color: '#555',
                       }}>
                         Select Doors to Connect:
                       </div>
@@ -810,7 +832,7 @@ export const TileTemplateApp: React.FC = () => {
                         style={{
                           width: '100%',
                           padding: '10px 16px',
-                          backgroundColor: isGenerating ? '#6c757d' : '#9966CC',
+                          backgroundColor: isGenerating ? '#6c757d' : (template.roomType === 'platform' ? '#2196F3' : '#9966CC'),
                           color: 'white',
                           border: 'none',
                           borderRadius: '6px',
@@ -825,16 +847,16 @@ export const TileTemplateApp: React.FC = () => {
                         }}
                         onMouseEnter={(e) => {
                           if (!isGenerating) {
-                            e.currentTarget.style.backgroundColor = '#7a4db5';
+                            e.currentTarget.style.backgroundColor = template.roomType === 'platform' ? '#1976D2' : '#7a4db5';
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (!isGenerating) {
-                            e.currentTarget.style.backgroundColor = '#9966CC';
+                            e.currentTarget.style.backgroundColor = template.roomType === 'platform' ? '#2196F3' : '#9966CC';
                           }
                         }}
                       >
-                        {isGenerating ? 'Generating...' : '🎲 Generate Room'}
+                        {isGenerating ? 'Generating...' : `🎲 Generate ${template.roomType === 'platform' ? 'Platform' : 'Bridge'} Room`}
                       </button>
                     </div>
                   )}
