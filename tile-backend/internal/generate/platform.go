@@ -20,8 +20,8 @@ type PlatformGenerateRequest struct {
 
 // PlatformGenerateResponse represents the generated template
 type PlatformGenerateResponse struct {
-	Payload   model.TemplatePayload  `json:"payload"`
-	DebugInfo *PlatformDebugInfo     `json:"debugInfo,omitempty"`
+	Payload   model.TemplatePayload `json:"payload"`
+	DebugInfo *PlatformDebugInfo    `json:"debugInfo,omitempty"`
 }
 
 // PlatformDebugInfo contains debug information about the platform generation process
@@ -37,16 +37,16 @@ type PlatformDebugInfo struct {
 
 // PlatformGroundDebugInfo contains debug info for platform ground layer generation
 type PlatformGroundDebugInfo struct {
-	Strategy        string              `json:"strategy"`
-	Platforms       []PlatformPlaceInfo `json:"platforms"`
+	Strategy        string               `json:"strategy"`
+	Platforms       []PlatformPlaceInfo  `json:"platforms"`
 	DoorConnections []DoorConnectionInfo `json:"doorConnections"`
-	EraserOps       []EraserOpInfo      `json:"eraserOps,omitempty"`
+	EraserOps       []EraserOpInfo       `json:"eraserOps,omitempty"`
 }
 
 // PlatformPlaceInfo describes a platform placement
 type PlatformPlaceInfo struct {
-	Position string `json:"position"` // Top-left position
-	Size     string `json:"size"`     // Size (WxH)
+	Position string `json:"position"`        // Top-left position
+	Size     string `json:"size"`            // Size (WxH)
 	Group    string `json:"group,omitempty"` // For strategy 2: which corner group
 }
 
@@ -337,8 +337,8 @@ func generatePlatformStrategy2(ground [][]int, width, height int, doors []DoorPo
 
 	// Find valid corner groups
 	type cornerGroup struct {
-		group DoorGroup
-		doors []DoorPosition
+		group            DoorGroup
+		doors            []DoorPosition
 		anchorX, anchorY int // Corner anchor point
 	}
 
@@ -362,8 +362,8 @@ func generatePlatformStrategy2(ground [][]int, width, height int, doors []DoorPo
 		// Platform size: L > width/2, W > height/2
 		minPlatformW := width/2 + 1
 		minPlatformH := height/2 + 1
-		maxPlatformW := width*3/4
-		maxPlatformH := height*3/4
+		maxPlatformW := width * 4 / 5
+		maxPlatformH := height * 4 / 5
 
 		platformW := minPlatformW + rand.Intn(maxPlatformW-minPlatformW+1)
 		platformH := minPlatformH + rand.Intn(maxPlatformH-minPlatformH+1)
@@ -647,9 +647,9 @@ func applyEraserMethod(ground [][]int, width, height int, doors []DoorPosition, 
 		size := sizes[rand.Intn(len(sizes))]
 
 		corners := []struct{ x, y int }{
-			{0, 0},                         // top-left
-			{width - size.w, 0},            // top-right
-			{0, height - size.h},           // bottom-left
+			{0, 0},                            // top-left
+			{width - size.w, 0},               // top-right
+			{0, height - size.h},              // bottom-left
 			{width - size.w, height - size.h}, // bottom-right
 		}
 
@@ -728,9 +728,9 @@ func applyEraserMethod(ground [][]int, width, height int, doors []DoorPosition, 
 
 		// Pick a random corner
 		corners := []struct{ x, y int }{
-			{rand.Intn(width/3), rand.Intn(height/3)},                           // top-left area
-			{width - rand.Intn(width/3) - size.w, rand.Intn(height/3)},          // top-right area
-			{rand.Intn(width/3), height - rand.Intn(height/3) - size.h},         // bottom-left area
+			{rand.Intn(width / 3), rand.Intn(height / 3)},                                // top-left area
+			{width - rand.Intn(width/3) - size.w, rand.Intn(height / 3)},                 // top-right area
+			{rand.Intn(width / 3), height - rand.Intn(height/3) - size.h},                // bottom-left area
 			{width - rand.Intn(width/3) - size.w, height - rand.Intn(height/3) - size.h}, // bottom-right area
 		}
 		corner := corners[rand.Intn(len(corners))]
