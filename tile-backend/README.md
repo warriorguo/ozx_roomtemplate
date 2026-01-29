@@ -4,7 +4,8 @@ A lightweight backend service for storing and managing room tile templates using
 
 ## Features
 
-- **REST API** for template management (Create, List, Get)
+- **REST API** for template management (Create, List, Get, Delete)
+- **Room Auto-Generation** for bridge and platform room types
 - **PostgreSQL storage** with JSONB for flexible template data
 - **Comprehensive validation** with rule-based constraints
 - **CORS support** for frontend integration
@@ -177,6 +178,106 @@ Check service health and database connectivity.
 }
 ```
 
+#### 6. Generate Bridge Room
+**POST** `/generate/bridge`
+
+Auto-generate a bridge-type room with connected paths between doors.
+
+**Request Body:**
+```json
+{
+  "width": 20,
+  "height": 20,
+  "doors": ["top", "bottom", "left", "right"],
+  "softEdgeCount": 3,
+  "staticCount": 4,
+  "turretCount": 3,
+  "mobGroundCount": 5,
+  "mobAirCount": 4
+}
+```
+
+**Parameters:**
+- `width` (required): Room width (10-200)
+- `height` (required): Room height (10-200)
+- `doors` (required): Array of doors to connect (at least 2: "top", "right", "bottom", "left")
+- `softEdgeCount` (optional): Number of soft edges to place (default: 0)
+- `staticCount` (optional): Number of 2×2 static blocks (default: 0)
+- `turretCount` (optional): Number of turrets (default: 0)
+- `mobGroundCount` (optional): Number of ground mob spawns (default: 0)
+- `mobAirCount` (optional): Number of air mob spawns (default: 0)
+
+**Response (200):**
+```json
+{
+  "payload": {
+    "ground": [[0,1,1,...], ...],
+    "softEdge": [[0,0,0,...], ...],
+    "bridge": [[0,0,0,...], ...],
+    "static": [[0,0,0,...], ...],
+    "turret": [[0,0,0,...], ...],
+    "mobGround": [[0,0,0,...], ...],
+    "mobAir": [[0,0,0,...], ...],
+    "doors": { "top": 1, "right": 1, "bottom": 1, "left": 1 },
+    "roomType": "bridge",
+    "meta": { "name": "bridge-20x20", "version": 1, "width": 20, "height": 20 }
+  },
+  "debugInfo": { ... }
+}
+```
+
+See [documents/bridge-generation-rules.md](documents/bridge-generation-rules.md) for detailed algorithm documentation.
+
+#### 7. Generate Platform Room
+**POST** `/generate/platform`
+
+Auto-generate a platform-type room with large platforms and eraser operations.
+
+**Request Body:**
+```json
+{
+  "width": 20,
+  "height": 20,
+  "doors": ["top", "bottom", "left", "right"],
+  "softEdgeCount": 3,
+  "staticCount": 4,
+  "turretCount": 3,
+  "mobGroundCount": 5,
+  "mobAirCount": 4
+}
+```
+
+**Parameters:** Same as Generate Bridge Room.
+
+**Response (200):**
+```json
+{
+  "payload": {
+    "ground": [[0,1,1,...], ...],
+    "softEdge": [[0,0,0,...], ...],
+    "bridge": [[0,0,0,...], ...],
+    "static": [[0,0,0,...], ...],
+    "turret": [[0,0,0,...], ...],
+    "mobGround": [[0,0,0,...], ...],
+    "mobAir": [[0,0,0,...], ...],
+    "doors": { "top": 1, "right": 1, "bottom": 1, "left": 1 },
+    "roomType": "platform",
+    "meta": { "name": "platform-20x20", "version": 1, "width": 20, "height": 20 }
+  },
+  "debugInfo": {
+    "ground": {
+      "strategy": "strategy1_center_platform",
+      "platforms": [{ "position": "(2,2)", "size": "16x16", "group": "" }],
+      "doorConnections": [...],
+      "eraserOps": [{ "method": "center_single", "position": "(8,8)", "size": "4x4", "rolledBack": false }]
+    },
+    ...
+  }
+}
+```
+
+See [documents/platform-generation-rules.md](documents/platform-generation-rules.md) for detailed algorithm documentation.
+
 ## Validation Rules
 
 ### Basic Structure Validation
@@ -255,7 +356,9 @@ tile-backend/
 │   ├── http/            # HTTP handlers and middleware
 │   ├── store/           # Database storage layer
 │   ├── model/           # Data models and types
-│   └── validate/        # Validation logic
+│   ├── validate/        # Validation logic
+│   └── generate/        # Room auto-generation algorithms
+├── documents/           # Algorithm documentation
 ├── migrations/          # Database migration files
 ├── go.mod              # Go module definition
 └── .env.example        # Environment configuration example
