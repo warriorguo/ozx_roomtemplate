@@ -172,12 +172,44 @@ export const ToolBar: React.FC = () => {
       };
 
       const jsonString = JSON.stringify(exportData, null, 2);
-      await navigator.clipboard.writeText(jsonString);
+      await copyTextToClipboardFallback(jsonString);
       alert('Template JSON copied to clipboard!');
     } catch (error) {
       console.error('Failed to copy to clipboard:', error);
       alert('Failed to copy to clipboard. Please try again.');
     }
+  };
+
+  // Helper function to copy text with fallback for non-HTTPS contexts
+  const copyTextToClipboardFallback = async (text: string): Promise<void> => {
+    if (navigator.clipboard?.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+
+    // Fallback for non-secure contexts (HTTP)
+    return new Promise((resolve, reject) => {
+      const textArea = document.createElement('textarea');
+      textArea.value = text;
+      textArea.style.position = 'fixed';
+      textArea.style.left = '-9999px';
+      textArea.style.top = '-9999px';
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+
+      try {
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) {
+          resolve();
+        } else {
+          reject(new Error('Copy command failed'));
+        }
+      } catch (err) {
+        document.body.removeChild(textArea);
+        reject(err);
+      }
+    });
   };
 
   // Handle paste events
