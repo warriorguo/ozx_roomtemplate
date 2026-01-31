@@ -12,6 +12,7 @@ type PlatformGenerateRequest struct {
 	Height         int            `json:"height"`
 	Doors          []DoorPosition `json:"doors"`          // At least 2 doors required
 	SoftEdgeCount  int            `json:"softEdgeCount"`  // Suggested number of soft edges to place (optional)
+	RailEnabled    bool           `json:"railEnabled"`    // Whether to generate rail layer (optional)
 	StaticCount    int            `json:"staticCount"`    // Suggested number of statics to place (optional)
 	TurretCount    int            `json:"turretCount"`    // Suggested number of turrets to place (optional)
 	MobGroundCount int            `json:"mobGroundCount"` // Suggested number of mob ground to place (optional)
@@ -29,6 +30,7 @@ type PlatformDebugInfo struct {
 	Ground      *PlatformGroundDebugInfo `json:"ground,omitempty"`
 	SoftEdge    *SoftEdgeDebugInfo       `json:"softEdge,omitempty"`
 	BridgeLayer *BridgeLayerDebugInfo    `json:"bridgeLayer,omitempty"`
+	Rail        *RailDebugInfo           `json:"rail,omitempty"`
 	Static      *StaticDebugInfo         `json:"static,omitempty"`
 	Turret      *TurretDebugInfo         `json:"turret,omitempty"`
 	MobGround   *MobGroundDebugInfo      `json:"mobGround,omitempty"`
@@ -121,10 +123,22 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, req.Width, req.Height)
 	debugInfo.BridgeLayer = bridgeLayerDebug
 
+	// Step 3.5: Generate rail layer
+	railLayer := copyLayer(emptyLayer)
+	if req.RailEnabled {
+		railDebug := GenerateRailLayer(railLayer, ground, bridgeLayer, req.Width, req.Height)
+		debugInfo.Rail = railDebug
+	} else {
+		debugInfo.Rail = &RailDebugInfo{
+			Skipped:    true,
+			SkipReason: "railEnabled is false or not specified",
+		}
+	}
+
 	// Step 4: Generate static layer
 	staticLayer := copyLayer(emptyLayer)
 	if req.StaticCount > 0 {
-		staticDebug := generateStaticLayerWithDebug(staticLayer, ground, softEdgeLayer, bridgeLayer, doorPositions, req.Width, req.Height, req.StaticCount)
+		staticDebug := generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdgeLayer, bridgeLayer, railLayer, doorPositions, req.Width, req.Height, req.StaticCount)
 		debugInfo.Static = staticDebug
 	} else {
 		debugInfo.Static = &StaticDebugInfo{
@@ -136,7 +150,7 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	// Step 5: Generate turret layer
 	turretLayer := copyLayer(emptyLayer)
 	if req.TurretCount > 0 {
-		turretDebug := generateTurretLayerWithDebug(turretLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, doorPositions, req.Width, req.Height, req.TurretCount)
+		turretDebug := generateTurretLayerWithDebugAndRail(turretLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, req.Width, req.Height, req.TurretCount)
 		debugInfo.Turret = turretDebug
 	} else {
 		debugInfo.Turret = &TurretDebugInfo{
@@ -148,7 +162,7 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	// Step 6: Generate mob ground layer
 	mobGroundLayer := copyLayer(emptyLayer)
 	if req.MobGroundCount > 0 {
-		mobGroundDebug := generateMobGroundLayerWithDebug(mobGroundLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, turretLayer, doorPositions, req.Width, req.Height, req.MobGroundCount)
+		mobGroundDebug := generateMobGroundLayerWithDebugAndRail(mobGroundLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, turretLayer, doorPositions, req.Width, req.Height, req.MobGroundCount)
 		debugInfo.MobGround = mobGroundDebug
 	} else {
 		debugInfo.MobGround = &MobGroundDebugInfo{
@@ -195,6 +209,7 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 		Ground:    ground,
 		SoftEdge:  softEdgeLayer,
 		Bridge:    bridgeLayer,
+		Rail:      railLayer,
 		Static:    staticLayer,
 		Turret:    turretLayer,
 		MobGround: mobGroundLayer,

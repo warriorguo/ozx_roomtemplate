@@ -22,6 +22,7 @@ type BridgeGenerateRequest struct {
 	Height         int            `json:"height"`
 	Doors          []DoorPosition `json:"doors"`          // At least 2 doors required
 	SoftEdgeCount  int            `json:"softEdgeCount"`  // Suggested number of soft edges to place (optional)
+	RailEnabled    bool           `json:"railEnabled"`    // Whether to generate rail layer (optional)
 	StaticCount    int            `json:"staticCount"`    // Suggested number of statics to place (optional)
 	TurretCount    int            `json:"turretCount"`    // Suggested number of turrets to place (optional)
 	MobGroundCount int            `json:"mobGroundCount"` // Suggested number of mob ground to place (optional)
@@ -39,6 +40,7 @@ type GenerateDebugInfo struct {
 	Ground      *GroundDebugInfo      `json:"ground,omitempty"`
 	SoftEdge    *SoftEdgeDebugInfo    `json:"softEdge,omitempty"`
 	BridgeLayer *BridgeLayerDebugInfo `json:"bridgeLayer,omitempty"`
+	Rail        *RailDebugInfo        `json:"rail,omitempty"`
 	Static      *StaticDebugInfo      `json:"static,omitempty"`
 	Turret      *TurretDebugInfo      `json:"turret,omitempty"`
 	MobGround   *MobGroundDebugInfo   `json:"mobGround,omitempty"`
@@ -278,10 +280,22 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, req.Width, req.Height)
 	debugInfo.BridgeLayer = bridgeLayerDebug
 
+	// Step 3.6: Generate rail layer if enabled
+	railLayer := copyLayer(emptyLayer)
+	if req.RailEnabled {
+		railDebug := GenerateRailLayer(railLayer, ground, bridgeLayer, req.Width, req.Height)
+		debugInfo.Rail = railDebug
+	} else {
+		debugInfo.Rail = &RailDebugInfo{
+			Skipped:    true,
+			SkipReason: "railEnabled is false or not specified",
+		}
+	}
+
 	// Step 4: Generate static layer if requested
 	staticLayer := copyLayer(emptyLayer)
 	if req.StaticCount > 0 {
-		staticDebug := generateStaticLayerWithDebug(staticLayer, ground, softEdgeLayer, bridgeLayer, doorPositions, req.Width, req.Height, req.StaticCount)
+		staticDebug := generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdgeLayer, bridgeLayer, railLayer, doorPositions, req.Width, req.Height, req.StaticCount)
 		debugInfo.Static = staticDebug
 	} else {
 		debugInfo.Static = &StaticDebugInfo{
@@ -293,7 +307,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	// Step 5: Generate turret layer if requested
 	turretLayer := copyLayer(emptyLayer)
 	if req.TurretCount > 0 {
-		turretDebug := generateTurretLayerWithDebug(turretLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, doorPositions, req.Width, req.Height, req.TurretCount)
+		turretDebug := generateTurretLayerWithDebugAndRail(turretLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, req.Width, req.Height, req.TurretCount)
 		debugInfo.Turret = turretDebug
 	} else {
 		debugInfo.Turret = &TurretDebugInfo{
@@ -305,7 +319,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	// Step 6: Generate mob ground layer if requested
 	mobGroundLayer := copyLayer(emptyLayer)
 	if req.MobGroundCount > 0 {
-		mobGroundDebug := generateMobGroundLayerWithDebug(mobGroundLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, turretLayer, doorPositions, req.Width, req.Height, req.MobGroundCount)
+		mobGroundDebug := generateMobGroundLayerWithDebugAndRail(mobGroundLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, turretLayer, doorPositions, req.Width, req.Height, req.MobGroundCount)
 		debugInfo.MobGround = mobGroundDebug
 	} else {
 		debugInfo.MobGround = &MobGroundDebugInfo{
@@ -332,6 +346,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		Ground:    ground,
 		SoftEdge:  softEdgeLayer,
 		Bridge:    bridgeLayer,
+		Rail:      railLayer,
 		Static:    staticLayer,
 		Turret:    turretLayer,
 		MobGround: mobGroundLayer,
@@ -3869,4 +3884,655 @@ func generateMobAirLayerWithDebug(mobAirLayer, ground, softEdge, bridge, staticL
 	}
 
 	return debug
+}
+
+// ============================================================================
+// Rail-aware layer generation functions
+// ============================================================================
+
+// generateStaticLayerWithDebugAndRail generates the static layer avoiding rail positions
+func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, rail [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int) *StaticDebugInfo {
+	debug := &StaticDebugInfo{
+		TargetCount: targetCount,
+		PlacedCount: 0,
+		Placements:  []PlaceInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	// Get all door cells and their adjacent cells (forbidden zone)
+	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
+
+	// Find all valid 2x2 positions for static placement (avoiding rail)
+	validPositions := findValidStaticPositionsWithRail(ground, softEdge, bridge, rail, staticLayer, forbiddenCells, width, height)
+
+	// Get rail indent cells (inside rail loop) - these are prioritized
+	railIndentCells := GetRailIndentCells(rail, width, height)
+	priorityPositions := filterPositionsInRailIndent(validPositions, railIndentCells)
+
+	if len(validPositions) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "no valid 2x2 positions found (all positions blocked by ground, doors, softEdge, bridge, or rail)",
+		})
+		return debug
+	}
+
+	// Sort positions: prioritize rail indent positions first, then by strategy
+	centerX, centerY := width/2, height/2
+	currentStrategy := StrategyCenterOutward
+
+	remaining := targetCount
+	strategyAttempts := 0
+	maxStrategyAttempts := 2 * targetCount
+	invalidatedCount := 0
+	connectivityBlockedCount := 0
+	railBlockedCount := 0
+
+	// First try to place in priority positions (inside rail loop)
+	for remaining > 0 && len(priorityPositions) > 0 {
+		sortPositionsByStrategy(priorityPositions, currentStrategy, centerX, centerY, width, height)
+
+		placed := false
+		for i, pos := range priorityPositions {
+			if !isValidStaticPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, forbiddenCells, width, height) {
+				invalidatedCount++
+				continue
+			}
+
+			if !checkConnectivityAfterPlacement(ground, staticLayer, doorPositions, pos, width, height) {
+				connectivityBlockedCount++
+				continue
+			}
+
+			placeStatic(staticLayer, pos)
+			remaining--
+			placed = true
+			debug.PlacedCount++
+
+			debug.Placements = append(debug.Placements, PlaceInfo{
+				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+				Size:     "2x2",
+				Reason:   "placed inside rail indent area (prioritized)",
+			})
+
+			priorityPositions = append(priorityPositions[:i], priorityPositions[i+1:]...)
+			priorityPositions = filterTouchingPositions(priorityPositions, pos)
+
+			// Also remove from validPositions
+			validPositions = removePosition(validPositions, pos)
+			validPositions = filterTouchingPositions(validPositions, pos)
+			break
+		}
+
+		if !placed {
+			break
+		}
+	}
+
+	// Then place remaining in regular positions
+	for remaining > 0 && strategyAttempts < maxStrategyAttempts {
+		sortPositionsByStrategy(validPositions, currentStrategy, centerX, centerY, width, height)
+
+		strategyName := "center_outward"
+		if currentStrategy == StrategyEdgeInward {
+			strategyName = "edge_inward"
+		}
+
+		placed := false
+		for i, pos := range validPositions {
+			if !isValidStaticPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, forbiddenCells, width, height) {
+				invalidatedCount++
+				continue
+			}
+
+			if !checkConnectivityAfterPlacement(ground, staticLayer, doorPositions, pos, width, height) {
+				connectivityBlockedCount++
+				continue
+			}
+
+			placeStatic(staticLayer, pos)
+			remaining--
+			placed = true
+			debug.PlacedCount++
+
+			debug.Placements = append(debug.Placements, PlaceInfo{
+				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+				Size:     "2x2",
+				Reason:   fmt.Sprintf("strategy: %s, avoiding rail positions", strategyName),
+			})
+
+			validPositions = append(validPositions[:i], validPositions[i+1:]...)
+			validPositions = filterTouchingPositions(validPositions, pos)
+			break
+		}
+
+		if !placed {
+			strategyAttempts++
+		}
+
+		if currentStrategy == StrategyCenterOutward {
+			currentStrategy = StrategyEdgeInward
+		} else {
+			currentStrategy = StrategyCenterOutward
+		}
+	}
+
+	// Record miss info
+	if invalidatedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position invalidated by previous placement",
+			Count:  invalidatedCount,
+		})
+	}
+	if connectivityBlockedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position would block door connectivity",
+			Count:  connectivityBlockedCount,
+		})
+	}
+	if railBlockedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position conflicts with rail",
+			Count:  railBlockedCount,
+		})
+	}
+	if remaining > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("could not place %d more statics", remaining),
+		})
+	}
+
+	return debug
+}
+
+// generateTurretLayerWithDebugAndRail generates the turret layer avoiding rail positions
+func generateTurretLayerWithDebugAndRail(turretLayer, ground, softEdge, bridge, rail, staticLayer [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int) *TurretDebugInfo {
+	debug := &TurretDebugInfo{
+		TargetCount: targetCount,
+		PlacedCount: 0,
+		Placements:  []PlaceInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	// Find all valid positions for turret placement (avoiding rail)
+	validPositions := findValidTurretPositionsWithRail(ground, softEdge, bridge, rail, staticLayer, turretLayer, doorPositions, width, height)
+
+	// Get rail indent cells - these are prioritized
+	railIndentCells := GetRailIndentCells(rail, width, height)
+	priorityPositions := filterSinglePositionsInRailIndent(validPositions, railIndentCells)
+
+	if len(validPositions) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "no valid positions found (all positions blocked by ground, doors, static, softEdge, bridge, or rail)",
+		})
+		return debug
+	}
+
+	centerX, centerY := width/2, height/2
+	sortTurretPositionsByPreference(validPositions, centerX, centerY, width, height, ground)
+
+	remaining := targetCount
+	maxAttempts := 2 * targetCount
+	invalidatedCount := 0
+	connectivityBlockedCount := 0
+
+	// First try priority positions
+	for remaining > 0 && len(priorityPositions) > 0 {
+		placed := false
+		for i, pos := range priorityPositions {
+			if !isValidTurretPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, turretLayer, doorPositions, width, height) {
+				invalidatedCount++
+				continue
+			}
+
+			if !checkTurretConnectivityAfterPlacement(ground, staticLayer, turretLayer, doorPositions, pos, width, height) {
+				connectivityBlockedCount++
+				continue
+			}
+
+			turretLayer[pos.Y][pos.X] = 1
+			remaining--
+			placed = true
+			debug.PlacedCount++
+
+			debug.Placements = append(debug.Placements, PlaceInfo{
+				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+				Size:     "1x1",
+				Reason:   "placed inside rail indent area (prioritized)",
+			})
+
+			priorityPositions = append(priorityPositions[:i], priorityPositions[i+1:]...)
+			priorityPositions = filterTurretsTooClose(priorityPositions, pos)
+			validPositions = removeSinglePosition(validPositions, pos)
+			validPositions = filterTurretsTooClose(validPositions, pos)
+			break
+		}
+
+		if !placed {
+			break
+		}
+	}
+
+	// Then place remaining
+	for remaining > 0 && maxAttempts > 0 {
+		placed := false
+
+		for i, pos := range validPositions {
+			if !isValidTurretPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, turretLayer, doorPositions, width, height) {
+				invalidatedCount++
+				continue
+			}
+
+			if !checkTurretConnectivityAfterPlacement(ground, staticLayer, turretLayer, doorPositions, pos, width, height) {
+				connectivityBlockedCount++
+				continue
+			}
+
+			reason := getTurretPlacementReason(pos, centerX, centerY, width, height, ground) + " (avoiding rail)"
+
+			turretLayer[pos.Y][pos.X] = 1
+			remaining--
+			placed = true
+			debug.PlacedCount++
+
+			debug.Placements = append(debug.Placements, PlaceInfo{
+				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+				Size:     "1x1",
+				Reason:   reason,
+			})
+
+			validPositions = append(validPositions[:i], validPositions[i+1:]...)
+			validPositions = filterTurretsTooClose(validPositions, pos)
+			break
+		}
+
+		if !placed {
+			maxAttempts--
+		}
+	}
+
+	if invalidatedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position invalidated",
+			Count:  invalidatedCount,
+		})
+	}
+	if connectivityBlockedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position would block door connectivity",
+			Count:  connectivityBlockedCount,
+		})
+	}
+	if remaining > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("could not place %d more turrets", remaining),
+		})
+	}
+
+	return debug
+}
+
+// generateMobGroundLayerWithDebugAndRail generates the mob ground layer avoiding rail positions
+func generateMobGroundLayerWithDebugAndRail(mobGroundLayer, ground, softEdge, bridge, rail, staticLayer, turretLayer [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int) *MobGroundDebugInfo {
+	debug := &MobGroundDebugInfo{
+		TargetCount: targetCount,
+		PlacedCount: 0,
+		Groups:      []MobGroupInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	// Find all valid positions (avoiding rail)
+	validPositions := findValidMobGroundPositionsWithRail(ground, softEdge, bridge, rail, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height)
+
+	// Get rail indent cells - these are prioritized
+	railIndentCells := GetRailIndentCells(rail, width, height)
+	priorityPositions := filterSinglePositionsInRailIndent(validPositions, railIndentCells)
+
+	if len(validPositions) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "no valid positions found (all blocked by ground, doors, static, turret, softEdge, bridge, or rail)",
+		})
+		return debug
+	}
+
+	remaining := targetCount
+	invalidatedCount := 0
+
+	// First try priority positions
+	for remaining > 0 && len(priorityPositions) > 0 {
+		placed := false
+		for i, pos := range priorityPositions {
+			if !isValidMobGroundPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) {
+				invalidatedCount++
+				continue
+			}
+
+			mobGroundLayer[pos.Y][pos.X] = 1
+			remaining--
+			placed = true
+			debug.PlacedCount++
+
+			debug.Groups = append(debug.Groups, MobGroupInfo{
+				GroupIndex:  len(debug.Groups),
+				Strategy:    "rail_indent_priority",
+				TargetCount: 1,
+				PlacedCount: 1,
+				Placements: []PlaceInfo{{
+					Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+					Size:     "1x1",
+					Reason:   "placed inside rail indent area",
+				}},
+			})
+
+			priorityPositions = append(priorityPositions[:i], priorityPositions[i+1:]...)
+			validPositions = removeSinglePosition(validPositions, pos)
+			break
+		}
+
+		if !placed {
+			break
+		}
+	}
+
+	// Then place remaining using cluster strategy
+	if remaining > 0 {
+		rand.Shuffle(len(validPositions), func(i, j int) {
+			validPositions[i], validPositions[j] = validPositions[j], validPositions[i]
+		})
+
+		groupInfo := MobGroupInfo{
+			GroupIndex:  len(debug.Groups),
+			Strategy:    "random_avoiding_rail",
+			TargetCount: remaining,
+			Placements:  []PlaceInfo{},
+		}
+
+		for remaining > 0 && len(validPositions) > 0 {
+			pos := validPositions[0]
+			validPositions = validPositions[1:]
+
+			if !isValidMobGroundPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) {
+				invalidatedCount++
+				continue
+			}
+
+			mobGroundLayer[pos.Y][pos.X] = 1
+			remaining--
+			debug.PlacedCount++
+			groupInfo.PlacedCount++
+
+			groupInfo.Placements = append(groupInfo.Placements, PlaceInfo{
+				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+				Size:     "1x1",
+				Reason:   "random placement avoiding rail",
+			})
+		}
+
+		debug.Groups = append(debug.Groups, groupInfo)
+	}
+
+	if invalidatedCount > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: "position invalidated",
+			Count:  invalidatedCount,
+		})
+	}
+	if remaining > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("could not place %d more mob ground", remaining),
+		})
+	}
+
+	return debug
+}
+
+// Helper functions for rail-aware placement
+
+func findValidStaticPositionsWithRail(ground, softEdge, bridge, rail, staticLayer [][]int, forbiddenCells map[Point]bool, width, height int) []Point {
+	var positions []Point
+	for y := 0; y <= height-staticSize; y++ {
+		for x := 0; x <= width-staticSize; x++ {
+			pos := Point{X: x, Y: y}
+			if isValidStaticPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, forbiddenCells, width, height) {
+				positions = append(positions, pos)
+			}
+		}
+	}
+	return positions
+}
+
+func isValidStaticPositionWithRail(pos Point, ground, softEdge, bridge, rail, staticLayer [][]int, forbiddenCells map[Point]bool, width, height int) bool {
+	// Check all 4 cells of the 2x2 area
+	for dy := 0; dy < staticSize; dy++ {
+		for dx := 0; dx < staticSize; dx++ {
+			x := pos.X + dx
+			y := pos.Y + dy
+
+			// Check bounds
+			if x < 0 || x >= width || y < 0 || y >= height {
+				return false
+			}
+
+			// Must be on ground
+			if ground[y][x] != 1 {
+				return false
+			}
+
+			// Cannot be on bridge
+			if bridge[y][x] == 1 {
+				return false
+			}
+
+			// Cannot be on soft edge
+			if softEdge[y][x] == 1 {
+				return false
+			}
+
+			// Cannot be on rail
+			if rail[y][x] == 1 {
+				return false
+			}
+
+			// Cannot be on existing static
+			if staticLayer[y][x] == 1 {
+				return false
+			}
+
+			// Cannot be in forbidden zone (doors)
+			if forbiddenCells[Point{X: x, Y: y}] {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func findValidTurretPositionsWithRail(ground, softEdge, bridge, rail, staticLayer, turretLayer [][]int, doorPositions map[DoorPosition]Point, width, height int) []Point {
+	var positions []Point
+	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			pos := Point{X: x, Y: y}
+			if isValidTurretPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, turretLayer, doorPositions, width, height) && !forbiddenCells[pos] {
+				positions = append(positions, pos)
+			}
+		}
+	}
+	return positions
+}
+
+func isValidTurretPositionWithRail(pos Point, ground, softEdge, bridge, rail, staticLayer, turretLayer [][]int, doorPositions map[DoorPosition]Point, width, height int) bool {
+	x, y := pos.X, pos.Y
+
+	if x < 0 || x >= width || y < 0 || y >= height {
+		return false
+	}
+
+	// Must be on ground
+	if ground[y][x] != 1 {
+		return false
+	}
+
+	// Cannot be on bridge
+	if bridge[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on soft edge
+	if softEdge[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on rail
+	if rail[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on static
+	if staticLayer[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on existing turret
+	if turretLayer[y][x] == 1 {
+		return false
+	}
+
+	// Check door forbidden zones
+	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
+	if forbiddenCells[pos] {
+		return false
+	}
+
+	return true
+}
+
+func findValidMobGroundPositionsWithRail(ground, softEdge, bridge, rail, staticLayer, turretLayer, mobGroundLayer [][]int, doorPositions map[DoorPosition]Point, width, height int) []Point {
+	var positions []Point
+	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			pos := Point{X: x, Y: y}
+			if isValidMobGroundPositionWithRail(pos, ground, softEdge, bridge, rail, staticLayer, turretLayer, mobGroundLayer, doorPositions, width, height) && !forbiddenCells[pos] {
+				positions = append(positions, pos)
+			}
+		}
+	}
+	return positions
+}
+
+func isValidMobGroundPositionWithRail(pos Point, ground, softEdge, bridge, rail, staticLayer, turretLayer, mobGroundLayer [][]int, doorPositions map[DoorPosition]Point, width, height int) bool {
+	x, y := pos.X, pos.Y
+
+	if x < 0 || x >= width || y < 0 || y >= height {
+		return false
+	}
+
+	// Must be on ground
+	if ground[y][x] != 1 {
+		return false
+	}
+
+	// Cannot be on bridge
+	if bridge[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on soft edge
+	if softEdge[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on rail
+	if rail[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on static
+	if staticLayer[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on turret
+	if turretLayer[y][x] == 1 {
+		return false
+	}
+
+	// Cannot be on existing mob ground
+	if mobGroundLayer[y][x] == 1 {
+		return false
+	}
+
+	return true
+}
+
+func filterPositionsInRailIndent(positions []Point, railIndentCells []Point) []Point {
+	if len(railIndentCells) == 0 {
+		return nil
+	}
+
+	indentSet := make(map[Point]bool)
+	for _, cell := range railIndentCells {
+		indentSet[cell] = true
+	}
+
+	var filtered []Point
+	for _, pos := range positions {
+		// Check if any cell of the 2x2 area is in the indent
+		inIndent := false
+		for dy := 0; dy < staticSize; dy++ {
+			for dx := 0; dx < staticSize; dx++ {
+				if indentSet[Point{X: pos.X + dx, Y: pos.Y + dy}] {
+					inIndent = true
+					break
+				}
+			}
+			if inIndent {
+				break
+			}
+		}
+		if inIndent {
+			filtered = append(filtered, pos)
+		}
+	}
+	return filtered
+}
+
+func filterSinglePositionsInRailIndent(positions []Point, railIndentCells []Point) []Point {
+	if len(railIndentCells) == 0 {
+		return nil
+	}
+
+	indentSet := make(map[Point]bool)
+	for _, cell := range railIndentCells {
+		indentSet[cell] = true
+	}
+
+	var filtered []Point
+	for _, pos := range positions {
+		if indentSet[pos] {
+			filtered = append(filtered, pos)
+		}
+	}
+	return filtered
+}
+
+func removePosition(positions []Point, toRemove Point) []Point {
+	var result []Point
+	for _, pos := range positions {
+		if pos.X != toRemove.X || pos.Y != toRemove.Y {
+			result = append(result, pos)
+		}
+	}
+	return result
+}
+
+func removeSinglePosition(positions []Point, toRemove Point) []Point {
+	for i, pos := range positions {
+		if pos.X == toRemove.X && pos.Y == toRemove.Y {
+			return append(positions[:i], positions[i+1:]...)
+		}
+	}
+	return positions
 }
