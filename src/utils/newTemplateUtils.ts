@@ -64,6 +64,8 @@ export function createEmptyTemplate(width: number, height: number): Template {
     ground: createLayer(),
     softEdge: createLayer(),
     bridge: createLayer(),
+    pipeline: createLayer(),
+    rail: createLayer(),
     static: createLayer(),
     turret: createLayer(),
     mobGround: createLayer(),
@@ -121,12 +123,14 @@ export function setCellValue(
 
 // Rule-based validation functions
 export function validateCellRules(
-  template: Template, 
-  x: number, 
+  template: Template,
+  x: number,
   y: number
 ): Record<LayerType, boolean> {
   const ground = template.ground[y][x];
   const bridge = template.bridge[y][x];
+  const pipeline = template.pipeline[y][x];
+  const rail = template.rail[y][x];
   const static_ = template.static[y][x];
   const turret = template.turret[y][x];
   const mobGround = template.mobGround[y][x];
@@ -136,9 +140,16 @@ export function validateCellRules(
     ground: true, // Ground has no constraints
     softEdge: validateSoftEdgeCell(template, x, y),
     bridge: validateBridgeCell(template, x, y),
-    static: static_ === 0 || (ground === 1 || bridge === 1) && bridge === 0, // Static can't be placed on bridge
-    turret: turret === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && bridge === 0),
-    mobGround: mobGround === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && turret === 0 && bridge === 0),
+    // Pipeline: must be on ground, cannot be on bridge
+    pipeline: pipeline === 0 || (ground === 1 && bridge === 0),
+    // Rail: must be on ground or bridge
+    rail: rail === 0 || (ground === 1 || bridge === 1),
+    // Static: can't be on bridge, can't conflict with pipeline or rail
+    static: static_ === 0 || ((ground === 1 || bridge === 1) && bridge === 0 && pipeline === 0 && rail === 0),
+    // Turret: can't be on bridge, can't be on static, can't conflict with pipeline or rail
+    turret: turret === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && bridge === 0 && pipeline === 0 && rail === 0),
+    // MobGround: can't be on bridge, can't be on static/turret, can't conflict with pipeline or rail
+    mobGround: mobGround === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && turret === 0 && bridge === 0 && pipeline === 0 && rail === 0),
     mobAir: true, // MobAir has no constraints
   };
 }
@@ -225,6 +236,8 @@ export function validateTemplate(template: Template): ValidationResult {
     ground: [],
     softEdge: [],
     bridge: [],
+    pipeline: [],
+    rail: [],
     static: [],
     turret: [],
     mobGround: [],
@@ -236,26 +249,30 @@ export function validateTemplate(template: Template): ValidationResult {
     layerValidation.ground[y] = [];
     layerValidation.softEdge[y] = [];
     layerValidation.bridge[y] = [];
+    layerValidation.pipeline[y] = [];
+    layerValidation.rail[y] = [];
     layerValidation.static[y] = [];
     layerValidation.turret[y] = [];
     layerValidation.mobGround[y] = [];
     layerValidation.mobAir[y] = [];
-    
+
     for (let x = 0; x < template.width; x++) {
       const cellValidation = validateCellRules(template, x, y);
-      
+
       // Store validation results
       layerValidation.ground[y][x] = cellValidation.ground;
       layerValidation.softEdge[y][x] = cellValidation.softEdge;
       layerValidation.bridge[y][x] = cellValidation.bridge;
+      layerValidation.pipeline[y][x] = cellValidation.pipeline;
+      layerValidation.rail[y][x] = cellValidation.rail;
       layerValidation.static[y][x] = cellValidation.static;
       layerValidation.turret[y][x] = cellValidation.turret;
       layerValidation.mobGround[y][x] = cellValidation.mobGround;
       layerValidation.mobAir[y][x] = cellValidation.mobAir;
 
       // Collect errors for cells that have value=1 but are invalid
-      const layers: LayerType[] = ['softEdge', 'bridge', 'static', 'turret', 'mobGround', 'mobAir'];
-      
+      const layers: LayerType[] = ['softEdge', 'bridge', 'pipeline', 'rail', 'static', 'turret', 'mobGround', 'mobAir'];
+
       layers.forEach(layer => {
         if (template[layer][y][x] === 1 && !cellValidation[layer]) {
           errors.push({
@@ -277,13 +294,15 @@ export function validateTemplate(template: Template): ValidationResult {
 }
 
 function getValidationErrorReason(
-  layer: LayerType, 
-  template: Template, 
-  x: number, 
+  layer: LayerType,
+  template: Template,
+  x: number,
   y: number
 ): string {
   const ground = template.ground[y][x];
   const bridge = template.bridge[y][x];
+  const pipeline = template.pipeline[y][x];
+  const rail = template.rail[y][x];
   const static_ = template.static[y][x];
   const turret = template.turret[y][x];
 
@@ -294,20 +313,33 @@ function getValidationErrorReason(
     case 'bridge':
       if (ground === 1) return 'Bridge cannot be placed on walkable ground';
       return 'Bridge must connect walkable areas';
+    case 'pipeline':
+      if (ground === 0) return 'Pipeline must be placed on ground';
+      if (bridge === 1) return 'Pipeline cannot be placed on bridge';
+      return 'Unknown error';
+    case 'rail':
+      if (ground === 0 && bridge === 0) return 'Rail must be placed on ground or bridge';
+      return 'Unknown error';
     case 'static':
       if (ground === 0 && bridge === 0) return 'Static items require walkable ground or bridge';
       if (bridge === 1) return 'Static items cannot be placed on bridge';
+      if (pipeline === 1) return 'Static items cannot be placed on pipeline';
+      if (rail === 1) return 'Static items cannot be placed on rail';
       return 'Unknown error';
     case 'turret':
       if (ground === 0 && bridge === 0) return 'Turrets require walkable ground or bridge';
       if (bridge === 1) return 'Turrets cannot be placed on bridge';
       if (static_ === 1) return 'Turrets cannot be placed on static items';
+      if (pipeline === 1) return 'Turrets cannot be placed on pipeline';
+      if (rail === 1) return 'Turrets cannot be placed on rail';
       return 'Unknown error';
     case 'mobGround':
       if (ground === 0 && bridge === 0) return 'Ground mobs require walkable ground or bridge';
       if (bridge === 1) return 'Ground mobs cannot be placed on bridge';
       if (static_ === 1) return 'Ground mobs cannot be placed on static items';
       if (turret === 1) return 'Ground mobs cannot be placed on turrets';
+      if (pipeline === 1) return 'Ground mobs cannot be placed on pipeline';
+      if (rail === 1) return 'Ground mobs cannot be placed on rail';
       return 'Unknown error';
     default:
       return 'Unknown validation error';

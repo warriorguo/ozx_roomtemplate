@@ -107,6 +107,8 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         ground: true,
         softEdge: true,
         bridge: true,
+        pipeline: true,
+        rail: true,
         static: true,
         turret: true,
         mobGround: true,
@@ -535,6 +537,8 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
           ground: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           softEdge: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           bridge: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
+          pipeline: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
+          rail: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           static: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           turret: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           mobGround: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
@@ -778,6 +782,8 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             ground: payload.ground,
             softEdge: payload.softEdge,
             bridge: payload.bridge,
+            pipeline: payload.pipeline,
+            rail: payload.rail,
             static: payload.static,
             turret: payload.turret,
             mobGround: payload.mobGround,
@@ -822,6 +828,16 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       // Initialize bridge layer if not present (for backward compatibility)
       if (!payload.bridge) {
         payload.bridge = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
+      }
+
+      // Initialize pipeline layer if not present (for backward compatibility)
+      if (!payload.pipeline) {
+        payload.pipeline = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
+      }
+
+      // Initialize rail layer if not present (for backward compatibility)
+      if (!payload.rail) {
+        payload.rail = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
       }
 
       // Convert to frontend template format

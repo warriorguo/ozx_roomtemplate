@@ -25,6 +25,8 @@ export function frontendToBackendCreateRequest(
       ground: template.ground,
       softEdge: template.softEdge,
       bridge: template.bridge,
+      pipeline: template.pipeline,
+      rail: template.rail,
       static: template.static,
       turret: template.turret,
       mobGround: template.mobGround,
@@ -55,9 +57,13 @@ export function backendToFrontendTemplate(
     width: backendTemplate.width,
     height: backendTemplate.height,
     ground: backendTemplate.payload.ground as Grid<CellValue>,
-    softEdge: (backendTemplate.payload.softEdge || 
+    softEdge: (backendTemplate.payload.softEdge ||
       Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
-    bridge: (backendTemplate.payload.bridge || 
+    bridge: (backendTemplate.payload.bridge ||
+      Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
+    pipeline: (backendTemplate.payload.pipeline ||
+      Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
+    rail: (backendTemplate.payload.rail ||
       Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
     static: backendTemplate.payload.static as Grid<CellValue>,
     turret: backendTemplate.payload.turret as Grid<CellValue>,
@@ -103,6 +109,8 @@ export function frontendToBackendPayload(
     ground: template.ground,
     softEdge: template.softEdge,
     bridge: template.bridge,
+    pipeline: template.pipeline,
+    rail: template.rail,
     static: template.static,
     turret: template.turret,
     mobGround: template.mobGround,

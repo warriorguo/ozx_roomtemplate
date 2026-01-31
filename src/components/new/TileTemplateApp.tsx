@@ -32,22 +32,34 @@ const layerConfigs: Array<{
     description: 'Bridge tiles that span unwalkable areas to connect walkable areas'
   },
   {
+    layer: 'pipeline',
+    title: 'Pipeline (管道)',
+    color: '#9932CC',
+    description: 'Pipeline paths - must be on ground, cannot be on bridge. Lines can connect end-to-end but cannot intersect in the middle.'
+  },
+  {
+    layer: 'rail',
+    title: 'Rail (轨道)',
+    color: '#8B4513',
+    description: 'Rail paths - can be on ground or bridge. Lines must form closed loops and can connect end-to-end but cannot intersect in the middle.'
+  },
+  {
     layer: 'static',
     title: 'Static (静态物品)',
     color: '#FFA500',
-    description: 'Static objects placement areas (requires walkable ground, not on bridge)'
+    description: 'Static objects placement areas (requires walkable ground, not on bridge/pipeline/rail)'
   },
   {
     layer: 'turret',
     title: 'Turret (炮塔)',
     color: '#4169E1',
-    description: 'Turret placement (requires walkable ground, not on bridge/static)'
+    description: 'Turret placement (requires walkable ground, not on bridge/static/pipeline/rail)'
   },
   {
     layer: 'mobGround',
     title: 'Mob Ground (地面怪)',
     color: '#FFD700',
-    description: 'Ground mob spawns (requires walkable ground, not on bridge/static/turret)'
+    description: 'Ground mob spawns (requires walkable ground, not on bridge/static/turret/pipeline/rail)'
   },
   {
     layer: 'mobAir',

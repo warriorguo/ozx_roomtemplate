@@ -6,6 +6,8 @@ interface CompositeCellProps {
   y: number;
   groundValue: CellValue;
   bridgeValue: CellValue;
+  pipelineValue: CellValue;
+  railValue: CellValue;
   staticValue: CellValue;
   turretValue: CellValue;
   mobGroundValue: CellValue;
@@ -21,6 +23,8 @@ const CompositeCell: React.FC<CompositeCellProps> = ({
   y,
   groundValue,
   bridgeValue,
+  pipelineValue,
+  railValue,
   staticValue,
   turretValue,
   mobGroundValue,
@@ -48,7 +52,7 @@ const CompositeCell: React.FC<CompositeCellProps> = ({
       msUserSelect: 'none',
     };
 
-    // 优先级：mobAir > mobGround > turret > static > bridge > ground
+    // 优先级：mobAir > mobGround > turret > static > rail > pipeline > bridge > ground
     if (mobAirValue === 1) {
       baseStyle.backgroundColor = '#87CEEB'; // Sky blue (mobAir)
     } else if (mobGroundValue === 1) {
@@ -57,8 +61,12 @@ const CompositeCell: React.FC<CompositeCellProps> = ({
       baseStyle.backgroundColor = '#4169E1'; // Blue (turret)
     } else if (staticValue === 1) {
       baseStyle.backgroundColor = '#FFA500'; // Orange (static)
+    } else if (railValue === 1) {
+      baseStyle.backgroundColor = '#8B4513'; // Brown (rail)
+    } else if (pipelineValue === 1) {
+      baseStyle.backgroundColor = '#9932CC'; // Purple (pipeline)
     } else if (bridgeValue === 1) {
-      baseStyle.backgroundColor = '#9966CC'; // Purple (bridge)
+      baseStyle.backgroundColor = '#9966CC'; // Light purple (bridge)
     } else if (groundValue === 1) {
       baseStyle.backgroundColor = '#90EE90'; // Light green (ground)
     } else {
@@ -84,7 +92,7 @@ const CompositeCell: React.FC<CompositeCellProps> = ({
       style={getCellStyle()}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={onCellMouseLeave}
-      title={`(${x}, ${y}) - Ground:${groundValue} Bridge:${bridgeValue} Static:${staticValue} Turret:${turretValue} MobGround:${mobGroundValue} MobAir:${mobAirValue}${!isValid ? ' [INVALID]' : ''}`}
+      title={`(${x}, ${y}) - Ground:${groundValue} Bridge:${bridgeValue} Pipeline:${pipelineValue} Rail:${railValue} Static:${staticValue} Turret:${turretValue} MobGround:${mobGroundValue} MobAir:${mobAirValue}${!isValid ? ' [INVALID]' : ''}`}
     >
     </div>
   );
@@ -178,6 +186,8 @@ export const CompositeLayerEditor: React.FC = () => {
             Array.from({ length: template.width }, (_, x) => {
               const groundValue = template.ground[y][x];
               const bridgeValue = template.bridge[y][x];
+              const pipelineValue = template.pipeline[y][x];
+              const railValue = template.rail[y][x];
               const staticValue = template.static[y][x];
               const turretValue = template.turret[y][x];
               const mobGroundValue = template.mobGround[y][x];
@@ -187,6 +197,8 @@ export const CompositeLayerEditor: React.FC = () => {
               const allLayersValid = (
                 (validationResult?.layerValidation.ground?.[y]?.[x] ?? true) &&
                 (validationResult?.layerValidation.bridge?.[y]?.[x] ?? true) &&
+                (validationResult?.layerValidation.pipeline?.[y]?.[x] ?? true) &&
+                (validationResult?.layerValidation.rail?.[y]?.[x] ?? true) &&
                 (validationResult?.layerValidation.static?.[y]?.[x] ?? true) &&
                 (validationResult?.layerValidation.turret?.[y]?.[x] ?? true) &&
                 (validationResult?.layerValidation.mobGround?.[y]?.[x] ?? true) &&
@@ -200,6 +212,8 @@ export const CompositeLayerEditor: React.FC = () => {
                   y={y}
                   groundValue={groundValue}
                   bridgeValue={bridgeValue}
+                  pipelineValue={pipelineValue}
+                  railValue={railValue}
                   staticValue={staticValue}
                   turretValue={turretValue}
                   mobGroundValue={mobGroundValue}
@@ -230,6 +244,8 @@ export const CompositeLayerEditor: React.FC = () => {
             <span style={{ padding: '2px 8px', backgroundColor: '#FFD700', borderRadius: '3px', color: '#000' }}>地面怪 (MobGround)</span>
             <span style={{ padding: '2px 8px', backgroundColor: '#4169E1', borderRadius: '3px', color: '#fff' }}>炮塔 (Turret)</span>
             <span style={{ padding: '2px 8px', backgroundColor: '#FFA500', borderRadius: '3px', color: '#fff' }}>静态物品 (Static)</span>
+            <span style={{ padding: '2px 8px', backgroundColor: '#8B4513', borderRadius: '3px', color: '#fff' }}>轨道 (Rail)</span>
+            <span style={{ padding: '2px 8px', backgroundColor: '#9932CC', borderRadius: '3px', color: '#fff' }}>管道 (Pipeline)</span>
             <span style={{ padding: '2px 8px', backgroundColor: '#9966CC', borderRadius: '3px', color: '#fff' }}>桥梁 (Bridge)</span>
             <span style={{ padding: '2px 8px', backgroundColor: '#90EE90', borderRadius: '3px', color: '#000' }}>地面 (Ground)</span>
           </div>

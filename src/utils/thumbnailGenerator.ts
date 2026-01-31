@@ -101,14 +101,16 @@ export function generateDetailedThumbnail(template: Template, size: number = 120
       // 图层颜色定义
       const layerColors = {
         ground: '#90EE90',    // 浅绿色
-        static: '#FFA500',    // 橙色  
+        pipeline: '#9932CC',  // 紫色 (pipeline)
+        rail: '#8B4513',      // 棕色 (rail)
+        static: '#FFA500',    // 橙色
         turret: '#4169E1',    // 蓝色
         mobGround: '#FFD700', // 黄色
         mobAir: '#87CEEB',    // 天蓝色
       };
-      
+
       // 按优先级绘制图层（后绘制的在上层）
-      const layers: Array<keyof typeof layerColors> = ['ground', 'static', 'turret', 'mobGround', 'mobAir'];
+      const layers: Array<keyof typeof layerColors> = ['ground', 'pipeline', 'rail', 'static', 'turret', 'mobGround', 'mobAir'];
       
       for (const layerName of layers) {
         ctx.fillStyle = layerColors[layerName];

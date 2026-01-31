@@ -19,6 +19,8 @@ interface CellProps {
   groundValue: CellValue;      // ground层的值
   softEdgeValue: CellValue;    // softEdge层的值
   bridgeValue: CellValue;      // bridge层的值
+  pipelineValue: CellValue;    // pipeline层的值
+  railValue: CellValue;        // rail层的值
   staticValue: CellValue;      // static层的值
   turretValue: CellValue;      // turret层的值
   mobGroundValue: CellValue;   // mobGround层的值
@@ -42,6 +44,8 @@ const Cell: React.FC<CellProps> = ({
   groundValue,
   softEdgeValue: _softEdgeValue,
   bridgeValue,
+  pipelineValue,
+  railValue,
   staticValue,
   turretValue,
   mobGroundValue,
@@ -111,7 +115,7 @@ const Cell: React.FC<CellProps> = ({
 
     // 总图层视图：按优先级显示所有层的数据
     if (isCompositeView && isVisible) {
-      // 优先级：mobAir > mobGround > turret > static > bridge > ground
+      // 优先级：mobAir > mobGround > turret > static > rail > pipeline > bridge > ground
       if (mobAirValue === 1) {
         baseStyle.backgroundColor = '#87CEEB'; // Sky blue (mobAir)
       } else if (mobGroundValue === 1) {
@@ -120,8 +124,12 @@ const Cell: React.FC<CellProps> = ({
         baseStyle.backgroundColor = '#4169E1'; // Blue (turret)
       } else if (staticValue === 1) {
         baseStyle.backgroundColor = '#FFA500'; // Orange (static)
+      } else if (railValue === 1) {
+        baseStyle.backgroundColor = '#8B4513'; // Brown (rail)
+      } else if (pipelineValue === 1) {
+        baseStyle.backgroundColor = '#9932CC'; // Purple (pipeline)
       } else if (bridgeValue === 1) {
-        baseStyle.backgroundColor = '#9966CC'; // Purple (bridge)
+        baseStyle.backgroundColor = '#9966CC'; // Light purple (bridge)
       } else if (groundValue === 1) {
         baseStyle.backgroundColor = '#90EE90'; // Light green (ground)
       } else {
@@ -150,7 +158,13 @@ const Cell: React.FC<CellProps> = ({
             baseStyle.backgroundColor = '#808080'; // Gray
             break;
           case 'bridge':
-            baseStyle.backgroundColor = '#9966CC'; // Purple
+            baseStyle.backgroundColor = '#9966CC'; // Light purple
+            break;
+          case 'pipeline':
+            baseStyle.backgroundColor = '#9932CC'; // Purple
+            break;
+          case 'rail':
+            baseStyle.backgroundColor = '#8B4513'; // Brown
             break;
           case 'static':
             baseStyle.backgroundColor = '#FFA500'; // Orange
@@ -189,11 +203,42 @@ const Cell: React.FC<CellProps> = ({
             }
             break;
 
+          case 'pipeline':
+            // pipeline层：必须在ground上，不能在bridge上
+            if (bridgeValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在bridge上
+              baseStyle.border = '1px solid #FFB3B3';
+            } else if (groundValue === 1) {
+              baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色 - 可放置
+              baseStyle.border = '1px solid #C8E6C9';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
+          case 'rail':
+            // rail层：可以在ground或bridge上
+            if (groundValue === 1 || bridgeValue === 1) {
+              baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色 - 可放置
+              baseStyle.border = '1px solid #C8E6C9';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
           case 'static':
-            // static层：bridge=1 显示浅紫色，ground=1 显示浅绿色
+            // static层：bridge/pipeline/rail=1 显示浅红色，ground=1 显示浅绿色
             if (bridgeValue === 1) {
               baseStyle.backgroundColor = '#E5D3FF'; // 浅紫色 - 不能放置在bridge上
               baseStyle.border = '1px solid #D1B3FF';
+            } else if (pipelineValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在pipeline上
+              baseStyle.border = '1px solid #FFB3B3';
+            } else if (railValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在rail上
+              baseStyle.border = '1px solid #FFB3B3';
             } else if (groundValue === 1) {
               baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
               baseStyle.border = '1px solid #C8E6C9';
@@ -204,10 +249,16 @@ const Cell: React.FC<CellProps> = ({
             break;
 
           case 'turret':
-            // turret层：bridge=1 显示浅紫色，static=1 显示浅橘色，ground=1/bridge=1 显示浅绿色
+            // turret层：bridge/pipeline/rail=1 显示冲突色，static=1 显示浅橘色，ground=1 显示浅绿色
             if (bridgeValue === 1) {
               baseStyle.backgroundColor = '#E5D3FF'; // 浅紫色 - 不能放置在bridge上
               baseStyle.border = '1px solid #D1B3FF';
+            } else if (pipelineValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在pipeline上
+              baseStyle.border = '1px solid #FFB3B3';
+            } else if (railValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在rail上
+              baseStyle.border = '1px solid #FFB3B3';
             } else if (staticValue === 1) {
               baseStyle.backgroundColor = '#FFE5CC'; // 浅橘色
               baseStyle.border = '1px solid #FFD4A3';
@@ -221,10 +272,16 @@ const Cell: React.FC<CellProps> = ({
             break;
 
           case 'mobGround':
-            // mobGround层：bridge=1 显示浅紫色，turret=1 显示浅蓝色，static=1 显示浅橘色，ground=1 显示浅绿色
+            // mobGround层：bridge/pipeline/rail=1 显示冲突色，turret=1 显示浅蓝色，static=1 显示浅橘色，ground=1 显示浅绿色
             if (bridgeValue === 1) {
               baseStyle.backgroundColor = '#E5D3FF'; // 浅紫色 - 不能放置在bridge上
               baseStyle.border = '1px solid #D1B3FF';
+            } else if (pipelineValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在pipeline上
+              baseStyle.border = '1px solid #FFB3B3';
+            } else if (railValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在rail上
+              baseStyle.border = '1px solid #FFB3B3';
             } else if (turretValue === 1) {
               baseStyle.backgroundColor = '#E3F2FD'; // 浅蓝色
               baseStyle.border = '1px solid #BBDEFB';
@@ -484,6 +541,8 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
             const groundValue = template.ground[y][x];          // 获取对应位置的ground值
             const softEdgeValue = template.softEdge[y][x];      // 获取对应位置的softEdge值
             const bridgeValue = template.bridge[y][x];          // 获取对应位置的bridge值
+            const pipelineValue = template.pipeline[y][x];      // 获取对应位置的pipeline值
+            const railValue = template.rail[y][x];              // 获取对应位置的rail值
             const staticValue = template.static[y][x];          // 获取对应位置的static值
             const turretValue = template.turret[y][x];          // 获取对应位置的turret值
             const mobGroundValue = template.mobGround[y][x];    // 获取对应位置的mobGround值
@@ -502,6 +561,8 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 groundValue={groundValue}
                 softEdgeValue={softEdgeValue}
                 bridgeValue={bridgeValue}
+                pipelineValue={pipelineValue}
+                railValue={railValue}
                 staticValue={staticValue}
                 turretValue={turretValue}
                 mobGroundValue={mobGroundValue}

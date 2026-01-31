@@ -110,10 +110,20 @@ func validateLayers(payload *model.TemplatePayload) []model.ValidationError {
 	if payload.SoftEdge != nil {
 		layers["softEdge"] = payload.SoftEdge
 	}
-	
+
 	// Add bridge layer if present (optional for backward compatibility)
 	if payload.Bridge != nil {
 		layers["bridge"] = payload.Bridge
+	}
+
+	// Add pipeline layer if present (optional for backward compatibility)
+	if payload.Pipeline != nil {
+		layers["pipeline"] = payload.Pipeline
+	}
+
+	// Add rail layer if present (optional for backward compatibility)
+	if payload.Rail != nil {
+		layers["rail"] = payload.Rail
 	}
 
 	for layerName, layer := range layers {
@@ -185,6 +195,14 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 			if payload.Bridge != nil && len(payload.Bridge) > y && len(payload.Bridge[y]) > x {
 				bridge = payload.Bridge[y][x]
 			}
+			var pipeline int = 0
+			if payload.Pipeline != nil && len(payload.Pipeline) > y && len(payload.Pipeline[y]) > x {
+				pipeline = payload.Pipeline[y][x]
+			}
+			var rail int = 0
+			if payload.Rail != nil && len(payload.Rail) > y && len(payload.Rail[y]) > x {
+				rail = payload.Rail[y][x]
+			}
 			static := payload.Static[y][x]
 			turret := payload.Turret[y][x]
 			mobGround := payload.MobGround[y][x]
@@ -235,7 +253,42 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 				}
 			}
 
-			// Rule: static==1 => (ground==1 || bridge==1) && bridge==0
+			// Pipeline validation rules
+			if pipeline == 1 {
+				// Rule: pipeline==1 => ground==1 (pipeline must be on ground)
+				if ground == 0 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "pipeline",
+						X:      x,
+						Y:      y,
+						Reason: "pipeline must be placed on ground",
+					})
+				}
+				// Rule: pipeline cannot be on bridge
+				if bridge == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "pipeline",
+						X:      x,
+						Y:      y,
+						Reason: "pipeline cannot be placed on bridge",
+					})
+				}
+			}
+
+			// Rail validation rules
+			if rail == 1 {
+				// Rule: rail==1 => ground==1 || bridge==1 (rail must be on ground or bridge)
+				if ground == 0 && bridge == 0 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "rail",
+						X:      x,
+						Y:      y,
+						Reason: "rail must be placed on ground or bridge",
+					})
+				}
+			}
+
+			// Rule: static==1 => (ground==1 || bridge==1) && bridge==0 && pipeline==0 && rail==0
 			if static == 1 {
 				if ground == 0 && bridge == 0 {
 					errors = append(errors, model.ValidationError{
@@ -253,9 +306,25 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 						Reason: "static items cannot be placed on bridge",
 					})
 				}
+				if pipeline == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "static",
+						X:      x,
+						Y:      y,
+						Reason: "static items cannot be placed on pipeline",
+					})
+				}
+				if rail == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "static",
+						X:      x,
+						Y:      y,
+						Reason: "static items cannot be placed on rail",
+					})
+				}
 			}
 
-			// Rule: turret==1 => (ground==1 || bridge==1) && static==0 && bridge==0
+			// Rule: turret==1 => (ground==1 || bridge==1) && static==0 && bridge==0 && pipeline==0 && rail==0
 			if turret == 1 {
 				if ground == 0 && bridge == 0 {
 					errors = append(errors, model.ValidationError{
@@ -281,9 +350,25 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 						Reason: "turrets cannot be placed on static items",
 					})
 				}
+				if pipeline == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "turret",
+						X:      x,
+						Y:      y,
+						Reason: "turrets cannot be placed on pipeline",
+					})
+				}
+				if rail == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "turret",
+						X:      x,
+						Y:      y,
+						Reason: "turrets cannot be placed on rail",
+					})
+				}
 			}
 
-			// Rule: mobGround==1 => (ground==1 || bridge==1) && static==0 && turret==0 && bridge==0
+			// Rule: mobGround==1 => (ground==1 || bridge==1) && static==0 && turret==0 && bridge==0 && pipeline==0 && rail==0
 			if mobGround == 1 {
 				if ground == 0 && bridge == 0 {
 					errors = append(errors, model.ValidationError{
@@ -315,6 +400,22 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 						X:      x,
 						Y:      y,
 						Reason: "ground mobs cannot be placed on turrets",
+					})
+				}
+				if pipeline == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "mobGround",
+						X:      x,
+						Y:      y,
+						Reason: "ground mobs cannot be placed on pipeline",
+					})
+				}
+				if rail == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "mobGround",
+						X:      x,
+						Y:      y,
+						Reason: "ground mobs cannot be placed on rail",
 					})
 				}
 			}

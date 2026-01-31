@@ -35,6 +35,8 @@ export interface BackendTemplatePayload {
   ground: number[][];
   softEdge?: number[][]; // Optional for backward compatibility
   bridge?: number[][]; // Optional for backward compatibility
+  pipeline?: number[][]; // Optional for backward compatibility
+  rail?: number[][]; // Optional for backward compatibility
   static: number[][];
   turret: number[][];
   mobGround: number[][];
