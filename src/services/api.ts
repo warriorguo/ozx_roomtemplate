@@ -31,12 +31,25 @@ export interface BackendTileProperties {
   distToNearTurret: number | null;
 }
 
+// Line segment structure for Pipeline and Rail
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface LineSegment {
+  start: Point;
+  end: Point;
+}
+
 export interface BackendTemplatePayload {
   ground: number[][];
   softEdge?: number[][]; // Optional for backward compatibility
   bridge?: number[][]; // Optional for backward compatibility
   pipeline?: number[][]; // Optional for backward compatibility
+  pipelineLines?: LineSegment[]; // Line segments describing pipeline paths
   rail?: number[][]; // Optional for backward compatibility
+  railLines?: LineSegment[]; // Line segments describing rail paths
   static: number[][];
   turret: number[][];
   mobGround: number[][];

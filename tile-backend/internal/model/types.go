@@ -10,6 +10,18 @@ import (
 // Layer represents a 2D grid layer (0 or 1 values)
 type Layer [][]int
 
+// Point represents a 2D coordinate
+type Point struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+// LineSegment represents a line segment with start and end points
+type LineSegment struct {
+	Start Point `json:"start"`
+	End   Point `json:"end"`
+}
+
 // TemplateMeta represents the metadata for a template
 type TemplateMeta struct {
 	Name    string `json:"name"`
@@ -47,10 +59,12 @@ type DoorsConnected struct {
 // TemplatePayload represents the complete template data as received from frontend
 type TemplatePayload struct {
 	Ground         Layer           `json:"ground"`
-	SoftEdge       Layer           `json:"softEdge,omitempty"`  // Optional for backward compatibility
-	Bridge         Layer           `json:"bridge,omitempty"`    // Optional for backward compatibility
-	Pipeline       Layer           `json:"pipeline,omitempty"`  // Optional for backward compatibility
-	Rail           Layer           `json:"rail,omitempty"`      // Optional for backward compatibility
+	SoftEdge       Layer           `json:"softEdge,omitempty"`       // Optional for backward compatibility
+	Bridge         Layer           `json:"bridge,omitempty"`         // Optional for backward compatibility
+	Pipeline       Layer           `json:"pipeline,omitempty"`       // Optional for backward compatibility
+	PipelineLines  []LineSegment   `json:"pipelineLines,omitempty"`  // Line segments describing pipeline paths
+	Rail           Layer           `json:"rail,omitempty"`           // Optional for backward compatibility
+	RailLines      []LineSegment   `json:"railLines,omitempty"`      // Line segments describing rail paths
 	Static         Layer           `json:"static"`
 	Turret         Layer           `json:"turret"`
 	MobGround      Layer           `json:"mobGround"`

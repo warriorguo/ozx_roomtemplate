@@ -10,6 +10,7 @@ import type {
 } from './api';
 import { calculateDoorStates } from '../utils/newTemplateUtils';
 import { calculateAllTileProperties } from '../utils/tilePropertiesCalculator';
+import { extractLineSegments, hasAnyCells } from '../utils/lineExtractor';
 
 /**
  * Convert frontend template to backend create request format
@@ -19,6 +20,14 @@ export function frontendToBackendCreateRequest(
   name: string,
   thumbnail?: string
 ): BackendCreateRequest {
+  // Extract line segments for pipeline and rail
+  const pipelineLines = hasAnyCells(template.pipeline)
+    ? extractLineSegments(template.pipeline)
+    : undefined;
+  const railLines = hasAnyCells(template.rail)
+    ? extractLineSegments(template.rail)
+    : undefined;
+
   return {
     name,
     payload: {
@@ -26,7 +35,9 @@ export function frontendToBackendCreateRequest(
       softEdge: template.softEdge,
       bridge: template.bridge,
       pipeline: template.pipeline,
+      pipelineLines,
       rail: template.rail,
+      railLines,
       static: template.static,
       turret: template.turret,
       mobGround: template.mobGround,
@@ -105,12 +116,22 @@ export function frontendToBackendPayload(
   template: FrontendTemplate,
   name: string = 'validation-template'
 ): BackendTemplatePayload {
+  // Extract line segments for pipeline and rail
+  const pipelineLines = hasAnyCells(template.pipeline)
+    ? extractLineSegments(template.pipeline)
+    : undefined;
+  const railLines = hasAnyCells(template.rail)
+    ? extractLineSegments(template.rail)
+    : undefined;
+
   return {
     ground: template.ground,
     softEdge: template.softEdge,
     bridge: template.bridge,
     pipeline: template.pipeline,
+    pipelineLines,
     rail: template.rail,
+    railLines,
     static: template.static,
     turret: template.turret,
     mobGround: template.mobGround,
