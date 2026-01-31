@@ -286,6 +286,24 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 						Reason: "rail must be placed on ground or bridge",
 					})
 				}
+
+				// Rule: rail must form closed loop (each cell must have exactly 2 neighbors)
+				neighborCount := countRailNeighbors(payload, x, y, width, height)
+				if neighborCount < 2 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "rail",
+						X:      x,
+						Y:      y,
+						Reason: fmt.Sprintf("rail must form closed loop (has %d neighbor, needs 2)", neighborCount),
+					})
+				} else if neighborCount > 2 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "rail",
+						X:      x,
+						Y:      y,
+						Reason: fmt.Sprintf("rail segments cannot intersect (has %d neighbors, max 2)", neighborCount),
+					})
+				}
 			}
 
 			// Rule: static==1 => (ground==1 || bridge==1) && bridge==0 && pipeline==0 && rail==0
@@ -464,6 +482,33 @@ func isWalkable(payload *model.TemplatePayload, x, y, width, height int) bool {
 	}
 
 	return ground == 1 || bridge == 1
+}
+
+// countRailNeighbors counts adjacent rail cells for a given position
+func countRailNeighbors(payload *model.TemplatePayload, x, y, width, height int) int {
+	if payload.Rail == nil {
+		return 0
+	}
+
+	directions := []struct{ dx, dy int }{
+		{-1, 0}, {1, 0}, // left, right
+		{0, -1}, {0, 1}, // up, down
+	}
+
+	count := 0
+	for _, dir := range directions {
+		nx, ny := x+dir.dx, y+dir.dy
+
+		if nx >= 0 && nx < width && ny >= 0 && ny < height {
+			if len(payload.Rail) > ny && len(payload.Rail[ny]) > nx {
+				if payload.Rail[ny][nx] == 1 {
+					count++
+				}
+			}
+		}
+	}
+
+	return count
 }
 
 // isAdjacentToGround checks if a position is adjacent to at least one ground tile
