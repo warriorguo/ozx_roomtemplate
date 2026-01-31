@@ -136,6 +136,7 @@ export const TileTemplateApp: React.FC = () => {
         height: template.height,
         doors,
         softEdgeCount,
+        railEnabled: true,
         staticCount,
         turretCount,
         mobGroundCount,

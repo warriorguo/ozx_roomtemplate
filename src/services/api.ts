@@ -361,6 +361,7 @@ export interface BridgeGenerateRequest {
   height: number;
   doors: DoorPosition[];
   softEdgeCount?: number;
+  railEnabled?: boolean;
   staticCount?: number;
   turretCount?: number;
   mobGroundCount?: number;
@@ -500,6 +501,7 @@ export interface PlatformGenerateRequest {
   height: number;
   doors: DoorPosition[];
   softEdgeCount?: number;
+  railEnabled?: boolean;
   staticCount?: number;
   turretCount?: number;
   mobGroundCount?: number;
