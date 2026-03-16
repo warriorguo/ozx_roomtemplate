@@ -120,7 +120,7 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 
 	// Step 3: Generate bridge layer
 	bridgeLayer := copyLayer(emptyLayer)
-	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, req.Width, req.Height)
+	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer, req.Width, req.Height)
 	debugInfo.BridgeLayer = bridgeLayerDebug
 
 	// Step 3.5: Generate rail layer

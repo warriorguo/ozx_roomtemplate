@@ -351,6 +351,16 @@ export class TemplateApiService {
       body: JSON.stringify(request),
     });
   }
+
+  /**
+   * Generate a full-type room
+   */
+  async generateFullRoom(request: FullRoomGenerateRequest): Promise<FullRoomGenerateResponse> {
+    return this.makeRequest<FullRoomGenerateResponse>('/generate/fullroom', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
 }
 
 // Bridge generation types
@@ -542,6 +552,71 @@ export interface PlatformDebugInfo {
 export interface PlatformGenerateResponse {
   payload: BackendTemplatePayload;
   debugInfo?: PlatformDebugInfo;
+}
+
+// Full room generation types
+export interface FullRoomGenerateRequest {
+  width: number;
+  height: number;
+  doors: DoorPosition[];
+  softEdgeCount?: number;
+  staticCount?: number;
+  turretCount?: number;
+  mobGroundCount?: number;
+  mobAirCount?: number;
+}
+
+export interface CornerEraseInfo {
+  corner: string;
+  position: string;
+  size: string;
+  rolledBack?: boolean;
+  reason?: string;
+}
+
+export interface CornerEraseDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  brushType?: string;
+  brushSize?: string;
+  combo?: string;
+  corners?: CornerEraseInfo[];
+}
+
+export interface CenterPitInfo {
+  position: string;
+  size: string;
+  rolledBack?: boolean;
+  reason?: string;
+}
+
+export interface CenterPitsDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  brushSize?: string;
+  pitCount?: number;
+  symmetry?: string;
+  pits?: CenterPitInfo[];
+}
+
+export interface FullRoomGroundDebugInfo {
+  cornerErase?: CornerEraseDebugInfo;
+  centerPits?: CenterPitsDebugInfo;
+}
+
+export interface FullRoomDebugInfo {
+  ground?: FullRoomGroundDebugInfo;
+  softEdge?: SoftEdgeDebugInfo;
+  bridgeLayer?: BridgeLayerDebugInfo;
+  static?: StaticDebugInfo;
+  turret?: TurretDebugInfo;
+  mobGround?: MobGroundDebugInfo;
+  mobAir?: MobAirDebugInfo;
+}
+
+export interface FullRoomGenerateResponse {
+  payload: BackendTemplatePayload;
+  debugInfo?: FullRoomDebugInfo;
 }
 
 // Create singleton instance

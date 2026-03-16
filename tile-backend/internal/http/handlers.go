@@ -414,3 +414,29 @@ func (h *TemplateHandler) GeneratePlatform(w http.ResponseWriter, r *http.Reques
 
 	h.respondJSON(w, http.StatusOK, result)
 }
+
+// GenerateFullRoom handles POST /api/v1/generate/fullroom
+func (h *TemplateHandler) GenerateFullRoom(w http.ResponseWriter, r *http.Request) {
+	var req generate.FullRoomGenerateRequest
+
+	// Parse request body
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		h.respondError(w, http.StatusBadRequest, "Invalid JSON", err.Error())
+		return
+	}
+
+	// Validate doors
+	if len(req.Doors) < 2 {
+		h.respondError(w, http.StatusBadRequest, "Invalid request", "at least 2 doors are required")
+		return
+	}
+
+	// Generate full room
+	result, err := generate.GenerateFullRoom(req)
+	if err != nil {
+		h.respondError(w, http.StatusBadRequest, "Generation failed", err.Error())
+		return
+	}
+
+	h.respondJSON(w, http.StatusOK, result)
+}

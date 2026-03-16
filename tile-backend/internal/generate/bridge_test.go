@@ -2174,7 +2174,7 @@ func TestGenerateBridgeLayerWithDebug_NoIslands(t *testing.T) {
 	}
 	bridgeLayer := createEmptyLayer(5, 5)
 
-	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, 5, 5)
+	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, createEmptyLayer(len(ground[0]), len(ground)), 5, 5)
 
 	assert.True(t, debug.Skipped, "should be skipped when no floating islands")
 	assert.Equal(t, 1, debug.IslandsFound, "should find 1 island (main ground)")
@@ -2198,7 +2198,7 @@ func TestGenerateBridgeLayerWithDebug_WithFloatingIsland(t *testing.T) {
 	}
 	bridgeLayer := createEmptyLayer(10, 10)
 
-	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, 10, 10)
+	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, createEmptyLayer(len(ground[0]), len(ground)), 10, 10)
 
 	t.Logf("BridgeLayer debug: %+v", debug)
 
@@ -2228,7 +2228,7 @@ func TestCanPlaceBridge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := canPlaceBridge(tt.x, tt.y, ground, bridgeLayer, 4, 4)
+			result := canPlaceBridge(tt.x, tt.y, ground, bridgeLayer, createEmptyLayer(4, 4), 4, 4)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -2313,7 +2313,7 @@ func TestFillConcaveGapsWithBridges(t *testing.T) {
 	height := 12
 	bridgeLayer := createEmptyLayer(width, height)
 
-	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, width, height)
+	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, createEmptyLayer(len(ground[0]), len(ground)), width, height)
 
 	t.Logf("Islands found: %d", debug.IslandsFound)
 	t.Logf("Bridges placed: %d", debug.BridgesPlaced)

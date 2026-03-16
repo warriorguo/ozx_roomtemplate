@@ -277,7 +277,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 
 	// Step 3.5: Generate bridge layer to connect floating islands
 	bridgeLayer := copyLayer(emptyLayer)
-	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, req.Width, req.Height)
+	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer, req.Width, req.Height)
 	debugInfo.BridgeLayer = bridgeLayerDebug
 
 	// Step 3.6: Generate rail layer if enabled
@@ -1000,7 +1000,7 @@ type Island struct {
 }
 
 // generateBridgeLayerWithDebug generates bridges to connect floating islands to ground/other islands
-func generateBridgeLayerWithDebug(bridgeLayer, ground [][]int, width, height int) *BridgeLayerDebugInfo {
+func generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer [][]int, width, height int) *BridgeLayerDebugInfo {
 	debug := &BridgeLayerDebugInfo{}
 
 	// Step 1: Find all connected regions (islands) in the ground layer
@@ -1045,7 +1045,7 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground [][]int, width, height int
 			unconnectedIsland := islands[unconnectedID]
 
 			// Find the nearest connected island/ground
-			bestConnection := findBestBridgeConnection(unconnectedIsland, islands, connected, ground, bridgeLayer, width, height)
+			bestConnection := findBestBridgeConnection(unconnectedIsland, islands, connected, ground, bridgeLayer, softEdgeLayer, width, height)
 
 			if bestConnection == nil {
 				// Cannot connect this island
@@ -1075,7 +1075,7 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground [][]int, width, height int
 	// Step 3: Fill concave gaps with bridges
 	// Look for horizontal gaps where ground exists on both sides but void in middle,
 	// and ground exists above the void (creating a concave shape)
-	concaveGapBridges := fillConcaveGapsWithBridges(bridgeLayer, ground, width, height)
+	concaveGapBridges := fillConcaveGapsWithBridges(bridgeLayer, ground, softEdgeLayer, width, height)
 	debug.ConcaveGapBridges = concaveGapBridges
 	debug.BridgesPlaced += len(concaveGapBridges)
 
@@ -1095,7 +1095,7 @@ type bridgeConnectionResult struct {
 }
 
 // findBestBridgeConnection finds the best position to place a 2x2 bridge connecting an island to existing ground
-func findBestBridgeConnection(island Island, allIslands []Island, connected map[int]bool, ground, bridgeLayer [][]int, width, height int) *bridgeConnectionResult {
+func findBestBridgeConnection(island Island, allIslands []Island, connected map[int]bool, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) *bridgeConnectionResult {
 	// For each edge cell of the island, try to find a valid bridge position
 	// The bridge must touch the island (2x2 fully adjacent) and also touch ground or another connected island
 
@@ -1132,7 +1132,7 @@ func findBestBridgeConnection(island Island, allIslands []Island, connected map[
 			// For above/below: bridge needs to span 2 cells horizontally to touch island
 			// Let's check if the bridge can be placed and touches both island and ground
 
-			if !canPlaceBridge(bx, by, ground, bridgeLayer, width, height) {
+			if !canPlaceBridge(bx, by, ground, bridgeLayer, softEdgeLayer, width, height) {
 				continue
 			}
 
@@ -1176,16 +1176,16 @@ func findBestBridgeConnection(island Island, allIslands []Island, connected map[
 }
 
 // canPlaceBridge checks if a 2x2 bridge can be placed at (x, y)
-func canPlaceBridge(x, y int, ground, bridgeLayer [][]int, width, height int) bool {
+func canPlaceBridge(x, y int, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) bool {
 	// Bridge must be within bounds
 	if x < 0 || x+bridgeSize > width || y < 0 || y+bridgeSize > height {
 		return false
 	}
 
-	// All cells must be void (ground=0) and no existing bridge
+	// All cells must be void (ground=0), no existing bridge, and no soft edge
 	for dy := 0; dy < bridgeSize; dy++ {
 		for dx := 0; dx < bridgeSize; dx++ {
-			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 {
+			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 || softEdgeLayer[y+dy][x+dx] != 0 {
 				return false
 			}
 		}
@@ -1289,7 +1289,7 @@ const minConcaveGapSize = 4
 
 // fillConcaveGapsWithBridges finds horizontal concave gaps and places bridges to fill them
 // A concave gap is: ground on both sides of a row, void in middle, and ground exists above the void
-func fillConcaveGapsWithBridges(bridgeLayer, ground [][]int, width, height int) []BridgeConnection {
+func fillConcaveGapsWithBridges(bridgeLayer, ground, softEdgeLayer [][]int, width, height int) []BridgeConnection {
 	var connections []BridgeConnection
 
 	// Scan each row for horizontal concave gaps
@@ -1314,7 +1314,7 @@ func fillConcaveGapsWithBridges(bridgeLayer, ground [][]int, width, height int) 
 			bridgeY := y
 
 			// Ensure bridge fits and all cells are void
-			if !canPlaceBridgeAt(bridgeLayer, ground, bridgeX, bridgeY, width, height) {
+			if !canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer, bridgeX, bridgeY, width, height) {
 				continue
 			}
 
@@ -1391,16 +1391,16 @@ func isConcaveGap(ground [][]int, startX, endX, y, width, height int) bool {
 }
 
 // canPlaceBridgeAt checks if a 2x2 bridge can be placed at the given position
-func canPlaceBridgeAt(bridgeLayer, ground [][]int, x, y, width, height int) bool {
+func canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer [][]int, x, y, width, height int) bool {
 	// Bridge must be within bounds
 	if x < 0 || x+bridgeSize > width || y < 0 || y+bridgeSize > height {
 		return false
 	}
 
-	// All cells must be void (ground=0) and no existing bridge
+	// All cells must be void (ground=0), no existing bridge, and no soft edge
 	for dy := 0; dy < bridgeSize; dy++ {
 		for dx := 0; dx < bridgeSize; dx++ {
-			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 {
+			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 || softEdgeLayer[y+dy][x+dx] != 0 {
 				return false
 			}
 		}
@@ -2262,7 +2262,7 @@ const (
 )
 
 const (
-	mobGroundMinDoorDistance = 2 // Minimum distance from doors
+	mobGroundMinDoorDistance = 4 // Minimum distance from doors
 )
 
 // generateMobGroundLayer generates the mob ground layer with the given constraints
@@ -4398,10 +4398,11 @@ func isValidTurretPositionWithRail(pos Point, ground, softEdge, bridge, rail, st
 		return false
 	}
 
-	// Check door forbidden zones
-	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
-	if forbiddenCells[pos] {
-		return false
+	// Must be at least turretMinDoorDistance cells away from doors
+	for _, doorPos := range doorPositions {
+		if manhattanDistance(pos, doorPos) < turretMinDoorDistance {
+			return false
+		}
 	}
 
 	return true
@@ -4462,6 +4463,13 @@ func isValidMobGroundPositionWithRail(pos Point, ground, softEdge, bridge, rail,
 	// Cannot be on existing mob ground
 	if mobGroundLayer[y][x] == 1 {
 		return false
+	}
+
+	// Must be at least mobGroundMinDoorDistance cells away from doors
+	for _, doorPos := range doorPositions {
+		if manhattanDistance(pos, doorPos) < mobGroundMinDoorDistance {
+			return false
+		}
 	}
 
 	return true
