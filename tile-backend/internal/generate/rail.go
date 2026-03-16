@@ -106,85 +106,183 @@ func GenerateRailLayer(railLayer, ground, bridge [][]int, width, height int) *Ra
 	return debug
 }
 
-// findRailPlatforms finds all solid rectangular walkable areas >= 6x6 with edge distance >= 2.
-// Greedy approach: scan each valid starting point, expand right then down to find max rectangle.
+// findRailPlatforms finds solid rectangular walkable areas >= 6x6 with edge distance >= 2.
+// Searches from all 4 corners, picks the 2 largest, and merges them into a combined outline.
 func findRailPlatforms(ground, bridge [][]int, width, height int) []RailPlatform {
-	// Walkable = ground or bridge
 	isWalkable := func(x, y int) bool {
 		return ground[y][x] == 1 || bridge[y][x] == 1
 	}
 
-	// Search bounds respecting edge distance
 	minX, minY := minRailEdgeDistance, minRailEdgeDistance
 	maxX, maxY := width-minRailEdgeDistance, height-minRailEdgeDistance
 
-	var best RailPlatform
-	bestArea := 0
+	// findMaxRect finds the largest solid rectangle expanding from a corner direction.
+	// dirX/dirY: +1 = expand right/down, -1 = expand left/up
+	findMaxRect := func(startX, startY, dirX, dirY int) RailPlatform {
+		var best RailPlatform
+		bestArea := 0
 
-	// For each starting point, find the largest solid rectangle
-	for sy := minY; sy <= maxY-minPlatformForRail; sy++ {
-		for sx := minX; sx <= maxX-minPlatformForRail; sx++ {
-			if !isWalkable(sx, sy) {
-				continue
+		// Find max width in the starting row
+		maxW := 0
+		for x := startX; x >= minX && x < maxX; x += dirX {
+			if !isWalkable(x, startY) {
+				break
 			}
+			maxW++
+		}
+		if maxW < minPlatformForRail {
+			return best
+		}
 
-			// Find max width from this starting row
-			maxW := 0
-			for x := sx; x < maxX && isWalkable(x, sy); x++ {
-				maxW++
-			}
-			if maxW < minPlatformForRail {
-				continue
-			}
-
-			// Expand downward, shrinking width as needed
-			curW := maxW
-			for dy := 1; sy+dy < maxY; dy++ {
-				// Check how wide this row is
-				rowW := 0
-				for x := sx; x < sx+curW && isWalkable(x, sy+dy); x++ {
+		curW := maxW
+		h := 0
+		for y := startY; y >= minY && y < maxY; y += dirY {
+			rowW := 0
+			if dirX > 0 {
+				for x := startX; x < startX+curW && x < maxX && isWalkable(x, y); x++ {
 					rowW++
 				}
-				if rowW < minPlatformForRail {
-					break
-				}
-				curW = rowW
-
-				h := dy + 1
-				if h >= minPlatformForRail && curW*h > bestArea {
-					bestArea = curW * h
-					best = RailPlatform{X: sx, Y: sy, Width: curW, Height: h}
+			} else {
+				for x := startX; x > startX-curW && x >= minX && isWalkable(x, y); x-- {
+					rowW++
 				}
 			}
+			if rowW < minPlatformForRail {
+				break
+			}
+			curW = rowW
+			h++
 
-			// Also check single-row-expansion case
-			if maxW >= minPlatformForRail {
-				// Re-check full height with maxW
-				fullH := 0
-				w := maxW
-				for y := sy; y < maxY; y++ {
-					rowW := 0
-					for x := sx; x < sx+w && isWalkable(x, y); x++ {
-						rowW++
-					}
-					if rowW < minPlatformForRail {
+			if h >= minPlatformForRail && curW*h > bestArea {
+				bestArea = curW * h
+				// Normalize to top-left origin
+				rx := startX
+				ry := startY
+				if dirX < 0 {
+					rx = startX - curW + 1
+				}
+				if dirY < 0 {
+					ry = y
+				}
+				best = RailPlatform{X: rx, Y: ry, Width: curW, Height: h}
+			}
+		}
+		return best
+	}
+
+	// Search from 4 corners
+	rects := []RailPlatform{
+		findMaxRect(minX, minY, +1, +1),     // top-left
+		findMaxRect(maxX-1, minY, -1, +1),   // top-right
+		findMaxRect(minX, maxY-1, +1, -1),   // bottom-left
+		findMaxRect(maxX-1, maxY-1, -1, -1), // bottom-right
+	}
+
+	// Fallback: if corners didn't find enough, scan for the first walkable point and expand
+	hasValid := false
+	for _, r := range rects {
+		if r.Width*r.Height >= minPlatformForRail*minPlatformForRail {
+			hasValid = true
+			break
+		}
+	}
+	if !hasValid {
+		// Scan top-left to bottom-right for any walkable starting point
+		for sy := minY; sy <= maxY-minPlatformForRail; sy++ {
+			for sx := minX; sx <= maxX-minPlatformForRail; sx++ {
+				if isWalkable(sx, sy) {
+					r := findMaxRect(sx, sy, +1, +1)
+					if r.Width*r.Height >= minPlatformForRail*minPlatformForRail {
+						rects = append(rects, r)
+						hasValid = true
 						break
 					}
-					w = rowW
-					fullH++
 				}
-				if fullH >= minPlatformForRail && w*fullH > bestArea {
-					bestArea = w * fullH
-					best = RailPlatform{X: sx, Y: sy, Width: w, Height: fullH}
-				}
+			}
+			if hasValid {
+				break
 			}
 		}
 	}
 
-	if bestArea == 0 {
+	// Sort by area descending, pick top 2
+	type rectWithArea struct {
+		r    RailPlatform
+		area int
+	}
+	var valid []rectWithArea
+	for _, r := range rects {
+		a := r.Width * r.Height
+		if a >= minPlatformForRail*minPlatformForRail {
+			valid = append(valid, rectWithArea{r, a})
+		}
+	}
+	if len(valid) == 0 {
 		return nil
 	}
-	return []RailPlatform{best}
+
+	// Sort descending by area
+	for i := 0; i < len(valid)-1; i++ {
+		for j := i + 1; j < len(valid); j++ {
+			if valid[j].area > valid[i].area {
+				valid[i], valid[j] = valid[j], valid[i]
+			}
+		}
+	}
+
+	// If only 1 valid or the two largest don't overlap, return the biggest
+	if len(valid) == 1 {
+		return []RailPlatform{valid[0].r}
+	}
+
+	r1, r2 := valid[0].r, valid[1].r
+
+	// Try to merge: compute union bounding box
+	merged := mergeRailPlatforms(r1, r2)
+	if merged != nil {
+		return []RailPlatform{*merged}
+	}
+
+	// No useful merge, return the largest
+	return []RailPlatform{r1}
+}
+
+// mergeRailPlatforms merges two overlapping/adjacent rectangles into their union bounding box.
+// Returns nil if the two rectangles don't overlap or aren't adjacent.
+func mergeRailPlatforms(a, b RailPlatform) *RailPlatform {
+	// Check overlap or adjacency (touching edges count)
+	aRight, aBottom := a.X+a.Width, a.Y+a.Height
+	bRight, bBottom := b.X+b.Width, b.Y+b.Height
+
+	// No overlap and not adjacent
+	if a.X > bRight || b.X > aRight || a.Y > bBottom || b.Y > aBottom {
+		return nil
+	}
+
+	// Union bounding box
+	ux := a.X
+	if b.X < ux {
+		ux = b.X
+	}
+	uy := a.Y
+	if b.Y < uy {
+		uy = b.Y
+	}
+	ur := aRight
+	if bRight > ur {
+		ur = bRight
+	}
+	ub := aBottom
+	if bBottom > ub {
+		ub = bBottom
+	}
+
+	return &RailPlatform{
+		X:      ux,
+		Y:      uy,
+		Width:  ur - ux,
+		Height: ub - uy,
+	}
 }
 
 // tryPlaceRailLoop attempts to place a rail loop on the given platform
