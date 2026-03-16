@@ -106,10 +106,9 @@ func GenerateRailLayer(railLayer, ground, bridge [][]int, width, height int) *Ra
 	return debug
 }
 
-// findRailPlatforms finds all rectangular walkable areas >= 6x6 with edge distance >= 2
+// findRailPlatforms finds all rectangular walkable areas >= 6x6 with edge distance >= 2.
+// Uses histogram-based maximal rectangle algorithm to handle rooms with holes (e.g. fullroom).
 func findRailPlatforms(ground, bridge [][]int, width, height int) []RailPlatform {
-	var platforms []RailPlatform
-
 	// Create combined walkable layer
 	walkable := make([][]bool, height)
 	for y := 0; y < height; y++ {
@@ -119,74 +118,124 @@ func findRailPlatforms(ground, bridge [][]int, width, height int) []RailPlatform
 		}
 	}
 
-	// Find rectangular regions of walkable cells
-	visited := make([][]bool, height)
+	// Build height histogram: heights[y][x] = number of consecutive walkable cells above (including y)
+	heights := make([][]int, height)
 	for y := 0; y < height; y++ {
-		visited[y] = make([]bool, width)
-	}
-
-	// Scan for platforms with minimum edge distance
-	for y := minRailEdgeDistance; y < height-minRailEdgeDistance; y++ {
-		for x := minRailEdgeDistance; x < width-minRailEdgeDistance; x++ {
-			if visited[y][x] || !walkable[y][x] {
-				continue
-			}
-
-			// Find the maximum rectangle starting from this point
-			platform := findMaxWalkableRectangle(walkable, visited, x, y, width, height)
-
-			// Check if platform meets minimum size requirements
-			if platform.Width >= minPlatformForRail && platform.Height >= minPlatformForRail {
-				// Ensure platform respects edge distance
-				if platform.X >= minRailEdgeDistance &&
-					platform.Y >= minRailEdgeDistance &&
-					platform.X+platform.Width <= width-minRailEdgeDistance &&
-					platform.Y+platform.Height <= height-minRailEdgeDistance {
-					platforms = append(platforms, platform)
+		heights[y] = make([]int, width)
+		for x := 0; x < width; x++ {
+			if walkable[y][x] {
+				if y == 0 {
+					heights[y][x] = 1
+				} else {
+					heights[y][x] = heights[y-1][x] + 1
 				}
 			}
+		}
+	}
+
+	// For each row, find all maximal rectangles using the histogram
+	var platforms []RailPlatform
+	covered := make([][]bool, height)
+	for y := 0; y < height; y++ {
+		covered[y] = make([]bool, width)
+	}
+
+	// Find the largest rectangle first, then progressively smaller ones
+	for y := minRailEdgeDistance; y < height-minRailEdgeDistance; y++ {
+		rects := findRectanglesInHistogram(heights[y], width, y)
+		for _, r := range rects {
+			// Clamp rectangle to respect edge distance from room boundaries
+			if r.X < minRailEdgeDistance {
+				shrink := minRailEdgeDistance - r.X
+				r.Width -= shrink
+				r.X = minRailEdgeDistance
+			}
+			if r.Y < minRailEdgeDistance {
+				shrink := minRailEdgeDistance - r.Y
+				r.Height -= shrink
+				r.Y = minRailEdgeDistance
+			}
+			if r.X+r.Width > width-minRailEdgeDistance {
+				r.Width = width - minRailEdgeDistance - r.X
+			}
+			if r.Y+r.Height > height-minRailEdgeDistance {
+				r.Height = height - minRailEdgeDistance - r.Y
+			}
+
+			if r.Width < minPlatformForRail || r.Height < minPlatformForRail {
+				continue
+			}
+			// Check not already largely covered by an existing platform
+			if isPlatformCovered(r, covered) {
+				continue
+			}
+			platforms = append(platforms, r)
+			markPlatformCovered(r, covered)
 		}
 	}
 
 	return platforms
 }
 
-// findMaxWalkableRectangle finds the maximum rectangle of walkable cells
-func findMaxWalkableRectangle(walkable [][]bool, visited [][]bool, startX, startY, width, height int) RailPlatform {
-	// Find max width from starting point
-	maxWidth := 0
-	for x := startX; x < width && walkable[startY][x]; x++ {
-		maxWidth++
+// findRectanglesInHistogram finds all rectangles >= minPlatformForRail in a histogram row.
+// Uses a stack-based approach to find maximal rectangles.
+func findRectanglesInHistogram(hist []int, width, bottomY int) []RailPlatform {
+	var results []RailPlatform
+	type stackEntry struct {
+		x, h int
+	}
+	var stack []stackEntry
+
+	for x := 0; x <= width; x++ {
+		h := 0
+		if x < width {
+			h = hist[x]
+		}
+
+		startX := x
+		for len(stack) > 0 && stack[len(stack)-1].h > h {
+			top := stack[len(stack)-1]
+			stack = stack[:len(stack)-1]
+
+			rectW := x - top.x
+			rectH := top.h
+			if rectW >= minPlatformForRail && rectH >= minPlatformForRail {
+				results = append(results, RailPlatform{
+					X:      top.x,
+					Y:      bottomY - rectH + 1,
+					Width:  rectW,
+					Height: rectH,
+				})
+			}
+			startX = top.x
+		}
+
+		if h > 0 {
+			if len(stack) == 0 || h != stack[len(stack)-1].h {
+				stack = append(stack, stackEntry{startX, h})
+			}
+		}
 	}
 
-	// Find max height that maintains at least minPlatformForRail width
-	maxHeight := 0
-	currentWidth := maxWidth
-	for y := startY; y < height && currentWidth >= minPlatformForRail; y++ {
-		// Check this row's walkable width
-		rowWidth := 0
-		for x := startX; x < width && x < startX+currentWidth && walkable[y][x]; x++ {
-			rowWidth++
-		}
-		if rowWidth < minPlatformForRail {
-			break
-		}
-		currentWidth = rowWidth
-		maxHeight++
-	}
+	return results
+}
 
-	// Mark visited cells
-	for y := startY; y < startY+maxHeight && y < height; y++ {
-		for x := startX; x < startX+currentWidth && x < width; x++ {
-			visited[y][x] = true
-		}
+// isPlatformCovered checks if a platform's center region is already covered
+func isPlatformCovered(p RailPlatform, covered [][]bool) bool {
+	cx := p.X + p.Width/2
+	cy := p.Y + p.Height/2
+	if cy >= 0 && cy < len(covered) && cx >= 0 && cx < len(covered[0]) {
+		return covered[cy][cx]
 	}
+	return false
+}
 
-	return RailPlatform{
-		X:      startX,
-		Y:      startY,
-		Width:  currentWidth,
-		Height: maxHeight,
+// markPlatformCovered marks a platform region as covered
+func markPlatformCovered(p RailPlatform, covered [][]bool) {
+	for y := p.Y; y < p.Y+p.Height && y < len(covered); y++ {
+		for x := p.X; x < p.X+p.Width && x < len(covered[0]); x++ {
+			covered[y][x] = true
+		}
 	}
 }
 

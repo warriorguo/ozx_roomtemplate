@@ -560,6 +560,7 @@ export interface FullRoomGenerateRequest {
   height: number;
   doors: DoorPosition[];
   softEdgeCount?: number;
+  railEnabled?: boolean;
   staticCount?: number;
   turretCount?: number;
   mobGroundCount?: number;
@@ -604,10 +605,32 @@ export interface FullRoomGroundDebugInfo {
   centerPits?: CenterPitsDebugInfo;
 }
 
+export interface RailDebugInfo {
+  skipped: boolean;
+  skipReason?: string;
+  platformsFound: number;
+  railLoops: RailLoopInfo[];
+  misses?: MissInfo[];
+}
+
+export interface RailLoopInfo {
+  platform: string;
+  boundingBox: string;
+  perimeter: number;
+  indents: IndentInfo[];
+}
+
+export interface IndentInfo {
+  position: string;
+  direction: string;
+  size: number;
+}
+
 export interface FullRoomDebugInfo {
   ground?: FullRoomGroundDebugInfo;
   softEdge?: SoftEdgeDebugInfo;
   bridgeLayer?: BridgeLayerDebugInfo;
+  rail?: RailDebugInfo;
   static?: StaticDebugInfo;
   turret?: TurretDebugInfo;
   mobGround?: MobGroundDebugInfo;
