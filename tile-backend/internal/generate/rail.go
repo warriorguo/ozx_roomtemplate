@@ -39,10 +39,61 @@ type IndentInfo struct {
 	Size      int    `json:"size"`      // Size of the indent
 }
 
-// RailPlatform represents a rectangular walkable area suitable for rail placement
+// RailPlatform represents a walkable area suitable for rail placement.
+// Can be a simple rectangle (Cells == nil) or a non-rectangular merged shape.
 type RailPlatform struct {
-	X, Y          int // Top-left corner
-	Width, Height int
+	X, Y          int      // Bounding box top-left corner
+	Width, Height int      // Bounding box size
+	Cells         [][]bool // nil for simple rectangles; set for merged shapes
+}
+
+// isFilled checks if a local coordinate (relative to X,Y) is filled
+func (p RailPlatform) isFilled(lx, ly int) bool {
+	if lx < 0 || lx >= p.Width || ly < 0 || ly >= p.Height {
+		return false
+	}
+	if p.Cells == nil {
+		return true // simple rectangle: all cells filled
+	}
+	return p.Cells[ly][lx]
+}
+
+// isPerimeter checks if a local coordinate is on the outer perimeter
+func (p RailPlatform) isPerimeter(lx, ly int) bool {
+	if !p.isFilled(lx, ly) {
+		return false
+	}
+	return !p.isFilled(lx-1, ly) || !p.isFilled(lx+1, ly) ||
+		!p.isFilled(lx, ly-1) || !p.isFilled(lx, ly+1)
+}
+
+// area returns the number of filled cells
+func (p RailPlatform) area() int {
+	if p.Cells == nil {
+		return p.Width * p.Height
+	}
+	count := 0
+	for ly := 0; ly < p.Height; ly++ {
+		for lx := 0; lx < p.Width; lx++ {
+			if p.Cells[ly][lx] {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// perimeterCells returns all cells on the outer perimeter in global coordinates
+func (p RailPlatform) perimeterCells() []Point {
+	var cells []Point
+	for ly := 0; ly < p.Height; ly++ {
+		for lx := 0; lx < p.Width; lx++ {
+			if p.isPerimeter(lx, ly) {
+				cells = append(cells, Point{X: p.X + lx, Y: p.Y + ly})
+			}
+		}
+	}
+	return cells
 }
 
 // RailLoop represents a closed rail loop
@@ -247,10 +298,10 @@ func findRailPlatforms(ground, bridge [][]int, width, height int) []RailPlatform
 	return []RailPlatform{r1}
 }
 
-// mergeRailPlatforms merges two overlapping/adjacent rectangles into their union bounding box.
+// mergeRailPlatforms merges two overlapping/adjacent rectangles into their union shape.
+// The result is a non-rectangular RailPlatform with Cells set to the union of both rects.
 // Returns nil if the two rectangles don't overlap or aren't adjacent.
 func mergeRailPlatforms(a, b RailPlatform) *RailPlatform {
-	// Check overlap or adjacency (touching edges count)
 	aRight, aBottom := a.X+a.Width, a.Y+a.Height
 	bRight, bBottom := b.X+b.Width, b.Y+b.Height
 
@@ -277,25 +328,44 @@ func mergeRailPlatforms(a, b RailPlatform) *RailPlatform {
 		ub = bBottom
 	}
 
+	w, h := ur-ux, ub-uy
+	cells := make([][]bool, h)
+	for ly := 0; ly < h; ly++ {
+		cells[ly] = make([]bool, w)
+		for lx := 0; lx < w; lx++ {
+			gx, gy := ux+lx, uy+ly
+			inA := gx >= a.X && gx < aRight && gy >= a.Y && gy < aBottom
+			inB := gx >= b.X && gx < bRight && gy >= b.Y && gy < bBottom
+			cells[ly][lx] = inA || inB
+		}
+	}
+
 	return &RailPlatform{
 		X:      ux,
 		Y:      uy,
-		Width:  ur - ux,
-		Height: ub - uy,
+		Width:  w,
+		Height: h,
+		Cells:  cells,
 	}
 }
 
-// tryPlaceRailLoop attempts to place a rail loop on the given platform
+// tryPlaceRailLoop attempts to place a rail loop on the given platform.
+// For simple rectangles: draws a hollow rectangle perimeter with optional indents.
+// For merged shapes (Cells set): draws the outer perimeter of the union shape.
 func tryPlaceRailLoop(railLayer, ground, bridge [][]int, platform RailPlatform, width, height int, debug *RailDebugInfo) *RailLoopInfo {
-	// Calculate the maximum rail rectangle that fits within the platform
-	// Leave 1 cell margin inside for potential indents
+	if platform.Cells != nil {
+		return tryPlaceMergedRailLoop(railLayer, ground, bridge, platform, width, height, debug)
+	}
+	return tryPlaceRectRailLoop(railLayer, ground, bridge, platform, width, height, debug)
+}
+
+// tryPlaceRectRailLoop places a rail loop for a simple rectangular platform
+func tryPlaceRectRailLoop(railLayer, ground, bridge [][]int, platform RailPlatform, width, height int, debug *RailDebugInfo) *RailLoopInfo {
 	railX := platform.X
 	railY := platform.Y
 	railW := platform.Width
 	railH := platform.Height
 
-	// Ensure minimum enclosed area (5x5 means the hollow part is at least 5x5)
-	// So the rail rectangle must be at least 7x7 (outer border + 5x5 inside + outer border)
 	minRailSize := minRailAreaSize + 2
 	if railW < minRailSize || railH < minRailSize {
 		debug.Misses = append(debug.Misses, MissInfo{
@@ -305,7 +375,7 @@ func tryPlaceRailLoop(railLayer, ground, bridge [][]int, platform RailPlatform, 
 		return nil
 	}
 
-	// Randomly shrink the rail rectangle a bit for variety
+	// Randomly shrink for variety
 	if railW > minRailSize+2 {
 		shrink := rand.Intn((railW - minRailSize) / 2)
 		railX += shrink
@@ -317,7 +387,6 @@ func tryPlaceRailLoop(railLayer, ground, bridge [][]int, platform RailPlatform, 
 		railH -= shrink * 2
 	}
 
-	// Verify all rail positions are on ground or bridge
 	if !verifyRailPositions(railX, railY, railW, railH, ground, bridge, width, height) {
 		debug.Misses = append(debug.Misses, MissInfo{
 			Reason: fmt.Sprintf("rail positions at (%d,%d) %dx%d not all on ground/bridge",
@@ -326,44 +395,122 @@ func tryPlaceRailLoop(railLayer, ground, bridge [][]int, platform RailPlatform, 
 		return nil
 	}
 
-	// Draw the hollow rectangle (rail loop)
 	loopInfo := &RailLoopInfo{
 		Platform:    fmt.Sprintf("(%d,%d) %dx%d", platform.X, platform.Y, platform.Width, platform.Height),
 		BoundingBox: fmt.Sprintf("(%d,%d) %dx%d", railX, railY, railW, railH),
 		Indents:     []IndentInfo{},
 	}
 
-	// Draw top and bottom edges
+	// Draw hollow rectangle
 	for x := railX; x < railX+railW; x++ {
-		railLayer[railY][x] = 1                // Top edge
-		railLayer[railY+railH-1][x] = 1        // Bottom edge
+		railLayer[railY][x] = 1
+		railLayer[railY+railH-1][x] = 1
 	}
-
-	// Draw left and right edges (excluding corners already drawn)
 	for y := railY + 1; y < railY+railH-1; y++ {
-		railLayer[y][railX] = 1              // Left edge
-		railLayer[y][railX+railW-1] = 1      // Right edge
+		railLayer[y][railX] = 1
+		railLayer[y][railX+railW-1] = 1
 	}
+	loopInfo.Perimeter = 2*(railW+railH) - 4
 
-	// Calculate initial perimeter
-	loopInfo.Perimeter = 2*(railW+railH) - 4 // Subtract 4 for corners counted twice
-
-	// Add random indents (30% probability, max 4)
+	// Add random indents
 	indentCount := 0
 	for indentCount < maxRailIndents {
 		if rand.Intn(100) >= railIndentProb {
 			break
 		}
-
 		indent := tryAddRailIndent(railLayer, ground, bridge, railX, railY, railW, railH, width, height)
 		if indent != nil {
 			loopInfo.Indents = append(loopInfo.Indents, *indent)
-			loopInfo.Perimeter += indent.Size * 2 // Each indent adds cells to perimeter
+			loopInfo.Perimeter += indent.Size * 2
 			indentCount++
 		}
 	}
 
 	return loopInfo
+}
+
+// tryPlaceMergedRailLoop places a rail loop for a merged (non-rectangular) platform.
+// Draws the outer perimeter of the union shape.
+func tryPlaceMergedRailLoop(railLayer, ground, bridge [][]int, platform RailPlatform, width, height int, debug *RailDebugInfo) *RailLoopInfo {
+	// Shrink the platform by 1 cell on each side internally for the rail perimeter
+	shrunk := shrinkPlatform(platform)
+	if shrunk == nil {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("merged platform (%d,%d) %dx%d too small after shrinking",
+				platform.X, platform.Y, platform.Width, platform.Height),
+		})
+		return nil
+	}
+
+	// Get perimeter cells
+	perimCells := shrunk.perimeterCells()
+	if len(perimCells) < minRailAreaSize*4-4 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("merged platform perimeter too small (%d cells)", len(perimCells)),
+		})
+		return nil
+	}
+
+	// Verify all perimeter cells are on ground or bridge
+	for _, cell := range perimCells {
+		if cell.X < 0 || cell.X >= width || cell.Y < 0 || cell.Y >= height {
+			debug.Misses = append(debug.Misses, MissInfo{
+				Reason: "merged rail perimeter extends out of bounds",
+			})
+			return nil
+		}
+		if ground[cell.Y][cell.X] != 1 && bridge[cell.Y][cell.X] != 1 {
+			debug.Misses = append(debug.Misses, MissInfo{
+				Reason: fmt.Sprintf("merged rail cell (%d,%d) not on ground/bridge", cell.X, cell.Y),
+			})
+			return nil
+		}
+	}
+
+	// Draw perimeter
+	for _, cell := range perimCells {
+		railLayer[cell.Y][cell.X] = 1
+	}
+
+	loopInfo := &RailLoopInfo{
+		Platform:    fmt.Sprintf("(%d,%d) %dx%d (merged)", platform.X, platform.Y, platform.Width, platform.Height),
+		BoundingBox: fmt.Sprintf("(%d,%d) %dx%d", shrunk.X, shrunk.Y, shrunk.Width, shrunk.Height),
+		Perimeter:   len(perimCells),
+		Indents:     []IndentInfo{},
+	}
+
+	return loopInfo
+}
+
+// shrinkPlatform shrinks a merged platform by 1 cell on all internal edges,
+// producing a slightly smaller shape for the rail perimeter.
+func shrinkPlatform(p RailPlatform) *RailPlatform {
+	if p.Width < minRailAreaSize+2 || p.Height < minRailAreaSize+2 {
+		return nil
+	}
+
+	// Shrink by 1 on each side of the bounding box
+	newW, newH := p.Width-2, p.Height-2
+	if newW < minRailAreaSize || newH < minRailAreaSize {
+		return nil
+	}
+
+	cells := make([][]bool, newH)
+	for ly := 0; ly < newH; ly++ {
+		cells[ly] = make([]bool, newW)
+		for lx := 0; lx < newW; lx++ {
+			// Map back to original: offset by 1
+			cells[ly][lx] = p.isFilled(lx+1, ly+1)
+		}
+	}
+
+	return &RailPlatform{
+		X:      p.X + 1,
+		Y:      p.Y + 1,
+		Width:  newW,
+		Height: newH,
+		Cells:  cells,
+	}
 }
 
 // verifyRailPositions checks if all rail positions are on ground or bridge
