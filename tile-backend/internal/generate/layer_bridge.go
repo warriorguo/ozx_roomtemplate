@@ -130,32 +130,29 @@ func findBestBridgeConnection(island Island, allIslands []Island, connected map[
 	// It must touch the island and must connect to existing ground
 
 	for _, cell := range island.Cells {
-		// Try placing bridge in 4 directions from this cell
-		// Direction: bridge placed such that it touches this cell
-
-		directions := []struct {
-			dx, dy int
-			desc   string
-		}{
-			{-2, 0, "left"},  // Bridge to the left of cell
-			{2, 0, "right"},  // Bridge to the right of cell
-			{0, -2, "above"}, // Bridge above cell
-			{0, 2, "below"},  // Bridge below cell
+		// Try all possible 2x2 bridge positions adjacent to this cell.
+		// The bridge top-left corner (bx,by) can be at various offsets so that
+		// the 2x2 block is directly adjacent to the island cell.
+		offsets := []struct{ dx, dy int }{
+			{-2, -1}, {-2, 0}, {-2, 1},  // bridge to left
+			{2, -1}, {2, 0}, {2, 1},      // bridge to right (cell.X+2 is bridge left edge)
+			{-1, -2}, {0, -2}, {1, -2},   // bridge above
+			{-1, 2}, {0, 2}, {1, 2},      // bridge below
+			// Also try positions where bridge overlaps the gap directly adjacent
+			{-1, -1}, {-1, 0}, {-1, 1},   // bridge shifted left by 1
+			{1, -1}, {1, 0}, {1, 1},      // bridge shifted right by 1
+			{0, -1}, {0, 1},              // bridge shifted up/down by 1
 		}
 
-		for _, dir := range directions {
-			bx := cell.X + dir.dx
-			by := cell.Y + dir.dy
-
-			// For left/right: bridge needs to span 2 cells vertically to touch island
-			// For above/below: bridge needs to span 2 cells horizontally to touch island
-			// Let's check if the bridge can be placed and touches both island and ground
+		for _, off := range offsets {
+			bx := cell.X + off.dx
+			by := cell.Y + off.dy
 
 			if !canPlaceBridge(bx, by, ground, bridgeLayer, softEdgeLayer, width, height) {
 				continue
 			}
 
-			// Check if bridge touches the island
+			// Check if bridge touches the island (at least 2 adjacent cells)
 			if !bridgeTouchesIsland(bx, by, island, ground) {
 				continue
 			}
@@ -219,30 +216,36 @@ func fillConcaveGapsWithBridges(bridgeLayer, ground, softEdgeLayer [][]int, widt
 				continue
 			}
 
-			// Gap is wide enough and concave - place a bridge in the center
+			// Gap must be wide enough
 			gapWidth := gap.endX - gap.startX
 			if gapWidth < minConcaveGapSize {
 				continue
 			}
 
-			// Calculate center position for bridge (2x2)
-			bridgeX := gap.startX + (gapWidth-bridgeSize)/2
-			bridgeY := y
-
-			// Ensure bridge fits and all cells are void
-			if !canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer, bridgeX, bridgeY, width, height) {
-				continue
+			// Try placing bridge adjacent to left ground (gap.startX is first void cell)
+			// The bridge should be at gap.startX so it touches ground at gap.startX-1
+			placed := false
+			// Try positions from left side to right side of gap
+			for bx := gap.startX; bx+bridgeSize <= gap.endX; bx++ {
+				bridgeY := y
+				if !canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer, bx, bridgeY, width, height) {
+					continue
+				}
+				// Verify bridge actually touches ground on at least one side
+				if !bridgeTouchesGroundDirectly(bx, bridgeY, ground, width, height) {
+					continue
+				}
+				placeBridge(bridgeLayer, bx, bridgeY)
+				connections = append(connections, BridgeConnection{
+					From:     fmt.Sprintf("concave gap at y=%d", y),
+					To:       fmt.Sprintf("x=%d to x=%d", gap.startX, gap.endX-1),
+					Position: fmt.Sprintf("(%d,%d)", bx, bridgeY),
+					Size:     "2x2",
+				})
+				placed = true
+				break
 			}
-
-			// Place the bridge
-			placeBridge(bridgeLayer, bridgeX, bridgeY)
-
-			connections = append(connections, BridgeConnection{
-				From:     fmt.Sprintf("concave gap at y=%d", y),
-				To:       fmt.Sprintf("x=%d to x=%d", gap.startX, gap.endX-1),
-				Position: fmt.Sprintf("(%d,%d)", bridgeX, bridgeY),
-				Size:     "2x2",
-			})
+			_ = placed
 		}
 	}
 
@@ -304,6 +307,35 @@ func isConcaveGap(ground [][]int, startX, endX, y, width, height int) bool {
 	// Need significant ground coverage above (at least 50% of gap width)
 	gapWidth := endX - startX
 	return groundAboveCount >= gapWidth/2
+}
+
+// bridgeTouchesGroundDirectly checks if a 2x2 bridge at (bx,by) has at least one
+// orthogonally adjacent ground cell (not diagonal)
+func bridgeTouchesGroundDirectly(bx, by int, ground [][]int, width, height int) bool {
+	// All cells of the 2x2 bridge
+	bridgeCells := []Point{
+		{bx, by}, {bx + 1, by}, {bx, by + 1}, {bx + 1, by + 1},
+	}
+
+	for _, bc := range bridgeCells {
+		// Check 4 orthogonal neighbors
+		neighbors := []Point{
+			{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y},
+			{bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
+		}
+		for _, n := range neighbors {
+			// Skip if neighbor is part of the bridge itself
+			if n.X >= bx && n.X < bx+bridgeSize && n.Y >= by && n.Y < by+bridgeSize {
+				continue
+			}
+			if n.X >= 0 && n.X < width && n.Y >= 0 && n.Y < height {
+				if ground[n.Y][n.X] == 1 {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // findAllIslands finds all connected regions of ground cells using flood fill
