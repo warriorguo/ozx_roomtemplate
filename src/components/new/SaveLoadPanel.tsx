@@ -14,37 +14,23 @@ type DoorFilter = 'any' | 'connected' | 'disconnected';
 
 interface Filters {
   roomType: RoomTypeFilter;
+  stageType: string;
   doors: {
     top: DoorFilter;
     right: DoorFilter;
     bottom: DoorFilter;
     left: DoorFilter;
   };
-  attributes: {
-    boss: boolean | null;
-    elite: boolean | null;
-    mob: boolean | null;
-    treasure: boolean | null;
-    teleport: boolean | null;
-    story: boolean | null;
-  };
 }
 
 const initialFilters: Filters = {
   roomType: 'all',
+  stageType: 'all',
   doors: {
     top: 'any',
     right: 'any',
     bottom: 'any',
     left: 'any',
-  },
-  attributes: {
-    boss: null,
-    elite: null,
-    mob: null,
-    treasure: null,
-    teleport: null,
-    story: null,
   },
 };
 
@@ -54,13 +40,13 @@ const roomTypeLabels: Record<string, string> = {
   platform: 'Platform',
 };
 
-const attributeLabels: Record<string, string> = {
+const stageTypeLabels: Record<string, string> = {
+  teaching: 'Teaching',
+  building: 'Building',
+  pressure: 'Pressure',
+  peak: 'Peak',
+  release: 'Release',
   boss: 'Boss',
-  elite: 'Elite',
-  mob: 'Mob',
-  treasure: 'Treasure',
-  teleport: 'Teleport',
-  story: 'Story',
 };
 
 // Three-state checkbox component: null (any) -> true (yes) -> false (no) -> null (any)
@@ -143,6 +129,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
 
     if (searchTerm) params.name_like = searchTerm;
     if (filters.roomType !== 'all') params.room_type = filters.roomType;
+    if (filters.stageType !== 'all') params.stage_type = filters.stageType;
 
     // Door connectivity
     if (filters.doors.top === 'connected') params.top_door_connected = true;
@@ -153,14 +140,6 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
     if (filters.doors.bottom === 'disconnected') params.bottom_door_connected = false;
     if (filters.doors.left === 'connected') params.left_door_connected = true;
     if (filters.doors.left === 'disconnected') params.left_door_connected = false;
-
-    // Attributes
-    if (filters.attributes.boss !== null) params.has_boss = filters.attributes.boss;
-    if (filters.attributes.elite !== null) params.has_elite = filters.attributes.elite;
-    if (filters.attributes.mob !== null) params.has_mob = filters.attributes.mob;
-    if (filters.attributes.treasure !== null) params.has_treasure = filters.attributes.treasure;
-    if (filters.attributes.teleport !== null) params.has_teleport = filters.attributes.teleport;
-    if (filters.attributes.story !== null) params.has_story = filters.attributes.story;
 
     return params;
   }, [searchTerm, filters]);
@@ -273,33 +252,22 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
     );
   };
 
-  const renderAttributes = (item: TemplateSummary) => {
-    const attrs = item.room_attributes;
-    if (!attrs) return null;
-
-    const activeAttrs = Object.entries(attrs)
-      .filter(([_, value]) => value)
-      .map(([key]) => attributeLabels[key] || key);
-
-    if (activeAttrs.length === 0) return <span style={{ color: '#999', fontSize: '11px' }}>No attributes</span>;
+  const renderStageType = (item: TemplateSummary) => {
+    const stageType = item.stage_type;
+    if (!stageType) return <span style={{ color: '#999', fontSize: '11px' }}>N/A</span>;
 
     return (
-      <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-        {activeAttrs.map(attr => (
-          <span
-            key={attr}
-            style={{
-              padding: '2px 6px',
-              borderRadius: '3px',
-              fontSize: '11px',
-              backgroundColor: '#17a2b8',
-              color: 'white',
-            }}
-          >
-            {attr}
-          </span>
-        ))}
-      </div>
+      <span
+        style={{
+          padding: '2px 6px',
+          borderRadius: '3px',
+          fontSize: '11px',
+          backgroundColor: '#17a2b8',
+          color: 'white',
+        }}
+      >
+        {stageTypeLabels[stageType] || stageType}
+      </span>
     );
   };
 
@@ -440,7 +408,7 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
               }}>
                 <strong>Template Info:</strong><br/>
                 Size: {template.width} x {template.height}<br/>
-                Layers: Ground, Static, Turret, MobGround, MobAir
+                Layers: Ground, Static, Chaser, Zoner, DPS, MainPath, MobAir
               </div>
 
               <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
@@ -595,25 +563,28 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                         </div>
                       </div>
 
-                      {/* Attributes Filter */}
+                      {/* Stage Type Filter */}
                       <div>
-                        <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', color: '#555' }}>Attributes</div>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                          {(['boss', 'elite', 'mob', 'treasure', 'teleport', 'story'] as const).map(attr => (
-                            <TriStateCheckbox
-                              key={attr}
-                              label={attributeLabels[attr]}
-                              value={filters.attributes[attr]}
-                              onChange={(val) => setFilters({
-                                ...filters,
-                                attributes: {
-                                  ...filters.attributes,
-                                  [attr]: val
-                                }
-                              })}
-                            />
-                          ))}
-                        </div>
+                        <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', color: '#555' }}>Stage Type</div>
+                        <select
+                          value={filters.stageType}
+                          onChange={(e) => setFilters({ ...filters, stageType: e.target.value })}
+                          style={{
+                            width: '100%',
+                            padding: '6px',
+                            border: '1px solid #ddd',
+                            borderRadius: '4px',
+                            fontSize: '13px',
+                          }}
+                        >
+                          <option value="all">All Types</option>
+                          <option value="teaching">Teaching</option>
+                          <option value="building">Building</option>
+                          <option value="pressure">Pressure</option>
+                          <option value="peak">Peak</option>
+                          <option value="release">Release</option>
+                          <option value="boss">Boss</option>
+                        </select>
                       </div>
                     </div>
                   </div>
@@ -814,10 +785,10 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                                     {renderDoorInfo(item)}
                                   </div>
 
-                                  {/* Attributes */}
+                                  {/* Stage Type */}
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                                    <span style={{ fontSize: '12px', color: '#666' }}>Attrs:</span>
-                                    {renderAttributes(item)}
+                                    <span style={{ fontSize: '12px', color: '#666' }}>Stage:</span>
+                                    {renderStageType(item)}
                                   </div>
                                 </div>
                               </div>

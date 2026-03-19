@@ -67,18 +67,13 @@ export function createEmptyTemplate(width: number, height: number): Template {
     pipeline: createLayer(),
     rail: createLayer(),
     static: createLayer(),
-    turret: createLayer(),
-    mobGround: createLayer(),
+    chaser: createLayer(),
+    zoner: createLayer(),
+    dps: createLayer(),
+    mainPath: createLayer(),
     mobAir: createLayer(),
     doors: { top: 0, right: 0, bottom: 0, left: 0 },
-    attributes: {
-      boss: false,
-      elite: false,
-      mob: false,
-      treasure: false,
-      teleport: false,
-      story: false,
-    },
+    stageType: 'teaching',
     roomType: 'full',
     tileProperties: Array(height).fill(null).map(() => Array(width).fill(null)),
   };
@@ -132,8 +127,9 @@ export function validateCellRules(
   const pipeline = template.pipeline[y][x];
   const rail = template.rail[y][x];
   const static_ = template.static[y][x];
-  const turret = template.turret[y][x];
-  const mobGround = template.mobGround[y][x];
+  const chaser = template.chaser[y][x];
+  const zoner = template.zoner[y][x];
+  const dps = template.dps[y][x];
   // const mobAir = template.mobAir[y][x]; // Not used in validation
 
   return {
@@ -146,10 +142,13 @@ export function validateCellRules(
     rail: validateRailCell(template, x, y),
     // Static: can't be on bridge, can't conflict with pipeline or rail
     static: static_ === 0 || ((ground === 1 || bridge === 1) && bridge === 0 && pipeline === 0 && rail === 0),
-    // Turret: can't be on bridge, can't be on static, can't conflict with pipeline or rail
-    turret: turret === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && bridge === 0 && pipeline === 0 && rail === 0),
-    // MobGround: can't be on bridge, can't be on static/turret, can't conflict with pipeline or rail
-    mobGround: mobGround === 0 || ((ground === 1 || bridge === 1) && static_ === 0 && turret === 0 && bridge === 0 && pipeline === 0 && rail === 0),
+    // Chaser: requires ground=1, cannot be on static/bridge/pipeline/rail/zoner
+    chaser: chaser === 0 || (ground === 1 && static_ === 0 && bridge === 0 && pipeline === 0 && rail === 0 && zoner === 0),
+    // Zoner: requires ground=1, cannot be on static/bridge/pipeline/rail/chaser
+    zoner: zoner === 0 || (ground === 1 && static_ === 0 && bridge === 0 && pipeline === 0 && rail === 0 && chaser === 0),
+    // DPS: requires ground=1, cannot be on bridge/pipeline/rail/zoner
+    dps: dps === 0 || (ground === 1 && bridge === 0 && pipeline === 0 && rail === 0 && zoner === 0),
+    mainPath: true, // MainPath is read-only, no constraints
     mobAir: true, // MobAir has no constraints
   };
 }
@@ -278,8 +277,10 @@ export function validateTemplate(template: Template): ValidationResult {
     pipeline: [],
     rail: [],
     static: [],
-    turret: [],
-    mobGround: [],
+    chaser: [],
+    zoner: [],
+    dps: [],
+    mainPath: [],
     mobAir: [],
   };
 
@@ -291,8 +292,10 @@ export function validateTemplate(template: Template): ValidationResult {
     layerValidation.pipeline[y] = [];
     layerValidation.rail[y] = [];
     layerValidation.static[y] = [];
-    layerValidation.turret[y] = [];
-    layerValidation.mobGround[y] = [];
+    layerValidation.chaser[y] = [];
+    layerValidation.zoner[y] = [];
+    layerValidation.dps[y] = [];
+    layerValidation.mainPath[y] = [];
     layerValidation.mobAir[y] = [];
 
     for (let x = 0; x < template.width; x++) {
@@ -305,12 +308,14 @@ export function validateTemplate(template: Template): ValidationResult {
       layerValidation.pipeline[y][x] = cellValidation.pipeline;
       layerValidation.rail[y][x] = cellValidation.rail;
       layerValidation.static[y][x] = cellValidation.static;
-      layerValidation.turret[y][x] = cellValidation.turret;
-      layerValidation.mobGround[y][x] = cellValidation.mobGround;
+      layerValidation.chaser[y][x] = cellValidation.chaser;
+      layerValidation.zoner[y][x] = cellValidation.zoner;
+      layerValidation.dps[y][x] = cellValidation.dps;
+      layerValidation.mainPath[y][x] = cellValidation.mainPath;
       layerValidation.mobAir[y][x] = cellValidation.mobAir;
 
       // Collect errors for cells that have value=1 but are invalid
-      const layers: LayerType[] = ['softEdge', 'bridge', 'pipeline', 'rail', 'static', 'turret', 'mobGround', 'mobAir'];
+      const layers: LayerType[] = ['softEdge', 'bridge', 'pipeline', 'rail', 'static', 'chaser', 'zoner', 'dps', 'mobAir'];
 
       layers.forEach(layer => {
         if (template[layer][y][x] === 1 && !cellValidation[layer]) {
@@ -343,7 +348,8 @@ function getValidationErrorReason(
   const pipeline = template.pipeline[y][x];
   const rail = template.rail[y][x];
   const static_ = template.static[y][x];
-  const turret = template.turret[y][x];
+  const chaser = template.chaser[y][x];
+  const zoner = template.zoner[y][x];
 
   switch (layer) {
     case 'softEdge':
@@ -369,20 +375,28 @@ function getValidationErrorReason(
       if (pipeline === 1) return 'Static items cannot be placed on pipeline';
       if (rail === 1) return 'Static items cannot be placed on rail';
       return 'Unknown error';
-    case 'turret':
-      if (ground === 0 && bridge === 0) return 'Turrets require walkable ground or bridge';
-      if (bridge === 1) return 'Turrets cannot be placed on bridge';
-      if (static_ === 1) return 'Turrets cannot be placed on static items';
-      if (pipeline === 1) return 'Turrets cannot be placed on pipeline';
-      if (rail === 1) return 'Turrets cannot be placed on rail';
+    case 'chaser':
+      if (ground === 0) return 'Chasers require walkable ground';
+      if (static_ === 1) return 'Chasers cannot be placed on static items';
+      if (bridge === 1) return 'Chasers cannot be placed on bridge';
+      if (pipeline === 1) return 'Chasers cannot be placed on pipeline';
+      if (rail === 1) return 'Chasers cannot be placed on rail';
+      if (zoner === 1) return 'Chasers cannot be placed on zoner';
       return 'Unknown error';
-    case 'mobGround':
-      if (ground === 0 && bridge === 0) return 'Ground mobs require walkable ground or bridge';
-      if (bridge === 1) return 'Ground mobs cannot be placed on bridge';
-      if (static_ === 1) return 'Ground mobs cannot be placed on static items';
-      if (turret === 1) return 'Ground mobs cannot be placed on turrets';
-      if (pipeline === 1) return 'Ground mobs cannot be placed on pipeline';
-      if (rail === 1) return 'Ground mobs cannot be placed on rail';
+    case 'zoner':
+      if (ground === 0) return 'Zoners require walkable ground';
+      if (static_ === 1) return 'Zoners cannot be placed on static items';
+      if (bridge === 1) return 'Zoners cannot be placed on bridge';
+      if (pipeline === 1) return 'Zoners cannot be placed on pipeline';
+      if (rail === 1) return 'Zoners cannot be placed on rail';
+      if (chaser === 1) return 'Zoners cannot be placed on chaser';
+      return 'Unknown error';
+    case 'dps':
+      if (ground === 0) return 'DPS requires walkable ground';
+      if (bridge === 1) return 'DPS cannot be placed on bridge';
+      if (pipeline === 1) return 'DPS cannot be placed on pipeline';
+      if (rail === 1) return 'DPS cannot be placed on rail';
+      if (zoner === 1) return 'DPS cannot be placed on zoner';
       return 'Unknown error';
     default:
       return 'Unknown validation error';

@@ -8,15 +8,17 @@ import (
 
 // FullRoomGenerateRequest represents the request for generating a full room
 type FullRoomGenerateRequest struct {
-	Width          int            `json:"width"`
-	Height         int            `json:"height"`
-	Doors          []DoorPosition `json:"doors"`          // At least 2 doors required
-	SoftEdgeCount  int            `json:"softEdgeCount"`  // Suggested number of soft edges to place (optional)
-	RailEnabled    bool           `json:"railEnabled"`    // Whether to generate rail layer (optional)
-	StaticCount    int            `json:"staticCount"`    // Suggested number of statics to place (optional)
-	TurretCount    int            `json:"turretCount"`    // Suggested number of turrets to place (optional)
-	MobGroundCount int            `json:"mobGroundCount"` // Suggested number of mob ground to place (optional)
-	MobAirCount    int            `json:"mobAirCount"`    // Suggested number of mob air (fly) to place (optional)
+	Width         int            `json:"width"`
+	Height        int            `json:"height"`
+	Doors         []DoorPosition `json:"doors"`         // At least 2 doors required
+	SoftEdgeCount int            `json:"softEdgeCount"` // Suggested number of soft edges to place (optional)
+	RailEnabled   bool           `json:"railEnabled"`   // Whether to generate rail layer (optional)
+	StaticCount   int            `json:"staticCount"`   // Suggested number of statics to place (optional)
+	ChaserCount   int            `json:"chaserCount"`   // Suggested number of chasers to place (optional)
+	ZonerCount    int            `json:"zonerCount"`    // Suggested number of zoners to place (optional)
+	DPSCount      int            `json:"dpsCount"`      // Suggested number of DPS to place (optional)
+	MobAirCount   int            `json:"mobAirCount"`   // Suggested number of mob air (fly) to place (optional)
+	StageType     string         `json:"stageType"`     // Room stage type (optional)
 }
 
 // FullRoomGenerateResponse represents the generated template
@@ -31,9 +33,11 @@ type FullRoomDebugInfo struct {
 	SoftEdge    *SoftEdgeDebugInfo       `json:"softEdge,omitempty"`
 	BridgeLayer *BridgeLayerDebugInfo    `json:"bridgeLayer,omitempty"`
 	Rail        *RailDebugInfo           `json:"rail,omitempty"`
+	MainPath    *MainPathDebugInfo       `json:"mainPath,omitempty"`
 	Static      *StaticDebugInfo         `json:"static,omitempty"`
-	Turret      *TurretDebugInfo         `json:"turret,omitempty"`
-	MobGround   *MobGroundDebugInfo      `json:"mobGround,omitempty"`
+	Chaser      *EnemyLayerDebugInfo     `json:"chaser,omitempty"`
+	Zoner       *EnemyLayerDebugInfo     `json:"zoner,omitempty"`
+	DPS         *EnemyLayerDebugInfo     `json:"dps,omitempty"`
 	MobAir      *MobAirDebugInfo         `json:"mobAir,omitempty"`
 }
 
@@ -201,6 +205,22 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		}
 	}
 
+	// Apply stage rules (validate + override counts if stage type specified)
+	stageResult, stageErr := ValidateAndApplyStage(req.StageType, "full", req.Doors, ground, req.Width, req.Height)
+	if stageErr != nil {
+		return nil, stageErr
+	}
+	if stageResult != nil && stageResult.Valid && req.StageType != "" {
+		req.ChaserCount = stageResult.ChaserCount
+		req.ZonerCount = stageResult.ZonerCount
+		req.DPSCount = stageResult.DPSCount
+		req.MobAirCount = stageResult.MobAirCount
+	}
+
+	// Main path computation
+	mainPathData, mainPathDebug := ComputeMainPath(ground, bridgeLayer, doorPositions, req.Width, req.Height)
+	debugInfo.MainPath = mainPathDebug
+
 	// Static layer
 	staticLayer := copyLayer(emptyLayer)
 	if req.StaticCount > 0 {
@@ -213,40 +233,40 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		}
 	}
 
-	// Turret layer
-	turretLayer := copyLayer(emptyLayer)
-	if req.TurretCount > 0 {
-		turretDebug := generateTurretLayerWithDebugAndRail(turretLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, req.Width, req.Height, req.TurretCount)
-		debugInfo.Turret = turretDebug
+	// Zoner layer (place before chaser — zoner prefers high squishy score positions)
+	zonerLayer := copyLayer(emptyLayer)
+	if req.ZonerCount > 0 {
+		zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount)
+		debugInfo.Zoner = zonerDebug
 	} else {
-		debugInfo.Turret = &TurretDebugInfo{
-			Skipped:    true,
-			SkipReason: "turretCount is 0 or not specified",
-		}
+		debugInfo.Zoner = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "zonerCount is 0 or not specified"}
 	}
 
-	// Mob ground layer
-	mobGroundLayer := copyLayer(emptyLayer)
-	if req.MobGroundCount > 0 {
-		mobGroundDebug := generateMobGroundLayerWithDebugAndRail(mobGroundLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, turretLayer, doorPositions, req.Width, req.Height, req.MobGroundCount)
-		debugInfo.MobGround = mobGroundDebug
+	// Chaser layer
+	chaserLayer := copyLayer(emptyLayer)
+	if req.ChaserCount > 0 {
+		chaserDebug := GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, req.ChaserCount)
+		debugInfo.Chaser = chaserDebug
 	} else {
-		debugInfo.MobGround = &MobGroundDebugInfo{
-			Skipped:    true,
-			SkipReason: "mobGroundCount is 0 or not specified",
-		}
+		debugInfo.Chaser = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "chaserCount is 0 or not specified"}
+	}
+
+	// DPS layer
+	dpsLayer := copyLayer(emptyLayer)
+	if req.DPSCount > 0 {
+		dpsDebug := GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, req.DPSCount)
+		debugInfo.DPS = dpsDebug
+	} else {
+		debugInfo.DPS = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "dpsCount is 0 or not specified"}
 	}
 
 	// Mob air layer
 	mobAirLayer := copyLayer(emptyLayer)
 	if req.MobAirCount > 0 {
-		mobAirDebug := generateMobAirLayerWithDebug(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, turretLayer, mobGroundLayer, doorPositions, req.Width, req.Height, req.MobAirCount)
+		mobAirDebug := GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, req.MobAirCount)
 		debugInfo.MobAir = mobAirDebug
 	} else {
-		debugInfo.MobAir = &MobAirDebugInfo{
-			Skipped:    true,
-			SkipReason: "mobAirCount is 0 or not specified",
-		}
+		debugInfo.MobAir = &MobAirDebugInfo{Skipped: true, SkipReason: "mobAirCount is 0 or not specified"}
 	}
 
 	// Create door states
@@ -269,18 +289,37 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		}
 	}
 
+	// Build main path layer for output
+	mainPathLayer := copyLayer(emptyLayer)
+	if mainPathData != nil {
+		for y := 0; y < req.Height; y++ {
+			for x := 0; x < req.Width; x++ {
+				if mainPathData.OnMainPath[y][x] {
+					mainPathLayer[y][x] = 1
+				}
+			}
+		}
+	}
+
 	// Create payload
 	roomType := "full"
+	var stageType *string
+	if req.StageType != "" {
+		stageType = &req.StageType
+	}
 	payload := model.TemplatePayload{
 		Ground:    ground,
 		SoftEdge:  softEdgeLayer,
 		Bridge:    bridgeLayer,
 		Rail:      railLayer,
 		Static:    staticLayer,
-		Turret:    turretLayer,
-		MobGround: mobGroundLayer,
+		Chaser:    chaserLayer,
+		Zoner:     zonerLayer,
+		DPS:       dpsLayer,
 		MobAir:    mobAirLayer,
+		MainPath:  mainPathLayer,
 		Doors:     doorStates,
+		StageType: stageType,
 		RoomType:  &roomType,
 		Meta: model.TemplateMeta{
 			Name:    fmt.Sprintf("full-%dx%d", req.Width, req.Height),

@@ -38,7 +38,19 @@ type DoorStates struct {
 	Left   int `json:"left"`   // 0 or 1
 }
 
-// RoomAttributes represents room attributes
+// StageType represents the room stage type
+type StageType = string
+
+const (
+	StageTeaching StageType = "teaching"
+	StageBuilding StageType = "building"
+	StagePressure StageType = "pressure"
+	StagePeak     StageType = "peak"
+	StageRelease  StageType = "release"
+	StageBoss     StageType = "boss"
+)
+
+// RoomAttributes represents room attributes (deprecated, kept for backward compatibility)
 type RoomAttributes struct {
 	Boss     bool `json:"boss"`
 	Elite    bool `json:"elite"`
@@ -66,12 +78,15 @@ type TemplatePayload struct {
 	Rail           Layer           `json:"rail,omitempty"`           // Optional for backward compatibility
 	RailLines      []LineSegment   `json:"railLines,omitempty"`      // Line segments describing rail paths
 	Static         Layer           `json:"static"`
-	Turret         Layer           `json:"turret"`
-	MobGround      Layer           `json:"mobGround"`
+	Chaser         Layer           `json:"chaser,omitempty"`
+	Zoner          Layer           `json:"zoner,omitempty"`
+	DPS            Layer           `json:"dps,omitempty"`
 	MobAir         Layer           `json:"mobAir"`
+	MainPath       Layer           `json:"mainPath,omitempty"`       // Main path through room center
 	Doors          *DoorStates     `json:"doors,omitempty"`
-	Attributes     *RoomAttributes `json:"attributes,omitempty"`
-	RoomType       *string         `json:"roomType,omitempty"` // "full", "bridge", or "platform"
+	Attributes     *RoomAttributes `json:"attributes,omitempty"`     // Deprecated
+	StageType      *string         `json:"stageType,omitempty"`      // teaching, building, pressure, peak, release, boss
+	RoomType       *string         `json:"roomType,omitempty"`       // "full", "bridge", or "platform"
 	Meta           TemplateMeta    `json:"meta"`
 }
 
@@ -89,9 +104,11 @@ type Template struct {
 	RoomAttributes  *RoomAttributes  `json:"room_attributes,omitempty"`
 	DoorsConnected  *DoorsConnected  `json:"doors_connected,omitempty"`
 	StaticCount     *int             `json:"static_count,omitempty"`
-	TurretCount     *int             `json:"turret_count,omitempty"`
-	MobGroundCount  *int             `json:"mobground_count,omitempty"`
+	ChaserCount     *int             `json:"chaser_count,omitempty"`
+	ZonerCount      *int             `json:"zoner_count,omitempty"`
+	DPSCount        *int             `json:"dps_count,omitempty"`
 	MobAirCount     *int             `json:"mobair_count,omitempty"`
+	StageType       *string          `json:"stage_type,omitempty"`
 	CreatedAt       time.Time        `json:"created_at"`
 	UpdatedAt       time.Time        `json:"updated_at"`
 }
@@ -109,9 +126,11 @@ type TemplateSummary struct {
 	RoomAttributes *RoomAttributes `json:"room_attributes,omitempty"`
 	DoorsConnected *DoorsConnected `json:"doors_connected,omitempty"`
 	StaticCount    *int            `json:"static_count,omitempty"`
-	TurretCount    *int            `json:"turret_count,omitempty"`
-	MobGroundCount *int            `json:"mobground_count,omitempty"`
+	ChaserCount    *int            `json:"chaser_count,omitempty"`
+	ZonerCount     *int            `json:"zoner_count,omitempty"`
+	DPSCount       *int            `json:"dps_count,omitempty"`
 	MobAirCount    *int            `json:"mobair_count,omitempty"`
+	StageType      *string         `json:"stage_type,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
 }
@@ -126,19 +145,15 @@ type ListTemplatesQueryParams struct {
 	MaxWalkableRatio *float64
 	MinStaticCount   *int
 	MaxStaticCount   *int
-	MinTurretCount   *int
-	MaxTurretCount   *int
-	MinMobGroundCount *int
-	MaxMobGroundCount *int
-	MinMobAirCount    *int
-	MaxMobAirCount    *int
-	// Room attributes filters
-	HasBoss     *bool
-	HasElite    *bool
-	HasMob      *bool
-	HasTreasure *bool
-	HasTeleport *bool
-	HasStory    *bool
+	MinChaserCount   *int
+	MaxChaserCount   *int
+	MinZonerCount    *int
+	MaxZonerCount    *int
+	MinDPSCount      *int
+	MaxDPSCount      *int
+	MinMobAirCount   *int
+	MaxMobAirCount   *int
+	StageType        string
 	// Door connectivity filters
 	TopDoorConnected    *bool
 	RightDoorConnected  *bool

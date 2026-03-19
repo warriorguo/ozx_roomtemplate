@@ -165,7 +165,7 @@ export function calculateTileProperties(
   x: number,
   y: number
 ): TileProperties {
-  const { width, height, ground, static: staticLayer, turret, doors } = template;
+  const { width, height, ground, static: staticLayer, chaser, doors } = template;
 
   // Check if tile is walkable (ground layer)
   const walkable = ground[y][x] === 1;
@@ -243,8 +243,8 @@ export function calculateTileProperties(
   // Calculate distance to nearest static tile
   const distToNearStatic = findNearestTile(staticLayer, width, height, x, y);
 
-  // Calculate distance to nearest turret tile
-  const distToNearTurret = findNearestTile(turret, width, height, x, y);
+  // Calculate distance to nearest chaser tile
+  const distToNearChaser = findNearestTile(chaser, width, height, x, y);
 
   // Calculate distance to edge (unwalkable cell or room boundary)
   const distToEdge = calculateDistanceToEdge(ground, width, height, x, y);
@@ -262,7 +262,7 @@ export function calculateTileProperties(
     distToLeftDoor,
     distToRightDoor,
     distToNearStatic,
-    distToNearTurret,
+    distToNearChaser,
   };
 }
 
@@ -271,7 +271,7 @@ export function calculateTileProperties(
  * Returns a 2D grid where each cell has properties (or null if not set)
  */
 export function calculateAllTileProperties(template: Template): Grid<TileProperties | null> {
-  const { width, height, static: staticLayer, turret, mobGround, mobAir } = template;
+  const { width, height, static: staticLayer, chaser, zoner, dps, mobAir } = template;
 
   const properties: Grid<TileProperties | null> = [];
 
@@ -281,8 +281,9 @@ export function calculateAllTileProperties(template: Template): Grid<TilePropert
       // Only calculate properties for non-ground layers that are set (value=1)
       const hasFeature =
         staticLayer[y][x] === 1 ||
-        turret[y][x] === 1 ||
-        mobGround[y][x] === 1 ||
+        chaser[y][x] === 1 ||
+        zoner[y][x] === 1 ||
+        dps[y][x] === 1 ||
         mobAir[y][x] === 1;
 
       if (hasFeature) {

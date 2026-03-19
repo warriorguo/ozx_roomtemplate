@@ -82,8 +82,9 @@ func (suite *IntegrationTestSuite) TestCreateAndGetTemplate() {
 		Payload: model.TemplatePayload{
 			Ground:    [][]int{{1, 1, 0}, {0, 1, 1}, {1, 0, 1}},
 			Static:    [][]int{{0, 1, 0}, {0, 0, 1}, {1, 0, 0}},
-			Turret:    [][]int{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
-			MobGround: [][]int{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}},
+			Chaser: [][]int{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
+			Zoner:  [][]int{{1, 0, 0}, {0, 1, 0}, {0, 0, 1}},
+			DPS:    [][]int{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}},
 			MobAir:    [][]int{{0, 0, 1}, {1, 0, 0}, {0, 1, 0}},
 			Meta: model.TemplateMeta{
 				Name:    "integration-test-template",
@@ -140,8 +141,9 @@ func (suite *IntegrationTestSuite) TestListTemplates() {
 			Payload: model.TemplatePayload{
 				Ground:    [][]int{{1, 1}, {1, 1}},
 				Static:    [][]int{{0, 1}, {1, 0}},
-				Turret:    [][]int{{0, 0}, {0, 0}},
-				MobGround: [][]int{{0, 0}, {0, 0}},
+				Chaser: [][]int{{0, 0}, {0, 0}},
+				Zoner:  [][]int{{0, 0}, {0, 0}},
+				DPS:    [][]int{{0, 0}, {0, 0}},
 				MobAir:    [][]int{{0, 1}, {1, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "template-alpha",
@@ -156,8 +158,9 @@ func (suite *IntegrationTestSuite) TestListTemplates() {
 			Payload: model.TemplatePayload{
 				Ground:    [][]int{{1, 0}, {0, 1}},
 				Static:    [][]int{{0, 0}, {0, 0}},
-				Turret:    [][]int{{1, 0}, {0, 1}},
-				MobGround: [][]int{{0, 0}, {0, 0}},
+				Chaser: [][]int{{1, 0}, {0, 1}},
+				Zoner:  [][]int{{0, 0}, {0, 0}},
+				DPS:    [][]int{{0, 0}, {0, 0}},
 				MobAir:    [][]int{{0, 0}, {0, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "template-beta",
@@ -172,8 +175,9 @@ func (suite *IntegrationTestSuite) TestListTemplates() {
 			Payload: model.TemplatePayload{
 				Ground:    [][]int{{1, 1}, {1, 1}},
 				Static:    [][]int{{1, 0}, {0, 1}},
-				Turret:    [][]int{{0, 0}, {0, 0}},
-				MobGround: [][]int{{0, 0}, {0, 0}},
+				Chaser: [][]int{{0, 0}, {0, 0}},
+				Zoner:  [][]int{{0, 0}, {0, 0}},
+				DPS:    [][]int{{0, 0}, {0, 0}},
 				MobAir:    [][]int{{0, 0}, {0, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "another-template",
@@ -240,8 +244,9 @@ func (suite *IntegrationTestSuite) TestValidateTemplate() {
 	validPayload := model.TemplatePayload{
 		Ground:    [][]int{{1, 1}, {1, 1}},
 		Static:    [][]int{{0, 1}, {1, 0}},
-		Turret:    [][]int{{0, 0}, {0, 0}},
-		MobGround: [][]int{{0, 0}, {0, 0}},
+		Chaser: [][]int{{0, 0}, {0, 0}},
+		Zoner:  [][]int{{0, 0}, {0, 0}},
+		DPS:    [][]int{{0, 0}, {0, 0}},
 		MobAir:    [][]int{{0, 1}, {1, 0}},
 		Meta: model.TemplateMeta{
 			Name:    "valid-template",
@@ -269,8 +274,9 @@ func (suite *IntegrationTestSuite) TestValidateTemplate() {
 	invalidPayload := model.TemplatePayload{
 		Ground:    [][]int{{0, 1}, {1, 1}},
 		Static:    [][]int{{1, 1}, {1, 0}}, // Static at (0,0) where ground=0
-		Turret:    [][]int{{0, 0}, {0, 0}},
-		MobGround: [][]int{{0, 0}, {0, 0}},
+		Chaser: [][]int{{0, 0}, {0, 0}},
+		Zoner:  [][]int{{0, 0}, {0, 0}},
+		DPS:    [][]int{{0, 0}, {0, 0}},
 		MobAir:    [][]int{{0, 1}, {1, 0}},
 		Meta: model.TemplateMeta{
 			Name:    "invalid-template",
@@ -336,8 +342,9 @@ func (suite *IntegrationTestSuite) TestErrorCases() {
 		Payload: model.TemplatePayload{
 			Ground:    [][]int{{1}}, // Too small
 			Static:    [][]int{{0}},
-			Turret:    [][]int{{0}},
-			MobGround: [][]int{{0}},
+			Chaser: [][]int{{0}},
+			Zoner:  [][]int{{0}},
+			DPS:    [][]int{{0}},
 			MobAir:    [][]int{{0}},
 			Meta: model.TemplateMeta{
 				Name:    "invalid-template",
@@ -376,8 +383,9 @@ func (suite *IntegrationTestSuite) TestConcurrentOperations() {
 				Payload: model.TemplatePayload{
 					Ground:    [][]int{{1, 1}, {1, 1}},
 					Static:    [][]int{{0, 1}, {1, 0}},
-					Turret:    [][]int{{0, 0}, {0, 0}},
-					MobGround: [][]int{{0, 0}, {0, 0}},
+					Chaser: [][]int{{0, 0}, {0, 0}},
+					Zoner:  [][]int{{0, 0}, {0, 0}},
+					DPS:    [][]int{{0, 0}, {0, 0}},
 					MobAir:    [][]int{{0, 1}, {1, 0}},
 					Meta: model.TemplateMeta{
 						Name:    fmt.Sprintf("concurrent-template-%d", index),

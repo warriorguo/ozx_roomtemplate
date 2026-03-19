@@ -14,15 +14,17 @@ const (
 
 // BridgeGenerateRequest represents the request for generating a bridge room
 type BridgeGenerateRequest struct {
-	Width          int            `json:"width"`
-	Height         int            `json:"height"`
-	Doors          []DoorPosition `json:"doors"`          // At least 2 doors required
-	SoftEdgeCount  int            `json:"softEdgeCount"`  // Suggested number of soft edges to place (optional)
-	RailEnabled    bool           `json:"railEnabled"`    // Whether to generate rail layer (optional)
-	StaticCount    int            `json:"staticCount"`    // Suggested number of statics to place (optional)
-	TurretCount    int            `json:"turretCount"`    // Suggested number of turrets to place (optional)
-	MobGroundCount int            `json:"mobGroundCount"` // Suggested number of mob ground to place (optional)
-	MobAirCount    int            `json:"mobAirCount"`    // Suggested number of mob air (fly) to place (optional)
+	Width         int            `json:"width"`
+	Height        int            `json:"height"`
+	Doors         []DoorPosition `json:"doors"`         // At least 2 doors required
+	SoftEdgeCount int            `json:"softEdgeCount"` // Suggested number of soft edges to place (optional)
+	RailEnabled   bool           `json:"railEnabled"`   // Whether to generate rail layer (optional)
+	StaticCount   int            `json:"staticCount"`   // Suggested number of statics to place (optional)
+	ChaserCount   int            `json:"chaserCount"`   // Suggested number of chasers to place (optional)
+	ZonerCount    int            `json:"zonerCount"`    // Suggested number of zoners to place (optional)
+	DPSCount      int            `json:"dpsCount"`      // Suggested number of DPS to place (optional)
+	MobAirCount   int            `json:"mobAirCount"`   // Suggested number of mob air (fly) to place (optional)
+	StageType     string         `json:"stageType"`     // Room stage type (optional)
 }
 
 // BridgeGenerateResponse represents the generated template
@@ -37,9 +39,11 @@ type GenerateDebugInfo struct {
 	SoftEdge    *SoftEdgeDebugInfo    `json:"softEdge,omitempty"`
 	BridgeLayer *BridgeLayerDebugInfo `json:"bridgeLayer,omitempty"`
 	Rail        *RailDebugInfo        `json:"rail,omitempty"`
+	MainPath    *MainPathDebugInfo    `json:"mainPath,omitempty"`
 	Static      *StaticDebugInfo      `json:"static,omitempty"`
-	Turret      *TurretDebugInfo      `json:"turret,omitempty"`
-	MobGround   *MobGroundDebugInfo   `json:"mobGround,omitempty"`
+	Chaser      *EnemyLayerDebugInfo  `json:"chaser,omitempty"`
+	Zoner       *EnemyLayerDebugInfo  `json:"zoner,omitempty"`
+	DPS         *EnemyLayerDebugInfo  `json:"dps,omitempty"`
 	MobAir      *MobAirDebugInfo      `json:"mobAir,omitempty"`
 }
 
@@ -120,8 +124,8 @@ type StaticDebugInfo struct {
 	Misses      []MissInfo  `json:"misses,omitempty"`
 }
 
-// TurretDebugInfo contains debug info for turret layer generation
-type TurretDebugInfo struct {
+// EnemyLayerDebugInfo contains debug info for enemy layer generation (Chaser/Zoner/DPS)
+type EnemyLayerDebugInfo struct {
 	Skipped     bool        `json:"skipped"`
 	SkipReason  string      `json:"skipReason,omitempty"`
 	TargetCount int         `json:"targetCount"`
@@ -130,24 +134,11 @@ type TurretDebugInfo struct {
 	Misses      []MissInfo  `json:"misses,omitempty"`
 }
 
-// MobGroundDebugInfo contains debug info for mob ground layer generation
-type MobGroundDebugInfo struct {
-	Skipped     bool           `json:"skipped"`
-	SkipReason  string         `json:"skipReason,omitempty"`
-	TargetCount int            `json:"targetCount"`
-	PlacedCount int            `json:"placedCount"`
-	Groups      []MobGroupInfo `json:"groups"`
-	Misses      []MissInfo     `json:"misses,omitempty"`
-}
-
-// MobGroupInfo describes a placement group
-type MobGroupInfo struct {
-	GroupIndex  int         `json:"groupIndex"`
-	Strategy    string      `json:"strategy"`
-	TargetCount int         `json:"targetCount"`
-	PlacedCount int         `json:"placedCount"`
-	Placements  []PlaceInfo `json:"placements"`
-	Misses      []MissInfo  `json:"misses,omitempty"`
+// MainPathDebugInfo contains debug info for main path computation
+type MainPathDebugInfo struct {
+	PathCellCount int      `json:"pathCellCount"`
+	PathSegments  []string `json:"pathSegments,omitempty"`
+	Misses        []string `json:"misses,omitempty"`
 }
 
 // MobAirDebugInfo contains debug info for mob air layer generation
@@ -206,6 +197,15 @@ var platformBrushes = []BrushSize{
 	{4, 4}, {6, 6},
 }
 
+// MainPathData holds per-cell computed main path metrics
+type MainPathData struct {
+	Width, Height   int
+	OnMainPath      [][]bool    // true if cell is on main path
+	DirectDistance   [][]int     // straight-line distance to nearest main path cell
+	WalkingDistance  [][]int     // BFS walking distance to nearest main path cell (-1 if unreachable)
+	SquishyScore    [][]float64 // walking_distance / direct_distance (higher = better for ranged)
+}
+
 // LayerContext holds all layer state to reduce parameter passing
 type LayerContext struct {
 	Width, Height int
@@ -214,8 +214,10 @@ type LayerContext struct {
 	Bridge        [][]int
 	Rail          [][]int // nil when rail not enabled
 	Static        [][]int
-	Turret        [][]int
-	MobGround     [][]int
+	Chaser        [][]int
+	Zoner         [][]int
+	DPS           [][]int
 	MobAir        [][]int
+	MainPath      *MainPathData
 	DoorPositions map[DoorPosition]Point
 }

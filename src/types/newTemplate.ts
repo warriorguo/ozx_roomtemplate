@@ -9,16 +9,7 @@ export interface DoorStates {
   left: 0 | 1;
 }
 
-export type RoomAttribute = 'boss' | 'elite' | 'mob' | 'treasure' | 'teleport' | 'story';
-
-export interface RoomAttributes {
-  boss: boolean;
-  elite: boolean;
-  mob: boolean;
-  treasure: boolean;
-  teleport: boolean;
-  story: boolean;
-}
+export type StageType = 'teaching' | 'building' | 'pressure' | 'peak' | 'release' | 'boss';
 
 export type RoomType = 'full' | 'bridge' | 'platform';
 
@@ -47,7 +38,7 @@ export interface TileProperties {
   distToLeftDoor: number | null;     // null if door not open
   distToRightDoor: number | null;    // null if door not open
   distToNearStatic: number | null;   // null if no static tiles
-  distToNearTurret: number | null;   // null if no turret tiles
+  distToNearChaser: number | null;   // null if no chaser tiles
 }
 
 export interface Template {
@@ -60,16 +51,18 @@ export interface Template {
   pipeline: Grid<CellValue>;
   rail: Grid<CellValue>;
   static: Grid<CellValue>;
-  turret: Grid<CellValue>;
-  mobGround: Grid<CellValue>;
+  chaser: Grid<CellValue>;
+  zoner: Grid<CellValue>;
+  dps: Grid<CellValue>;
+  mainPath: Grid<CellValue>;
   mobAir: Grid<CellValue>;
   doors: DoorStates;
-  attributes: RoomAttributes;
+  stageType: StageType;
   roomType: RoomType;
   tileProperties: Grid<TileProperties | null>; // null if cell is not set (value=0)
 }
 
-export type LayerType = "ground" | "softEdge" | "bridge" | "pipeline" | "rail" | "static" | "turret" | "mobGround" | "mobAir";
+export type LayerType = "ground" | "softEdge" | "bridge" | "pipeline" | "rail" | "static" | "chaser" | "zoner" | "dps" | "mainPath" | "mobAir";
 
 export interface DragState {
   isDragging: boolean;
@@ -87,8 +80,10 @@ export interface LayerValidation {
   pipeline: boolean[][];
   rail: boolean[][];
   static: boolean[][];
-  turret: boolean[][];
-  mobGround: boolean[][];
+  chaser: boolean[][];
+  zoner: boolean[][];
+  dps: boolean[][];
+  mainPath: boolean[][];
   mobAir: boolean[][];
 }
 
@@ -123,7 +118,7 @@ export interface UIState {
     y: number;
     visible: boolean;
   };
-  showCompositeView: boolean;  // 是否显示总图层视图（仅在mobAir层）
+  showCompositeView: boolean;  // 是否显示总图层视图
   acceptPaste: boolean;  // 是否接受paste操作
 }
 

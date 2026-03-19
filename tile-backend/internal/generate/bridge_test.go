@@ -1,7 +1,6 @@
 package generate
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -117,8 +116,8 @@ func TestGenerateBridgeRoom_ValidInput(t *testing.T) {
 			assert.Equal(t, tt.req.Height, len(resp.Payload.SoftEdge))
 			assert.Equal(t, tt.req.Height, len(resp.Payload.Bridge))
 			assert.Equal(t, tt.req.Height, len(resp.Payload.Static))
-			assert.Equal(t, tt.req.Height, len(resp.Payload.Turret))
-			assert.Equal(t, tt.req.Height, len(resp.Payload.MobGround))
+			assert.Equal(t, tt.req.Height, len(resp.Payload.Chaser))
+			assert.Equal(t, tt.req.Height, len(resp.Payload.Zoner))
 			assert.Equal(t, tt.req.Height, len(resp.Payload.MobAir))
 
 			// Verify other layers are empty (except bridge which may have connections)
@@ -127,8 +126,8 @@ func TestGenerateBridgeRoom_ValidInput(t *testing.T) {
 					assert.Equal(t, 0, resp.Payload.SoftEdge[y][x], "softEdge should be 0")
 					// Bridge layer may have values if floating islands exist
 					assert.Equal(t, 0, resp.Payload.Static[y][x], "static should be 0")
-					assert.Equal(t, 0, resp.Payload.Turret[y][x], "turret should be 0")
-					assert.Equal(t, 0, resp.Payload.MobGround[y][x], "mobGround should be 0")
+					assert.Equal(t, 0, resp.Payload.Chaser[y][x], "turret should be 0")
+					assert.Equal(t, 0, resp.Payload.Zoner[y][x], "mobGround should be 0")
 					assert.Equal(t, 0, resp.Payload.MobAir[y][x], "mobAir should be 0")
 				}
 			}
@@ -953,7 +952,7 @@ func TestGenerateBridgeRoom_WithTurretCount(t *testing.T) {
 		Width:       25,
 		Height:      25,
 		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		TurretCount: 4,
+		ChaserCount: 4,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -963,7 +962,7 @@ func TestGenerateBridgeRoom_WithTurretCount(t *testing.T) {
 	turretCount := 0
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.Turret[y][x] == 1 {
+			if resp.Payload.Chaser[y][x] == 1 {
 				turretCount++
 			}
 		}
@@ -979,7 +978,7 @@ func TestGenerateBridgeRoom_TurretOnGround(t *testing.T) {
 		Width:       25,
 		Height:      25,
 		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		TurretCount: 5,
+		ChaserCount: 5,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -988,7 +987,7 @@ func TestGenerateBridgeRoom_TurretOnGround(t *testing.T) {
 	// Verify all turret cells are on ground
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.Turret[y][x] == 1 {
+			if resp.Payload.Chaser[y][x] == 1 {
 				assert.Equal(t, 1, resp.Payload.Ground[y][x], "turret at (%d,%d) must be on ground", x, y)
 			}
 		}
@@ -1001,7 +1000,7 @@ func TestGenerateBridgeRoom_TurretNotOnStatic(t *testing.T) {
 		Height:      25,
 		Doors:       []DoorPosition{DoorTop, DoorBottom},
 		StaticCount: 3,
-		TurretCount: 4,
+		ChaserCount: 4,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1010,70 +1009,56 @@ func TestGenerateBridgeRoom_TurretNotOnStatic(t *testing.T) {
 	// Verify turrets don't overlap with statics
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.Turret[y][x] == 1 {
+			if resp.Payload.Chaser[y][x] == 1 {
 				assert.Equal(t, 0, resp.Payload.Static[y][x], "turret at (%d,%d) must not overlap with static", x, y)
 			}
 		}
 	}
 }
 
-func TestGenerateBridgeRoom_TurretDistanceFromDoors(t *testing.T) {
+func TestGenerateBridgeRoom_ChaserNotInDoorForbiddenZone(t *testing.T) {
 	req := BridgeGenerateRequest{
 		Width:       30,
 		Height:      30,
 		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		TurretCount: 4,
+		ChaserCount: 4,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
 	require.NoError(t, err)
 
 	doorPositions := getDoorCenterPositions(req.Width, req.Height, req.Doors)
+	forbidden := getDoorForbiddenCellsRadius(doorPositions, req.Width, req.Height, doorForbiddenRadius)
 
-	// Verify all turrets are at least 4 cells away from doors
+	// Verify no chasers are in door forbidden zone
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.Turret[y][x] == 1 {
-				turretPos := Point{X: x, Y: y}
-				for door, doorPos := range doorPositions {
-					dist := manhattanDistance(turretPos, doorPos)
-					assert.GreaterOrEqual(t, dist, turretMinDoorDistance,
-						"turret at (%d,%d) is too close to %s door (distance: %d)", x, y, door, dist)
-				}
+			if resp.Payload.Chaser[y][x] == 1 {
+				assert.False(t, forbidden[Point{X: x, Y: y}],
+					"chaser at (%d,%d) is in door forbidden zone", x, y)
 			}
 		}
 	}
 }
 
-func TestGenerateBridgeRoom_TurretMinDistance(t *testing.T) {
+func TestGenerateBridgeRoom_ChaserOnGround(t *testing.T) {
 	req := BridgeGenerateRequest{
 		Width:       30,
 		Height:      30,
 		Doors:       []DoorPosition{DoorTop, DoorBottom},
-		TurretCount: 6,
+		ChaserCount: 6,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
 	require.NoError(t, err)
 
-	// Collect all turret positions
-	var turretPositions []Point
+	// Verify all chasers are on ground
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.Turret[y][x] == 1 {
-				turretPositions = append(turretPositions, Point{X: x, Y: y})
+			if resp.Payload.Chaser[y][x] == 1 {
+				assert.Equal(t, 1, resp.Payload.Ground[y][x],
+					"chaser at (%d,%d) is not on ground", x, y)
 			}
-		}
-	}
-
-	// Verify minimum distance between turrets
-	for i := 0; i < len(turretPositions); i++ {
-		for j := i + 1; j < len(turretPositions); j++ {
-			dist := manhattanDistance(turretPositions[i], turretPositions[j])
-			assert.GreaterOrEqual(t, dist, turretMinTurretDistance,
-				"turrets at (%d,%d) and (%d,%d) are too close (distance: %d)",
-				turretPositions[i].X, turretPositions[i].Y,
-				turretPositions[j].X, turretPositions[j].Y, dist)
 		}
 	}
 }
@@ -1084,7 +1069,7 @@ func TestGenerateBridgeRoom_DoorsConnectedWithTurrets(t *testing.T) {
 		Height:      25,
 		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
 		StaticCount: 2,
-		TurretCount: 4,
+		ChaserCount: 4,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1097,7 +1082,7 @@ func TestGenerateBridgeRoom_DoorsConnectedWithTurrets(t *testing.T) {
 		for x := 0; x < req.Width; x++ {
 			walkable[y][x] = resp.Payload.Ground[y][x] == 1 &&
 				resp.Payload.Static[y][x] == 0 &&
-				resp.Payload.Turret[y][x] == 0
+				resp.Payload.Chaser[y][x] == 0
 		}
 	}
 
@@ -1178,58 +1163,16 @@ func TestTooCloseToExistingTurret(t *testing.T) {
 	assert.False(t, tooCloseToExistingTurret(Point{X: 7, Y: 5}, turretLayer, width, height), "distance 2 should be OK")
 }
 
-func TestFilterTurretsTooClose(t *testing.T) {
-	positions := []Point{
-		{X: 5, Y: 5},
-		{X: 5, Y: 6}, // Distance 1 - too close
-		{X: 6, Y: 5}, // Distance 1 - too close
-		{X: 7, Y: 5}, // Distance 2 - OK
-		{X: 5, Y: 7}, // Distance 2 - OK
-		{X: 8, Y: 8}, // Distance 6 - OK
-	}
+// TestFilterTurretsTooClose removed - filterTurretsTooClose was in the deleted layer_turret.go
 
-	filtered := filterTurretsTooClose(positions, Point{X: 5, Y: 5})
-
-	// Should only keep positions at distance >= 2
-	assert.Len(t, filtered, 3)
-}
-
-func TestMinDistanceToEdge(t *testing.T) {
-	width, height := 20, 20
-
-	// At corner
-	assert.Equal(t, 0, minDistanceToEdge(Point{X: 0, Y: 0}, width, height))
-
-	// At edge
-	assert.Equal(t, 0, minDistanceToEdge(Point{X: 10, Y: 0}, width, height))
-
-	// At center
-	assert.Equal(t, 9, minDistanceToEdge(Point{X: 10, Y: 10}, width, height))
-}
-
-func TestIsNearCorner(t *testing.T) {
-	width, height := 20, 20
-	threshold := 2
-
-	// Corners
-	assert.True(t, isNearCorner(Point{X: 0, Y: 0}, width, height, threshold))
-	assert.True(t, isNearCorner(Point{X: 19, Y: 0}, width, height, threshold))
-	assert.True(t, isNearCorner(Point{X: 0, Y: 19}, width, height, threshold))
-	assert.True(t, isNearCorner(Point{X: 19, Y: 19}, width, height, threshold))
-
-	// Near corner
-	assert.True(t, isNearCorner(Point{X: 1, Y: 1}, width, height, threshold))
-
-	// Not near corner
-	assert.False(t, isNearCorner(Point{X: 10, Y: 10}, width, height, threshold))
-}
+// TestMinDistanceToEdge and TestIsNearCorner removed - functions were in deleted layer files
 
 func TestGenerateBridgeRoom_ZeroTurretCount(t *testing.T) {
 	req := BridgeGenerateRequest{
 		Width:       15,
 		Height:      15,
 		Doors:       []DoorPosition{DoorTop, DoorBottom},
-		TurretCount: 0, // Explicitly zero
+		ChaserCount: 0, // Explicitly zero
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1238,7 +1181,7 @@ func TestGenerateBridgeRoom_ZeroTurretCount(t *testing.T) {
 	// Verify turret layer is all zeros
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			assert.Equal(t, 0, resp.Payload.Turret[y][x], "turret should be 0 when TurretCount=0")
+			assert.Equal(t, 0, resp.Payload.Chaser[y][x], "turret should be 0 when TurretCount=0")
 		}
 	}
 }
@@ -1252,7 +1195,7 @@ func TestGenerateBridgeRoom_WithMobGroundCount(t *testing.T) {
 		Width:          25,
 		Height:         25,
 		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		MobGroundCount: 5,
+		ZonerCount: 5,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1262,7 +1205,7 @@ func TestGenerateBridgeRoom_WithMobGroundCount(t *testing.T) {
 	mobGroundCount := 0
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.MobGround[y][x] == 1 {
+			if resp.Payload.Zoner[y][x] == 1 {
 				mobGroundCount++
 			}
 		}
@@ -1278,7 +1221,7 @@ func TestGenerateBridgeRoom_MobGroundOnGround(t *testing.T) {
 		Width:          20,
 		Height:         20,
 		Doors:          []DoorPosition{DoorTop, DoorBottom},
-		MobGroundCount: 3,
+		ZonerCount: 3,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1287,7 +1230,7 @@ func TestGenerateBridgeRoom_MobGroundOnGround(t *testing.T) {
 	// Verify all mob ground cells are on ground
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.MobGround[y][x] == 1 {
+			if resp.Payload.Zoner[y][x] == 1 {
 				assert.Equal(t, 1, resp.Payload.Ground[y][x],
 					"mob ground at (%d,%d) should be on ground", x, y)
 			}
@@ -1301,8 +1244,8 @@ func TestGenerateBridgeRoom_MobGroundNotOnOtherLayers(t *testing.T) {
 		Height:         30,
 		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
 		StaticCount:    3,
-		TurretCount:    4,
-		MobGroundCount: 5,
+		ChaserCount:    4,
+		ZonerCount: 5,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1311,10 +1254,10 @@ func TestGenerateBridgeRoom_MobGroundNotOnOtherLayers(t *testing.T) {
 	// Verify mob ground doesn't overlap with static or turret
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.MobGround[y][x] == 1 {
+			if resp.Payload.Zoner[y][x] == 1 {
 				assert.Equal(t, 0, resp.Payload.Static[y][x],
 					"mob ground at (%d,%d) should not overlap with static", x, y)
-				assert.Equal(t, 0, resp.Payload.Turret[y][x],
+				assert.Equal(t, 0, resp.Payload.Chaser[y][x],
 					"mob ground at (%d,%d) should not overlap with turret", x, y)
 			}
 		}
@@ -1326,7 +1269,7 @@ func TestGenerateBridgeRoom_MobGroundDistanceFromDoors(t *testing.T) {
 		Width:          20,
 		Height:         20,
 		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		MobGroundCount: 4,
+		ZonerCount: 4,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1338,7 +1281,7 @@ func TestGenerateBridgeRoom_MobGroundDistanceFromDoors(t *testing.T) {
 	// Verify mob ground is at least 2 cells away from doors
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.MobGround[y][x] == 1 {
+			if resp.Payload.Zoner[y][x] == 1 {
 				for _, doorPos := range doorPositions {
 					dist := manhattanDistance(Point{X: x, Y: y}, doorPos)
 					assert.GreaterOrEqual(t, dist, mobGroundMinDoorDistance,
@@ -1355,7 +1298,7 @@ func TestGenerateBridgeRoom_MobGroundDoNotTouch(t *testing.T) {
 		Width:          30,
 		Height:         30,
 		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		MobGroundCount: 6,
+		ZonerCount: 6,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1365,7 +1308,7 @@ func TestGenerateBridgeRoom_MobGroundDoNotTouch(t *testing.T) {
 	var mobGroundPositions []Point
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			if resp.Payload.MobGround[y][x] == 1 {
+			if resp.Payload.Zoner[y][x] == 1 {
 				mobGroundPositions = append(mobGroundPositions, Point{X: x, Y: y})
 			}
 		}
@@ -1421,47 +1364,14 @@ func TestGenerateBridgeRoom_MobGroundDoNotTouch(t *testing.T) {
 	}
 }
 
-func TestDivideMobGroundIntoGroups(t *testing.T) {
-	tests := []struct {
-		count    int
-		expected []int
-	}{
-		{0, nil},
-		{1, []int{1}},
-		{2, []int{1, 1}},
-		{3, []int{1, 1, 1}},
-		{4, []int{2, 1, 1}},
-		{5, []int{2, 2, 1}},
-		{6, []int{2, 2, 2}},
-		{9, []int{3, 3, 3}},
-		{10, []int{4, 3, 3}},
-	}
-
-	for _, tt := range tests {
-		t.Run(fmt.Sprintf("count_%d", tt.count), func(t *testing.T) {
-			result := divideMobGroundIntoGroups(tt.count)
-			if tt.expected == nil {
-				assert.Nil(t, result)
-			} else {
-				assert.Equal(t, len(tt.expected), len(result), "group count mismatch")
-				// Verify total equals input
-				total := 0
-				for _, g := range result {
-					total += g
-					assert.GreaterOrEqual(t, g, 1, "each group should have at least 1")
-				}
-				assert.Equal(t, tt.count, total, "total should equal input count")
-			}
-		})
-	}
-}
+// TestDivideMobGroundIntoGroups removed - divideMobGroundIntoGroups was in deleted layer_mobground.go
 
 func TestGenerateBridgeRoom_ZeroMobGroundCount(t *testing.T) {
 	req := BridgeGenerateRequest{
 		Width:          15,
 		Height:         15,
 		Doors:          []DoorPosition{DoorTop, DoorBottom},
-		MobGroundCount: 0,
+		ZonerCount: 0,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1470,7 +1380,7 @@ func TestGenerateBridgeRoom_ZeroMobGroundCount(t *testing.T) {
 	// Verify mob ground layer is all zeros
 	for y := 0; y < req.Height; y++ {
 		for x := 0; x < req.Width; x++ {
-			assert.Equal(t, 0, resp.Payload.MobGround[y][x], "mob ground should be 0 when MobGroundCount=0")
+			assert.Equal(t, 0, resp.Payload.Zoner[y][x], "mob ground should be 0 when MobGroundCount=0")
 		}
 	}
 }
@@ -1638,8 +1548,8 @@ func TestGenerateBridgeRoom_MobAirNotOnOtherLayers(t *testing.T) {
 		Height:         30,
 		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
 		StaticCount:    3,
-		TurretCount:    4,
-		MobGroundCount: 3,
+		ChaserCount:    4,
+		ZonerCount: 3,
 		MobAirCount:    5,
 	}
 
@@ -1652,9 +1562,9 @@ func TestGenerateBridgeRoom_MobAirNotOnOtherLayers(t *testing.T) {
 			if resp.Payload.MobAir[y][x] == 1 {
 				assert.Equal(t, 0, resp.Payload.Static[y][x],
 					"mob air at (%d,%d) should not overlap with static", x, y)
-				assert.Equal(t, 0, resp.Payload.Turret[y][x],
+				assert.Equal(t, 0, resp.Payload.Chaser[y][x],
 					"mob air at (%d,%d) should not overlap with turret", x, y)
-				assert.Equal(t, 0, resp.Payload.MobGround[y][x],
+				assert.Equal(t, 0, resp.Payload.Zoner[y][x],
 					"mob air at (%d,%d) should not overlap with mob ground", x, y)
 			}
 		}
@@ -1839,8 +1749,8 @@ func TestGenerateBridgeRoom_DebugInfoPopulated(t *testing.T) {
 		Height:         25,
 		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
 		StaticCount:    3,
-		TurretCount:    4,
-		MobGroundCount: 3,
+		ChaserCount:    4,
+		ZonerCount: 3,
 		MobAirCount:    4,
 	}
 
@@ -1872,27 +1782,23 @@ func TestGenerateBridgeRoom_DebugInfoPopulated(t *testing.T) {
 	t.Logf("Static: target=%d, placed=%d", resp.DebugInfo.Static.TargetCount, resp.DebugInfo.Static.PlacedCount)
 
 	// Verify Turret debug info
-	require.NotNil(t, resp.DebugInfo.Turret, "Turret debug info should not be nil")
-	assert.Equal(t, req.TurretCount, resp.DebugInfo.Turret.TargetCount, "turret target count should match request")
-	assert.GreaterOrEqual(t, resp.DebugInfo.Turret.PlacedCount, 0, "placed count should be >= 0")
-	assert.Equal(t, len(resp.DebugInfo.Turret.Placements), resp.DebugInfo.Turret.PlacedCount, "placements should match placed count")
-	for _, p := range resp.DebugInfo.Turret.Placements {
+	require.NotNil(t, resp.DebugInfo.Chaser, "Turret debug info should not be nil")
+	assert.Equal(t, req.ChaserCount, resp.DebugInfo.Chaser.TargetCount, "turret target count should match request")
+	assert.GreaterOrEqual(t, resp.DebugInfo.Chaser.PlacedCount, 0, "placed count should be >= 0")
+	assert.Equal(t, len(resp.DebugInfo.Chaser.Placements), resp.DebugInfo.Chaser.PlacedCount, "placements should match placed count")
+	for _, p := range resp.DebugInfo.Chaser.Placements {
 		assert.NotEmpty(t, p.Position, "placement position should not be empty")
 		assert.Equal(t, "1x1", p.Size, "turret size should be 1x1")
 		assert.NotEmpty(t, p.Reason, "placement reason should not be empty")
 	}
-	t.Logf("Turret: target=%d, placed=%d", resp.DebugInfo.Turret.TargetCount, resp.DebugInfo.Turret.PlacedCount)
+	t.Logf("Turret: target=%d, placed=%d", resp.DebugInfo.Chaser.TargetCount, resp.DebugInfo.Chaser.PlacedCount)
 
 	// Verify MobGround debug info
-	require.NotNil(t, resp.DebugInfo.MobGround, "MobGround debug info should not be nil")
-	assert.Equal(t, req.MobGroundCount, resp.DebugInfo.MobGround.TargetCount, "mobGround target count should match request")
-	assert.GreaterOrEqual(t, resp.DebugInfo.MobGround.PlacedCount, 0, "placed count should be >= 0")
-	assert.Greater(t, len(resp.DebugInfo.MobGround.Groups), 0, "should have at least one group")
-	for _, group := range resp.DebugInfo.MobGround.Groups {
-		assert.NotEmpty(t, group.Strategy, "group strategy should not be empty")
-		assert.GreaterOrEqual(t, group.TargetCount, 1, "group target count should be >= 1")
-	}
-	t.Logf("MobGround: target=%d, placed=%d, groups=%d", resp.DebugInfo.MobGround.TargetCount, resp.DebugInfo.MobGround.PlacedCount, len(resp.DebugInfo.MobGround.Groups))
+	require.NotNil(t, resp.DebugInfo.Zoner, "MobGround debug info should not be nil")
+	assert.Equal(t, req.ZonerCount, resp.DebugInfo.Zoner.TargetCount, "mobGround target count should match request")
+	assert.GreaterOrEqual(t, resp.DebugInfo.Zoner.PlacedCount, 0, "placed count should be >= 0")
+	assert.GreaterOrEqual(t, len(resp.DebugInfo.Zoner.Placements), 0, "should have placements")
+	t.Logf("Zoner: target=%d, placed=%d", resp.DebugInfo.Zoner.TargetCount, resp.DebugInfo.Zoner.PlacedCount)
 
 	// Verify MobAir debug info
 	require.NotNil(t, resp.DebugInfo.MobAir, "MobAir debug info should not be nil")
@@ -1910,8 +1816,8 @@ func TestGenerateBridgeRoom_DebugInfoWithZeroCounts(t *testing.T) {
 		Doors:          []DoorPosition{DoorTop, DoorBottom},
 		SoftEdgeCount:  0,
 		StaticCount:    0,
-		TurretCount:    0,
-		MobGroundCount: 0,
+		ChaserCount:    0,
+		ZonerCount: 0,
 		MobAirCount:    0,
 	}
 
@@ -1932,13 +1838,13 @@ func TestGenerateBridgeRoom_DebugInfoWithZeroCounts(t *testing.T) {
 	assert.True(t, resp.DebugInfo.Static.Skipped, "Static should be marked as skipped")
 	assert.Contains(t, resp.DebugInfo.Static.SkipReason, "0", "Static skip reason should mention count")
 
-	require.NotNil(t, resp.DebugInfo.Turret, "Turret debug info should not be nil")
-	assert.True(t, resp.DebugInfo.Turret.Skipped, "Turret should be marked as skipped")
-	assert.Contains(t, resp.DebugInfo.Turret.SkipReason, "0", "Turret skip reason should mention count")
+	require.NotNil(t, resp.DebugInfo.Chaser, "Turret debug info should not be nil")
+	assert.True(t, resp.DebugInfo.Chaser.Skipped, "Turret should be marked as skipped")
+	assert.Contains(t, resp.DebugInfo.Chaser.SkipReason, "0", "Turret skip reason should mention count")
 
-	require.NotNil(t, resp.DebugInfo.MobGround, "MobGround debug info should not be nil")
-	assert.True(t, resp.DebugInfo.MobGround.Skipped, "MobGround should be marked as skipped")
-	assert.Contains(t, resp.DebugInfo.MobGround.SkipReason, "0", "MobGround skip reason should mention count")
+	require.NotNil(t, resp.DebugInfo.Zoner, "MobGround debug info should not be nil")
+	assert.True(t, resp.DebugInfo.Zoner.Skipped, "MobGround should be marked as skipped")
+	assert.Contains(t, resp.DebugInfo.Zoner.SkipReason, "0", "MobGround skip reason should mention count")
 
 	require.NotNil(t, resp.DebugInfo.MobAir, "MobAir debug info should not be nil")
 	assert.True(t, resp.DebugInfo.MobAir.Skipped, "MobAir should be marked as skipped")

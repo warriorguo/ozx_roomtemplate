@@ -84,8 +84,8 @@ func TestGenerateFullRoom_ValidInput(t *testing.T) {
 			assert.Equal(t, tt.req.Height, len(resp.Payload.SoftEdge))
 			assert.Equal(t, tt.req.Height, len(resp.Payload.Bridge))
 			assert.Equal(t, tt.req.Height, len(resp.Payload.Static))
-			assert.Equal(t, tt.req.Height, len(resp.Payload.Turret))
-			assert.Equal(t, tt.req.Height, len(resp.Payload.MobGround))
+			assert.Equal(t, tt.req.Height, len(resp.Payload.Chaser))
+			assert.Equal(t, tt.req.Height, len(resp.Payload.Zoner))
 			assert.Equal(t, tt.req.Height, len(resp.Payload.MobAir))
 
 			// Verify room type
@@ -240,8 +240,8 @@ func TestGenerateFullRoom_WithOptionalLayers(t *testing.T) {
 		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
 		SoftEdgeCount:  3,
 		StaticCount:    4,
-		TurretCount:    3,
-		MobGroundCount: 5,
+		ChaserCount:    3,
+		ZonerCount: 5,
 		MobAirCount:    4,
 	}
 
@@ -252,8 +252,8 @@ func TestGenerateFullRoom_WithOptionalLayers(t *testing.T) {
 	// Verify layers are not skipped
 	assert.False(t, resp.DebugInfo.SoftEdge.Skipped)
 	assert.False(t, resp.DebugInfo.Static.Skipped)
-	assert.False(t, resp.DebugInfo.Turret.Skipped)
-	assert.False(t, resp.DebugInfo.MobGround.Skipped)
+	assert.False(t, resp.DebugInfo.Chaser.Skipped)
+	assert.False(t, resp.DebugInfo.Zoner.Skipped)
 	assert.False(t, resp.DebugInfo.MobAir.Skipped)
 }
 
@@ -264,8 +264,8 @@ func TestGenerateFullRoom_DebugInfoPopulated(t *testing.T) {
 		Doors:          []DoorPosition{DoorTop, DoorBottom},
 		SoftEdgeCount:  2,
 		StaticCount:    2,
-		TurretCount:    2,
-		MobGroundCount: 2,
+		ChaserCount:    2,
+		ZonerCount: 2,
 		MobAirCount:    2,
 	}
 

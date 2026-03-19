@@ -39,11 +39,13 @@ export function frontendToBackendCreateRequest(
       rail: template.rail,
       railLines,
       static: template.static,
-      turret: template.turret,
-      mobGround: template.mobGround,
+      chaser: template.chaser,
+      zoner: template.zoner,
+      dps: template.dps,
+      mainPath: template.mainPath,
       mobAir: template.mobAir,
       doors: template.doors,
-      attributes: template.attributes,
+      stageType: template.stageType,
       roomType: template.roomType,
       tileProperties: template.tileProperties,
       meta: {
@@ -77,18 +79,17 @@ export function backendToFrontendTemplate(
     rail: (backendTemplate.payload.rail ||
       Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
     static: backendTemplate.payload.static as Grid<CellValue>,
-    turret: backendTemplate.payload.turret as Grid<CellValue>,
-    mobGround: backendTemplate.payload.mobGround as Grid<CellValue>,
+    chaser: (backendTemplate.payload.chaser ||
+      Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
+    zoner: (backendTemplate.payload.zoner ||
+      Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
+    dps: (backendTemplate.payload.dps ||
+      Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
+    mainPath: (backendTemplate.payload.mainPath ||
+      Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
     mobAir: backendTemplate.payload.mobAir as Grid<CellValue>,
     doors: backendTemplate.payload.doors || { top: 0, right: 0, bottom: 0, left: 0 },
-    attributes: backendTemplate.payload.attributes || {
-      boss: false,
-      elite: false,
-      mob: false,
-      treasure: false,
-      teleport: false,
-      story: false,
-    },
+    stageType: (backendTemplate.payload.stageType as any) || 'teaching',
     roomType: backendTemplate.payload.roomType || 'full',
     tileProperties: backendTemplate.payload.tileProperties ||
       Array(backendTemplate.height).fill(null).map(() =>
@@ -133,11 +134,13 @@ export function frontendToBackendPayload(
     rail: template.rail,
     railLines,
     static: template.static,
-    turret: template.turret,
-    mobGround: template.mobGround,
+    chaser: template.chaser,
+    zoner: template.zoner,
+    dps: template.dps,
+    mainPath: template.mainPath,
     mobAir: template.mobAir,
     doors: template.doors,
-    attributes: template.attributes,
+    stageType: template.stageType,
     roomType: template.roomType,
     tileProperties: template.tileProperties,
     meta: {

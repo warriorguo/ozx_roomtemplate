@@ -22,8 +22,10 @@ interface CellProps {
   pipelineValue: CellValue;    // pipeline层的值
   railValue: CellValue;        // rail层的值
   staticValue: CellValue;      // static层的值
-  turretValue: CellValue;      // turret层的值
-  mobGroundValue: CellValue;   // mobGround层的值
+  chaserValue: CellValue;      // chaser层的值
+  zonerValue: CellValue;       // zoner层的值
+  dpsValue: CellValue;         // dps层的值
+  mainPathValue: CellValue;    // mainPath层的值
   mobAirValue: CellValue;      // mobAir层的值
   isCompositeView: boolean;    // 是否为总图层视图
   allLayersValid: boolean;     // 该位置所有层是否都有效
@@ -47,8 +49,10 @@ const Cell: React.FC<CellProps> = ({
   pipelineValue,
   railValue,
   staticValue,
-  turretValue,
-  mobGroundValue,
+  chaserValue,
+  zonerValue,
+  dpsValue,
+  mainPathValue,
   mobAirValue,
   isCompositeView,
   allLayersValid,
@@ -115,13 +119,17 @@ const Cell: React.FC<CellProps> = ({
 
     // 总图层视图：按优先级显示所有层的数据
     if (isCompositeView && isVisible) {
-      // 优先级：mobAir > mobGround > turret > static > rail > pipeline > bridge > ground
+      // 优先级：mobAir > dps > zoner > chaser > mainPath > static > rail > pipeline > bridge > ground
       if (mobAirValue === 1) {
         baseStyle.backgroundColor = '#87CEEB'; // Sky blue (mobAir)
-      } else if (mobGroundValue === 1) {
-        baseStyle.backgroundColor = '#FFD700'; // Yellow (mobGround)
-      } else if (turretValue === 1) {
-        baseStyle.backgroundColor = '#4169E1'; // Blue (turret)
+      } else if (dpsValue === 1) {
+        baseStyle.backgroundColor = '#FF4500'; // Orange-red (dps)
+      } else if (zonerValue === 1) {
+        baseStyle.backgroundColor = '#FFD700'; // Yellow (zoner)
+      } else if (chaserValue === 1) {
+        baseStyle.backgroundColor = '#4169E1'; // Blue (chaser)
+      } else if (mainPathValue === 1) {
+        baseStyle.backgroundColor = '#00CED1'; // Dark cyan (mainPath)
       } else if (staticValue === 1) {
         baseStyle.backgroundColor = '#FFA500'; // Orange (static)
       } else if (railValue === 1) {
@@ -169,11 +177,17 @@ const Cell: React.FC<CellProps> = ({
           case 'static':
             baseStyle.backgroundColor = '#FFA500'; // Orange
             break;
-          case 'turret':
+          case 'chaser':
             baseStyle.backgroundColor = '#4169E1'; // Blue
             break;
-          case 'mobGround':
+          case 'zoner':
             baseStyle.backgroundColor = '#FFD700'; // Yellow
+            break;
+          case 'dps':
+            baseStyle.backgroundColor = '#FF4500'; // Orange-red
+            break;
+          case 'mainPath':
+            baseStyle.backgroundColor = '#00CED1'; // Dark cyan
             break;
           case 'mobAir':
             baseStyle.backgroundColor = '#87CEEB'; // Sky blue
@@ -248,22 +262,25 @@ const Cell: React.FC<CellProps> = ({
             }
             break;
 
-          case 'turret':
-            // turret层：bridge/pipeline/rail=1 显示冲突色，static=1 显示浅橘色，ground=1 显示浅绿色
+          case 'chaser':
+            // chaser层：bridge/pipeline/rail=1 显示冲突色，static/zoner=1 显示浅橘色，ground=1 显示浅绿色
             if (bridgeValue === 1) {
-              baseStyle.backgroundColor = '#E5D3FF'; // 浅紫色 - 不能放置在bridge上
+              baseStyle.backgroundColor = '#E5D3FF';
               baseStyle.border = '1px solid #D1B3FF';
             } else if (pipelineValue === 1) {
-              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在pipeline上
+              baseStyle.backgroundColor = '#FFE5E5';
               baseStyle.border = '1px solid #FFB3B3';
             } else if (railValue === 1) {
-              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在rail上
+              baseStyle.backgroundColor = '#FFE5E5';
               baseStyle.border = '1px solid #FFB3B3';
+            } else if (zonerValue === 1) {
+              baseStyle.backgroundColor = '#FFFDE7';
+              baseStyle.border = '1px solid #FFF9C4';
             } else if (staticValue === 1) {
-              baseStyle.backgroundColor = '#FFE5CC'; // 浅橘色
+              baseStyle.backgroundColor = '#FFE5CC';
               baseStyle.border = '1px solid #FFD4A3';
             } else if (groundValue === 1) {
-              baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
+              baseStyle.backgroundColor = '#E8F5E9';
               baseStyle.border = '1px solid #C8E6C9';
             } else {
               baseStyle.backgroundColor = '#ffffff';
@@ -271,25 +288,59 @@ const Cell: React.FC<CellProps> = ({
             }
             break;
 
-          case 'mobGround':
-            // mobGround层：bridge/pipeline/rail=1 显示冲突色，turret=1 显示浅蓝色，static=1 显示浅橘色，ground=1 显示浅绿色
+          case 'zoner':
+            // zoner层：bridge/pipeline/rail=1 显示冲突色，chaser=1 显示浅蓝色，static=1 显示浅橘色，ground=1 显示浅绿色
             if (bridgeValue === 1) {
-              baseStyle.backgroundColor = '#E5D3FF'; // 浅紫色 - 不能放置在bridge上
+              baseStyle.backgroundColor = '#E5D3FF';
               baseStyle.border = '1px solid #D1B3FF';
             } else if (pipelineValue === 1) {
-              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在pipeline上
+              baseStyle.backgroundColor = '#FFE5E5';
               baseStyle.border = '1px solid #FFB3B3';
             } else if (railValue === 1) {
-              baseStyle.backgroundColor = '#FFE5E5'; // 浅红色 - 不能放置在rail上
+              baseStyle.backgroundColor = '#FFE5E5';
               baseStyle.border = '1px solid #FFB3B3';
-            } else if (turretValue === 1) {
-              baseStyle.backgroundColor = '#E3F2FD'; // 浅蓝色
+            } else if (chaserValue === 1) {
+              baseStyle.backgroundColor = '#E3F2FD';
               baseStyle.border = '1px solid #BBDEFB';
             } else if (staticValue === 1) {
-              baseStyle.backgroundColor = '#FFE5CC'; // 浅橘色
+              baseStyle.backgroundColor = '#FFE5CC';
               baseStyle.border = '1px solid #FFD4A3';
             } else if (groundValue === 1) {
-              baseStyle.backgroundColor = '#E8F5E9'; // 浅绿色
+              baseStyle.backgroundColor = '#E8F5E9';
+              baseStyle.border = '1px solid #C8E6C9';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
+          case 'dps':
+            // dps层：bridge/pipeline/rail=1 显示冲突色，zoner=1 显示浅黄色，ground=1 显示浅绿色
+            if (bridgeValue === 1) {
+              baseStyle.backgroundColor = '#E5D3FF';
+              baseStyle.border = '1px solid #D1B3FF';
+            } else if (pipelineValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5';
+              baseStyle.border = '1px solid #FFB3B3';
+            } else if (railValue === 1) {
+              baseStyle.backgroundColor = '#FFE5E5';
+              baseStyle.border = '1px solid #FFB3B3';
+            } else if (zonerValue === 1) {
+              baseStyle.backgroundColor = '#FFFDE7';
+              baseStyle.border = '1px solid #FFF9C4';
+            } else if (groundValue === 1) {
+              baseStyle.backgroundColor = '#E8F5E9';
+              baseStyle.border = '1px solid #C8E6C9';
+            } else {
+              baseStyle.backgroundColor = '#ffffff';
+              baseStyle.border = '1px solid #ddd';
+            }
+            break;
+
+          case 'mainPath':
+            // mainPath层：read-only, ground=1 显示浅绿色
+            if (groundValue === 1) {
+              baseStyle.backgroundColor = '#E8F5E9';
               baseStyle.border = '1px solid #C8E6C9';
             } else {
               baseStyle.backgroundColor = '#ffffff';
@@ -544,8 +595,10 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
             const pipelineValue = template.pipeline[y][x];      // 获取对应位置的pipeline值
             const railValue = template.rail[y][x];              // 获取对应位置的rail值
             const staticValue = template.static[y][x];          // 获取对应位置的static值
-            const turretValue = template.turret[y][x];          // 获取对应位置的turret值
-            const mobGroundValue = template.mobGround[y][x];    // 获取对应位置的mobGround值
+            const chaserValue = template.chaser[y][x];          // 获取对应位置的chaser值
+            const zonerValue = template.zoner[y][x];            // 获取对应位置的zoner值
+            const dpsValue = template.dps[y][x];                // 获取对应位置的dps值
+            const mainPathValue = template.mainPath[y][x];      // 获取对应位置的mainPath值
             const mobAirValue = template.mobAir[y][x];          // 获取对应位置的mobAir值
 
             return (
@@ -564,8 +617,10 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 pipelineValue={pipelineValue}
                 railValue={railValue}
                 staticValue={staticValue}
-                turretValue={turretValue}
-                mobGroundValue={mobGroundValue}
+                chaserValue={chaserValue}
+                zonerValue={zonerValue}
+                dpsValue={dpsValue}
+                mainPathValue={mainPathValue}
                 mobAirValue={mobAirValue}
                 isCompositeView={false}
                 allLayersValid={true}

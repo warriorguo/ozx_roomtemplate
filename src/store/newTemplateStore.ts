@@ -3,7 +3,7 @@ import type {
   Template,
   LayerType,
   UIState,
-  RoomAttribute,
+  StageType,
   RoomType
 } from '../types/newTemplate';
 import {
@@ -61,7 +61,7 @@ interface NewTemplateStore {
   invertGroundLayer: () => void;
 
   // Room attributes
-  toggleRoomAttribute: (attribute: RoomAttribute) => void;
+  setStageType: (stageType: StageType) => void;
   setRoomType: (roomType: RoomType) => void;
 
   // Drag operations
@@ -110,8 +110,10 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         pipeline: true,
         rail: true,
         static: true,
-        turret: true,
-        mobGround: true,
+        chaser: true,
+        zoner: true,
+        dps: true,
+        mainPath: true,
         mobAir: true,
       },
       validationResult: initialValidation,
@@ -540,8 +542,10 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
           pipeline: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           rail: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           static: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
-          turret: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
-          mobGround: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
+          chaser: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
+          zoner: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
+          dps: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
+          mainPath: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
           mobAir: Array(template.height).fill(null).map(() => Array(template.width).fill(true)),
         },
       };
@@ -732,14 +736,11 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
   },
 
   // Room attributes
-  toggleRoomAttribute: (attribute: RoomAttribute) => {
+  setStageType: (stageType: StageType) => {
     const { template } = get();
 
     const newTemplate = { ...template };
-    newTemplate.attributes = {
-      ...template.attributes,
-      [attribute]: !template.attributes[attribute],
-    };
+    newTemplate.stageType = stageType;
 
     set({
       template: newTemplate,
@@ -785,11 +786,13 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             pipeline: payload.pipeline,
             rail: payload.rail,
             static: payload.static,
-            turret: payload.turret,
-            mobGround: payload.mobGround,
+            chaser: payload.chaser,
+            zoner: payload.zoner,
+            dps: payload.dps,
+            mainPath: payload.mainPath,
             mobAir: payload.mobAir,
             doors: payload.doors,
-            attributes: payload.attributes,
+            stageType: payload.stageType,
             roomType: payload.roomType,
             tileProperties: payload.tileProperties,
           },
@@ -797,7 +800,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
           updated_at: new Date().toISOString(),
         };
       } else if (jsonData.meta && jsonData.ground && jsonData.static) {
-        // Direct payload format: { ground, static, turret, ..., meta }
+        // Direct payload format: { ground, static, chaser, ..., meta }
         backendTemplate = {
           id: 'pasted-template',
           name: jsonData.meta?.name || 'pasted-template',
@@ -811,13 +814,13 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         // Backend template format: { id, name, payload: {...} }
         backendTemplate = jsonData;
       } else {
-        throw new Error('Invalid JSON structure: Expected template data with required fields (ground, static, turret, mobGround, mobAir)');
+        throw new Error('Invalid JSON structure: Expected template data with required fields (ground, static, mobAir)');
       }
 
       // Validate that the payload has required fields
       const payload = backendTemplate.payload;
-      if (!payload.ground || !payload.static || !payload.turret || !payload.mobGround || !payload.mobAir) {
-        throw new Error('Invalid template: Missing required layer data (ground, bridge, static, turret, mobGround, mobAir)');
+      if (!payload.ground || !payload.static || !payload.mobAir) {
+        throw new Error('Invalid template: Missing required layer data (ground, static, mobAir)');
       }
       
       // Initialize softEdge layer if not present (for backward compatibility)
@@ -838,6 +841,26 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       // Initialize rail layer if not present (for backward compatibility)
       if (!payload.rail) {
         payload.rail = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
+      }
+
+      // Initialize chaser layer if not present (for backward compatibility)
+      if (!payload.chaser) {
+        payload.chaser = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
+      }
+
+      // Initialize zoner layer if not present (for backward compatibility)
+      if (!payload.zoner) {
+        payload.zoner = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
+      }
+
+      // Initialize dps layer if not present (for backward compatibility)
+      if (!payload.dps) {
+        payload.dps = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
+      }
+
+      // Initialize mainPath layer if not present (for backward compatibility)
+      if (!payload.mainPath) {
+        payload.mainPath = Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0));
       }
 
       // Convert to frontend template format

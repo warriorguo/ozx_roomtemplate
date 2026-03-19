@@ -28,7 +28,7 @@ export interface BackendTileProperties {
   distToLeftDoor: number | null;
   distToRightDoor: number | null;
   distToNearStatic: number | null;
-  distToNearTurret: number | null;
+  distToNearChaser: number | null;
 }
 
 // Line segment structure for Pipeline and Rail
@@ -51,8 +51,10 @@ export interface BackendTemplatePayload {
   rail?: number[][]; // Optional for backward compatibility
   railLines?: LineSegment[]; // Line segments describing rail paths
   static: number[][];
-  turret: number[][];
-  mobGround: number[][];
+  chaser: number[][];
+  zoner: number[][];
+  dps: number[][];
+  mainPath?: number[][];
   mobAir: number[][];
   doors?: {
     top: 0 | 1;
@@ -60,14 +62,7 @@ export interface BackendTemplatePayload {
     bottom: 0 | 1;
     left: 0 | 1;
   };
-  attributes?: {
-    boss: boolean;
-    elite: boolean;
-    mob: boolean;
-    treasure: boolean;
-    teleport: boolean;
-    story: boolean;
-  };
+  stageType?: string;
   roomType?: 'full' | 'bridge' | 'platform';
   tileProperties?: (BackendTileProperties | null)[][];
   meta: {
@@ -98,15 +93,6 @@ export interface DoorsConnected {
   left: boolean;
 }
 
-export interface RoomAttributes {
-  boss: boolean;
-  elite: boolean;
-  mob: boolean;
-  treasure: boolean;
-  teleport: boolean;
-  story: boolean;
-}
-
 export interface TemplateSummary {
   id: string;
   name: string;
@@ -116,11 +102,12 @@ export interface TemplateSummary {
   thumbnail?: string;
   walkable_ratio?: number;
   room_type?: 'full' | 'bridge' | 'platform';
-  room_attributes?: RoomAttributes;
+  stage_type?: string;
   doors_connected?: DoorsConnected;
   static_count?: number;
-  turret_count?: number;
-  mobground_count?: number;
+  chaser_count?: number;
+  zoner_count?: number;
+  dps_count?: number;
   mobair_count?: number;
   created_at: string;
   updated_at: string;
@@ -136,13 +123,7 @@ export interface ListTemplatesParams {
   offset?: number;
   name_like?: string;
   room_type?: 'full' | 'bridge' | 'platform';
-  // Attribute filters
-  has_boss?: boolean;
-  has_elite?: boolean;
-  has_mob?: boolean;
-  has_treasure?: boolean;
-  has_teleport?: boolean;
-  has_story?: boolean;
+  stage_type?: string;
   // Door connectivity filters
   top_door_connected?: boolean;
   right_door_connected?: boolean;
@@ -274,14 +255,7 @@ export class TemplateApiService {
     if (params?.offset) searchParams.set('offset', params.offset.toString());
     if (params?.name_like) searchParams.set('name_like', params.name_like);
     if (params?.room_type) searchParams.set('room_type', params.room_type);
-
-    // Attribute filters
-    if (params?.has_boss !== undefined) searchParams.set('has_boss', params.has_boss.toString());
-    if (params?.has_elite !== undefined) searchParams.set('has_elite', params.has_elite.toString());
-    if (params?.has_mob !== undefined) searchParams.set('has_mob', params.has_mob.toString());
-    if (params?.has_treasure !== undefined) searchParams.set('has_treasure', params.has_treasure.toString());
-    if (params?.has_teleport !== undefined) searchParams.set('has_teleport', params.has_teleport.toString());
-    if (params?.has_story !== undefined) searchParams.set('has_story', params.has_story.toString());
+    if (params?.stage_type) searchParams.set('stage_type', params.stage_type);
 
     // Door connectivity filters
     if (params?.top_door_connected !== undefined) searchParams.set('top_door_connected', params.top_door_connected.toString());
@@ -373,9 +347,11 @@ export interface BridgeGenerateRequest {
   softEdgeCount?: number;
   railEnabled?: boolean;
   staticCount?: number;
-  turretCount?: number;
-  mobGroundCount?: number;
+  chaserCount?: number;
+  zonerCount?: number;
+  dpsCount?: number;
   mobAirCount?: number;
+  stageType?: string;
 }
 
 // Debug info types for bridge generation
@@ -427,12 +403,13 @@ export interface StaticDebugInfo {
   misses?: MissInfo[];
 }
 
-export interface TurretDebugInfo {
+export interface EnemyLayerDebugInfo {
   skipped: boolean;
   skipReason?: string;
   targetCount: number;
   placedCount: number;
   placements: PlaceInfo[];
+  groups?: MobGroupInfo[];
   misses?: MissInfo[];
 }
 
@@ -445,13 +422,10 @@ export interface MobGroupInfo {
   misses?: MissInfo[];
 }
 
-export interface MobGroundDebugInfo {
-  skipped: boolean;
-  skipReason?: string;
-  targetCount: number;
-  placedCount: number;
-  groups: MobGroupInfo[];
-  misses?: MissInfo[];
+export interface MainPathDebugInfo {
+  pathCellCount: number;
+  pathSegments?: string[];
+  misses?: string[];
 }
 
 export interface MobAirDebugInfo {
@@ -495,8 +469,10 @@ export interface GenerateDebugInfo {
   softEdge?: SoftEdgeDebugInfo;
   bridgeLayer?: BridgeLayerDebugInfo;
   static?: StaticDebugInfo;
-  turret?: TurretDebugInfo;
-  mobGround?: MobGroundDebugInfo;
+  chaser?: EnemyLayerDebugInfo;
+  zoner?: EnemyLayerDebugInfo;
+  dps?: EnemyLayerDebugInfo;
+  mainPath?: MainPathDebugInfo;
   mobAir?: MobAirDebugInfo;
 }
 
@@ -513,9 +489,11 @@ export interface PlatformGenerateRequest {
   softEdgeCount?: number;
   railEnabled?: boolean;
   staticCount?: number;
-  turretCount?: number;
-  mobGroundCount?: number;
+  chaserCount?: number;
+  zonerCount?: number;
+  dpsCount?: number;
   mobAirCount?: number;
+  stageType?: string;
 }
 
 export interface PlatformPlaceInfo {
@@ -544,8 +522,10 @@ export interface PlatformDebugInfo {
   softEdge?: SoftEdgeDebugInfo;
   bridgeLayer?: BridgeLayerDebugInfo;
   static?: StaticDebugInfo;
-  turret?: TurretDebugInfo;
-  mobGround?: MobGroundDebugInfo;
+  chaser?: EnemyLayerDebugInfo;
+  zoner?: EnemyLayerDebugInfo;
+  dps?: EnemyLayerDebugInfo;
+  mainPath?: MainPathDebugInfo;
   mobAir?: MobAirDebugInfo;
 }
 
@@ -562,9 +542,11 @@ export interface FullRoomGenerateRequest {
   softEdgeCount?: number;
   railEnabled?: boolean;
   staticCount?: number;
-  turretCount?: number;
-  mobGroundCount?: number;
+  chaserCount?: number;
+  zonerCount?: number;
+  dpsCount?: number;
   mobAirCount?: number;
+  stageType?: string;
 }
 
 export interface CornerEraseInfo {
@@ -632,8 +614,10 @@ export interface FullRoomDebugInfo {
   bridgeLayer?: BridgeLayerDebugInfo;
   rail?: RailDebugInfo;
   static?: StaticDebugInfo;
-  turret?: TurretDebugInfo;
-  mobGround?: MobGroundDebugInfo;
+  chaser?: EnemyLayerDebugInfo;
+  zoner?: EnemyLayerDebugInfo;
+  dps?: EnemyLayerDebugInfo;
+  mainPath?: MainPathDebugInfo;
   mobAir?: MobAirDebugInfo;
 }
 

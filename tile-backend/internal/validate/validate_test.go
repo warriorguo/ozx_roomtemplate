@@ -29,13 +29,19 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 					{1, 0, 0, 1},
 					{0, 1, 1, 0},
 				},
-				Turret: [][]int{
+				Chaser: [][]int{
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 				},
-				MobGround: [][]int{
+				Zoner: [][]int{
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+				},
+				DPS: [][]int{
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
@@ -62,8 +68,9 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 			payload: &model.TemplatePayload{
 				Ground:    [][]int{{1}, {1}},
 				Static:    [][]int{{0}, {1}},
-				Turret:    [][]int{{0}, {0}},
-				MobGround: [][]int{{0}, {0}},
+				Chaser:    [][]int{{0}, {0}},
+				Zoner: [][]int{{0}, {0}},
+				DPS:   [][]int{{0}, {0}},
 				MobAir:    [][]int{{0}, {1}},
 				Meta: model.TemplateMeta{
 					Name:    "test",
@@ -93,8 +100,9 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 			payload: &model.TemplatePayload{
 				Ground:    [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
 				Static:    [][]int{{0, 1, 1, 0}}, // Wrong height
-				Turret:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				MobGround: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Chaser:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Zoner: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				DPS:   [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
 				MobAir:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "test",
@@ -111,8 +119,9 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 			payload: &model.TemplatePayload{
 				Ground:    [][]int{{1, 2, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}}, // Invalid value '2'
 				Static:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
-				Turret:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				MobGround: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Chaser:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Zoner: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				DPS:   [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
 				MobAir:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "test",
@@ -129,8 +138,9 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 			payload: &model.TemplatePayload{
 				Ground:    [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
 				Static:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
-				Turret:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				MobGround: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Chaser:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Zoner: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				DPS:   [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
 				MobAir:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "", // Empty name
@@ -180,13 +190,19 @@ func TestValidateTemplate_LogicalRules_Fixed(t *testing.T) {
 					{1, 0, 0, 1},
 					{0, 1, 1, 0},
 				},
-				Turret: [][]int{
+				Chaser: [][]int{
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 				},
-				MobGround: [][]int{
+				Zoner: [][]int{
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+				},
+				DPS: [][]int{
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
@@ -224,13 +240,19 @@ func TestValidateTemplate_LogicalRules_Fixed(t *testing.T) {
 					{1, 0, 0, 1},
 					{0, 1, 1, 0},
 				},
-				Turret: [][]int{
+				Chaser: [][]int{
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 				},
-				MobGround: [][]int{
+				Zoner: [][]int{
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+				},
+				DPS: [][]int{
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
@@ -268,13 +290,19 @@ func TestValidateTemplate_LogicalRules_Fixed(t *testing.T) {
 					{1, 0, 0, 1},
 					{0, 1, 1, 0},
 				},
-				Turret: [][]int{
+				Chaser: [][]int{
 					{1, 0, 0, 0}, // Turret at (0,0): ground=1, static=0
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 				},
-				MobGround: [][]int{
+				Zoner: [][]int{
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+				},
+				DPS: [][]int{
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
@@ -312,13 +340,19 @@ func TestValidateTemplate_LogicalRules_Fixed(t *testing.T) {
 					{1, 0, 0, 1},
 					{0, 1, 1, 0},
 				},
-				Turret: [][]int{
+				Chaser: [][]int{
 					{1, 0, 0, 0}, // Turret at (0,0): ground=0
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 				},
-				MobGround: [][]int{
+				Zoner: [][]int{
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+				},
+				DPS: [][]int{
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
@@ -356,14 +390,20 @@ func TestValidateTemplate_LogicalRules_Fixed(t *testing.T) {
 					{1, 0, 0, 1},
 					{0, 1, 1, 0},
 				},
-				Turret: [][]int{
+				Chaser: [][]int{
 					{1, 0, 0, 0}, // Turret=1 at (0,0) where ground=0
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 				},
-				MobGround: [][]int{
-					{1, 0, 0, 0}, // MobGround=1 at (0,0) where ground=0
+				Zoner: [][]int{
+					{1, 0, 0, 0}, // Zoner=1 at (0,0) where ground=0
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+					{0, 0, 0, 0},
+				},
+				DPS: [][]int{
+					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},
 					{0, 0, 0, 0},

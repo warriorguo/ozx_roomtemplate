@@ -35,14 +35,21 @@ func ComputeTemplateStats(template *Template) {
 	staticCount := CountLayerTiles(template.Payload.Static)
 	template.StaticCount = &staticCount
 
-	turretCount := CountLayerTiles(template.Payload.Turret)
-	template.TurretCount = &turretCount
+	chaserCount := CountLayerTiles(template.Payload.Chaser)
+	template.ChaserCount = &chaserCount
 
-	mobGroundCount := CountLayerTiles(template.Payload.MobGround)
-	template.MobGroundCount = &mobGroundCount
+	zonerCount := CountLayerTiles(template.Payload.Zoner)
+	template.ZonerCount = &zonerCount
+
+	dpsCount := CountLayerTiles(template.Payload.DPS)
+	template.DPSCount = &dpsCount
 
 	mobAirCount := CountLayerTiles(template.Payload.MobAir)
 	template.MobAirCount = &mobAirCount
+
+	if template.Payload.StageType != nil {
+		template.StageType = template.Payload.StageType
+	}
 }
 
 // CalculateWalkableRatio calculates the ratio of walkable tiles to total tiles

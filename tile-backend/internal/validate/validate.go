@@ -62,11 +62,14 @@ func validateBasicStructure(payload *model.TemplatePayload) error {
 	if payload.Static == nil {
 		return fmt.Errorf("static layer is missing")
 	}
-	if payload.Turret == nil {
-		return fmt.Errorf("turret layer is missing")
+	if payload.Chaser == nil {
+		return fmt.Errorf("chaser layer is missing")
 	}
-	if payload.MobGround == nil {
-		return fmt.Errorf("mobGround layer is missing")
+	if payload.Zoner == nil {
+		return fmt.Errorf("zoner layer is missing")
+	}
+	if payload.DPS == nil {
+		return fmt.Errorf("dps layer is missing")
 	}
 	if payload.MobAir == nil {
 		return fmt.Errorf("mobAir layer is missing")
@@ -99,11 +102,12 @@ func validateLayers(payload *model.TemplatePayload) []model.ValidationError {
 
 	// Validate each layer
 	layers := map[string]model.Layer{
-		"ground":    payload.Ground,
-		"static":    payload.Static,
-		"turret":    payload.Turret,
-		"mobGround": payload.MobGround,
-		"mobAir":    payload.MobAir,
+		"ground": payload.Ground,
+		"static": payload.Static,
+		"chaser": payload.Chaser,
+		"zoner":  payload.Zoner,
+		"dps":    payload.DPS,
+		"mobAir": payload.MobAir,
 	}
 	
 	// Add softEdge layer if present (optional for backward compatibility)
@@ -204,8 +208,18 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 				rail = payload.Rail[y][x]
 			}
 			static := payload.Static[y][x]
-			turret := payload.Turret[y][x]
-			mobGround := payload.MobGround[y][x]
+			var chaser int = 0
+			if payload.Chaser != nil && len(payload.Chaser) > y && len(payload.Chaser[y]) > x {
+				chaser = payload.Chaser[y][x]
+			}
+			var zoner int = 0
+			if payload.Zoner != nil && len(payload.Zoner) > y && len(payload.Zoner[y]) > x {
+				zoner = payload.Zoner[y][x]
+			}
+			var dps int = 0
+			if payload.DPS != nil && len(payload.DPS) > y && len(payload.DPS[y]) > x {
+				dps = payload.DPS[y][x]
+			}
 
 			// SoftEdge validation rules
 			if softEdge == 1 {
@@ -342,98 +356,38 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 				}
 			}
 
-			// Rule: turret==1 => (ground==1 || bridge==1) && static==0 && bridge==0 && pipeline==0 && rail==0
-			if turret == 1 {
-				if ground == 0 && bridge == 0 {
+			// Rule: chaser==1 => ground==1
+			if chaser == 1 {
+				if ground == 0 {
 					errors = append(errors, model.ValidationError{
-						Layer:  "turret",
+						Layer:  "chaser",
 						X:      x,
 						Y:      y,
-						Reason: "turrets require walkable ground or bridge",
-					})
-				}
-				if bridge == 1 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "turret",
-						X:      x,
-						Y:      y,
-						Reason: "turrets cannot be placed on bridge",
-					})
-				}
-				if static == 1 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "turret",
-						X:      x,
-						Y:      y,
-						Reason: "turrets cannot be placed on static items",
-					})
-				}
-				if pipeline == 1 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "turret",
-						X:      x,
-						Y:      y,
-						Reason: "turrets cannot be placed on pipeline",
-					})
-				}
-				if rail == 1 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "turret",
-						X:      x,
-						Y:      y,
-						Reason: "turrets cannot be placed on rail",
+						Reason: "chasers require walkable ground",
 					})
 				}
 			}
 
-			// Rule: mobGround==1 => (ground==1 || bridge==1) && static==0 && turret==0 && bridge==0 && pipeline==0 && rail==0
-			if mobGround == 1 {
-				if ground == 0 && bridge == 0 {
+			// Rule: zoner==1 => ground==1
+			if zoner == 1 {
+				if ground == 0 {
 					errors = append(errors, model.ValidationError{
-						Layer:  "mobGround",
+						Layer:  "zoner",
 						X:      x,
 						Y:      y,
-						Reason: "ground mobs require walkable ground or bridge",
+						Reason: "zoners require walkable ground",
 					})
 				}
-				if bridge == 1 {
+			}
+
+			// Rule: dps==1 => ground==1
+			if dps == 1 {
+				if ground == 0 {
 					errors = append(errors, model.ValidationError{
-						Layer:  "mobGround",
+						Layer:  "dps",
 						X:      x,
 						Y:      y,
-						Reason: "ground mobs cannot be placed on bridge",
-					})
-				}
-				if static == 1 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "mobGround",
-						X:      x,
-						Y:      y,
-						Reason: "ground mobs cannot be placed on static items",
-					})
-				}
-				if turret == 1 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "mobGround",
-						X:      x,
-						Y:      y,
-						Reason: "ground mobs cannot be placed on turrets",
-					})
-				}
-				if pipeline == 1 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "mobGround",
-						X:      x,
-						Y:      y,
-						Reason: "ground mobs cannot be placed on pipeline",
-					})
-				}
-				if rail == 1 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "mobGround",
-						X:      x,
-						Y:      y,
-						Reason: "ground mobs cannot be placed on rail",
+						Reason: "dps require walkable ground",
 					})
 				}
 			}

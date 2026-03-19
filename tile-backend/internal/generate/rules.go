@@ -1,5 +1,7 @@
 package generate
 
+import "fmt"
+
 // ============================================================================
 // Validation constants
 // ============================================================================
@@ -7,16 +9,21 @@ package generate
 // Static placement size (fixed 2x2)
 const staticSize = 2
 
-// Turret placement constants
+// Unified door forbidden radius
+const doorForbiddenRadius = 2
+
+// Legacy turret/mobground constants (kept for backward-compatible validation helpers)
 const (
-	turretMinDoorDistance   = 4 // Minimum distance from doors
-	turretMinTurretDistance = 2 // Minimum distance between turrets
-	turretEdgePreference    = 2 // Prefer cells within this distance from edge or corners
+	turretMinDoorDistance    = 4
+	turretMinTurretDistance  = 2
+	mobGroundMinDoorDistance = 2
 )
 
-// Mob ground constants
+// Enemy placement distance ranges from main path
 const (
-	mobGroundMinDoorDistance = 4 // Minimum distance from doors
+	chaserMaxPathDist = 3 // Chaser: 0-3 from main path
+	zonerMaxPathDist  = 5 // Zoner: 0-5 from main path
+	dpsMaxPathDist    = 4 // DPS: 0-4 from main path
 )
 
 // Mob air constants
@@ -1210,4 +1217,217 @@ func removeSinglePosition(positions []Point, toRemove Point) []Point {
 		}
 	}
 	return positions
+}
+
+// ============================================================================
+// Unified door forbidden zone (radius-based)
+// ============================================================================
+
+// getDoorForbiddenCellsRadius returns all cells within Manhattan distance `radius` of any door
+func getDoorForbiddenCellsRadius(doorPositions map[DoorPosition]Point, width, height, radius int) map[Point]bool {
+	forbidden := make(map[Point]bool)
+	for _, doorPos := range doorPositions {
+		for dy := -radius; dy <= radius; dy++ {
+			for dx := -radius; dx <= radius; dx++ {
+				if abs(dx)+abs(dy) > radius {
+					continue
+				}
+				x, y := doorPos.X+dx, doorPos.Y+dy
+				if x >= 0 && x < width && y >= 0 && y < height {
+					forbidden[Point{X: x, Y: y}] = true
+				}
+			}
+		}
+	}
+	return forbidden
+}
+
+// ============================================================================
+// New enemy layer validation (Chaser / Zoner / DPS)
+// ============================================================================
+
+// isValidEnemyPosition checks if a cell is valid for enemy placement (Chaser/Zoner/DPS)
+func isValidEnemyPosition(pos Point, ground, softEdge, bridge, rail, staticLayer [][]int, forbidden map[Point]bool, width, height int) bool {
+	x, y := pos.X, pos.Y
+	if x < 0 || x >= width || y < 0 || y >= height {
+		return false
+	}
+	// Must be on ground
+	if ground[y][x] != 1 {
+		return false
+	}
+	// Cannot be on softEdge, bridge, static
+	if softEdge[y][x] != 0 || bridge[y][x] != 0 || staticLayer[y][x] != 0 {
+		return false
+	}
+	// Cannot be on rail (if exists)
+	if rail != nil && rail[y][x] != 0 {
+		return false
+	}
+	// Cannot be in door forbidden zone
+	if forbidden[pos] {
+		return false
+	}
+	return true
+}
+
+// touchesLayer checks if a position has any 8-directional neighbor with value != 0
+func touchesLayer(pos Point, layer [][]int, width, height int) bool {
+	for dy := -1; dy <= 1; dy++ {
+		for dx := -1; dx <= 1; dx++ {
+			if dx == 0 && dy == 0 {
+				continue
+			}
+			nx, ny := pos.X+dx, pos.Y+dy
+			if nx >= 0 && nx < width && ny >= 0 && ny < height {
+				if layer[ny][nx] != 0 {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// ============================================================================
+// New MobAir validation (updated for new layers)
+// ============================================================================
+
+// isValidMobAirPositionNew checks if a cell is valid for mob air with new enemy layers
+func isValidMobAirPositionNew(pos Point, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer, mobAirLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height int) bool {
+
+	x, y := pos.X, pos.Y
+	if x < 0 || x >= width || y < 0 || y >= height {
+		return false
+	}
+
+	// Must be at least 2 cells away from room edges
+	if x < mobAirMinEdgeDistance || x >= width-mobAirMinEdgeDistance ||
+		y < mobAirMinEdgeDistance || y >= height-mobAirMinEdgeDistance {
+		return false
+	}
+
+	// No ground requirement - flying mobs can spawn anywhere
+
+	// Must not overlap with other layers
+	if softEdge[y][x] != 0 || bridge[y][x] != 0 || staticLayer[y][x] != 0 ||
+		zonerLayer[y][x] != 0 || chaserLayer[y][x] != 0 || dpsLayer[y][x] != 0 {
+		return false
+	}
+
+	// Must not already have mob air
+	if mobAirLayer[y][x] != 0 {
+		return false
+	}
+
+	// Must be at least 4 cells away from doors
+	for _, doorPos := range doorPositions {
+		if manhattanDistance(pos, doorPos) < mobAirMinDoorDistance {
+			return false
+		}
+	}
+
+	// Must not touch existing mob air (distance >= 1 means no 8-directional adjacency)
+	if touchesLayer(pos, mobAirLayer, width, height) {
+		return false
+	}
+
+	return true
+}
+
+// GenerateMobAirLayerNew generates mob air layer using new enemy layers instead of turret/mobGround
+func GenerateMobAirLayerNew(mobAirLayer, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer [][]int,
+	doorPositions map[DoorPosition]Point, width, height, targetCount int) *MobAirDebugInfo {
+
+	debug := &MobAirDebugInfo{
+		TargetCount: targetCount,
+		Strategy:    "density_based",
+		Placements:  []PlaceInfo{},
+		Misses:      []MissInfo{},
+	}
+
+	// Find valid positions
+	var candidates []Point
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			pos := Point{x, y}
+			if isValidMobAirPositionNew(pos, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer, mobAirLayer,
+				doorPositions, width, height) {
+				candidates = append(candidates, pos)
+			}
+		}
+	}
+
+	if len(candidates) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{Reason: "no valid positions found"})
+		return debug
+	}
+
+	// Score: prefer positions near zoner/chaser dense areas
+	type scored struct {
+		pos   Point
+		score float64
+	}
+	var scoredCandidates []scored
+	for _, pos := range candidates {
+		s := 0.0
+		for dy := -3; dy <= 3; dy++ {
+			for dx := -3; dx <= 3; dx++ {
+				nx, ny := pos.X+dx, pos.Y+dy
+				if nx >= 0 && nx < width && ny >= 0 && ny < height {
+					if zonerLayer[ny][nx] == 1 {
+						s += 2.0
+					}
+					if chaserLayer[ny][nx] == 1 {
+						s += 1.5
+					}
+				}
+			}
+		}
+		scoredCandidates = append(scoredCandidates, scored{pos, s})
+	}
+
+	// Sort by score descending
+	for i := 0; i < len(scoredCandidates)-1; i++ {
+		for j := i + 1; j < len(scoredCandidates); j++ {
+			if scoredCandidates[j].score > scoredCandidates[i].score {
+				scoredCandidates[i], scoredCandidates[j] = scoredCandidates[j], scoredCandidates[i]
+			}
+		}
+	}
+
+	remaining := targetCount
+	for _, sc := range scoredCandidates {
+		if remaining <= 0 {
+			break
+		}
+		pos := sc.pos
+		// Re-validate (previous placements may have invalidated)
+		if !isValidMobAirPositionNew(pos, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer, mobAirLayer,
+			doorPositions, width, height) {
+			continue
+		}
+		mobAirLayer[pos.Y][pos.X] = 1
+		remaining--
+		debug.PlacedCount++
+
+		reason := "density_based placement"
+		if ground[pos.Y][pos.X] == 0 {
+			reason += " (on void, flying)"
+		}
+		debug.Placements = append(debug.Placements, PlaceInfo{
+			Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+			Size:     "1x1",
+			Reason:   reason,
+		})
+	}
+
+	if remaining > 0 {
+		debug.Misses = append(debug.Misses, MissInfo{
+			Reason: fmt.Sprintf("could not place %d more mob air", remaining),
+		})
+	}
+
+	return debug
 }

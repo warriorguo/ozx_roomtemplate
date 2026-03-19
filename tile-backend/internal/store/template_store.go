@@ -81,9 +81,9 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		INSERT INTO room_templates (
 			id, name, version, width, height, payload, thumbnail,
 			walkable_ratio, room_type, room_attributes, doors_connected,
-			static_count, turret_count, mobground_count, mobair_count
+			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
 		RETURNING created_at, updated_at`
 
 	err = s.db.QueryRow(ctx, query,
@@ -99,9 +99,11 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		roomAttributesJSON,
 		doorsConnectedJSON,
 		template.StaticCount,
-		template.TurretCount,
-		template.MobGroundCount,
+		template.ChaserCount,
+		template.ZonerCount,
+		template.DPSCount,
 		template.MobAirCount,
+		template.StageType,
 	).Scan(&template.CreatedAt, &template.UpdatedAt)
 
 	if err != nil {
@@ -154,27 +156,39 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTem
 		argIndex++
 	}
 
-	// Turret count filters
-	if params.MinTurretCount != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("turret_count >= $%d", argIndex))
-		args = append(args, *params.MinTurretCount)
+	// Chaser count filters
+	if params.MinChaserCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("chaser_count >= $%d", argIndex))
+		args = append(args, *params.MinChaserCount)
 		argIndex++
 	}
-	if params.MaxTurretCount != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("turret_count <= $%d", argIndex))
-		args = append(args, *params.MaxTurretCount)
+	if params.MaxChaserCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("chaser_count <= $%d", argIndex))
+		args = append(args, *params.MaxChaserCount)
 		argIndex++
 	}
 
-	// MobGround count filters
-	if params.MinMobGroundCount != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("mobground_count >= $%d", argIndex))
-		args = append(args, *params.MinMobGroundCount)
+	// Zoner count filters
+	if params.MinZonerCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("zoner_count >= $%d", argIndex))
+		args = append(args, *params.MinZonerCount)
 		argIndex++
 	}
-	if params.MaxMobGroundCount != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("mobground_count <= $%d", argIndex))
-		args = append(args, *params.MaxMobGroundCount)
+	if params.MaxZonerCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("zoner_count <= $%d", argIndex))
+		args = append(args, *params.MaxZonerCount)
+		argIndex++
+	}
+
+	// DPS count filters
+	if params.MinDPSCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("dps_count >= $%d", argIndex))
+		args = append(args, *params.MinDPSCount)
+		argIndex++
+	}
+	if params.MaxDPSCount != nil {
+		whereClauses = append(whereClauses, fmt.Sprintf("dps_count <= $%d", argIndex))
+		args = append(args, *params.MaxDPSCount)
 		argIndex++
 	}
 
@@ -190,35 +204,10 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTem
 		argIndex++
 	}
 
-	// Room attributes filters (JSONB queries)
-	if params.HasBoss != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'boss')::boolean = $%d", argIndex))
-		args = append(args, *params.HasBoss)
-		argIndex++
-	}
-	if params.HasElite != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'elite')::boolean = $%d", argIndex))
-		args = append(args, *params.HasElite)
-		argIndex++
-	}
-	if params.HasMob != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'mob')::boolean = $%d", argIndex))
-		args = append(args, *params.HasMob)
-		argIndex++
-	}
-	if params.HasTreasure != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'treasure')::boolean = $%d", argIndex))
-		args = append(args, *params.HasTreasure)
-		argIndex++
-	}
-	if params.HasTeleport != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'teleport')::boolean = $%d", argIndex))
-		args = append(args, *params.HasTeleport)
-		argIndex++
-	}
-	if params.HasStory != nil {
-		whereClauses = append(whereClauses, fmt.Sprintf("(room_attributes->>'story')::boolean = $%d", argIndex))
-		args = append(args, *params.HasStory)
+	// Stage type filter
+	if params.StageType != "" {
+		whereClauses = append(whereClauses, fmt.Sprintf("stage_type = $%d", argIndex))
+		args = append(args, params.StageType)
 		argIndex++
 	}
 
@@ -266,7 +255,7 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTem
 		SELECT
 			id, name, version, width, height, thumbnail,
 			walkable_ratio, room_type, room_attributes, doors_connected,
-			static_count, turret_count, mobground_count, mobair_count,
+			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type,
 			created_at, updated_at
 		FROM room_templates %s
 		ORDER BY created_at DESC
@@ -299,9 +288,11 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTem
 			&roomAttributesJSON,
 			&doorsConnectedJSON,
 			&template.StaticCount,
-			&template.TurretCount,
-			&template.MobGroundCount,
+			&template.ChaserCount,
+			&template.ZonerCount,
+			&template.DPSCount,
 			&template.MobAirCount,
+			&template.StageType,
 			&template.CreatedAt,
 			&template.UpdatedAt,
 		)
@@ -348,7 +339,7 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		SELECT
 			id, name, version, width, height, payload, thumbnail,
 			walkable_ratio, room_type, room_attributes, doors_connected,
-			static_count, turret_count, mobground_count, mobair_count,
+			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type,
 			created_at, updated_at
 		FROM room_templates
 		WHERE id = $1`
@@ -371,9 +362,11 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		&roomAttributesJSON,
 		&doorsConnectedJSON,
 		&template.StaticCount,
-		&template.TurretCount,
-		&template.MobGroundCount,
+		&template.ChaserCount,
+		&template.ZonerCount,
+		&template.DPSCount,
 		&template.MobAirCount,
+		&template.StageType,
 		&template.CreatedAt,
 		&template.UpdatedAt,
 	)

@@ -33,9 +33,14 @@ func (m *MockTemplateStore) Get(ctx context.Context, id string) (*model.Template
 	return args.Get(0).(*model.Template), args.Error(1)
 }
 
-func (m *MockTemplateStore) List(ctx context.Context, limit, offset int, nameLike string) ([]model.TemplateSummary, int, error) {
-	args := m.Called(ctx, limit, offset, nameLike)
+func (m *MockTemplateStore) List(ctx context.Context, params model.ListTemplatesQueryParams) ([]model.TemplateSummary, int, error) {
+	args := m.Called(ctx, params)
 	return args.Get(0).([]model.TemplateSummary), args.Get(1).(int), args.Error(2)
+}
+
+func (m *MockTemplateStore) Delete(ctx context.Context, id string) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
 }
 
 func (m *MockTemplateStore) HealthCheck(ctx context.Context) error {
@@ -69,13 +74,19 @@ func TestTemplateHandler_CreateTemplate_Success(t *testing.T) {
 				{1, 0, 0, 1},
 				{0, 1, 1, 0},
 			},
-			Turret: [][]int{
+			Chaser: [][]int{
 				{0, 0, 0, 0},
 				{0, 0, 0, 0},
 				{0, 0, 0, 0},
 				{0, 0, 0, 0},
 			},
-			MobGround: [][]int{
+			Zoner: [][]int{
+				{0, 0, 0, 0},
+				{0, 0, 0, 0},
+				{0, 0, 0, 0},
+				{0, 0, 0, 0},
+			},
+			DPS: [][]int{
 				{0, 0, 0, 0},
 				{0, 0, 0, 0},
 				{0, 0, 0, 0},
@@ -164,8 +175,9 @@ func TestTemplateHandler_CreateTemplate_ValidationFailed(t *testing.T) {
 		Payload: model.TemplatePayload{
 			Ground:    [][]int{{1}}, // Too small
 			Static:    [][]int{{0}},
-			Turret:    [][]int{{0}},
-			MobGround: [][]int{{0}},
+			Chaser:    [][]int{{0}},
+			Zoner:  [][]int{{0}},
+			DPS:    [][]int{{0}},
 			MobAir:    [][]int{{0}},
 			Meta: model.TemplateMeta{
 				Name:    "test-template",
@@ -203,16 +215,17 @@ func TestTemplateHandler_CreateTemplate_StoreError(t *testing.T) {
 	req := model.CreateTemplateRequest{
 		Name: "test-template",
 		Payload: model.TemplatePayload{
-			Ground:    [][]int{{1, 1}, {1, 1}},
-			Static:    [][]int{{0, 1}, {1, 0}},
-			Turret:    [][]int{{0, 0}, {0, 0}},
-			MobGround: [][]int{{0, 0}, {0, 0}},
-			MobAir:    [][]int{{0, 1}, {1, 0}},
+			Ground: [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
+			Static: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
+			Chaser: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+			Zoner:  [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+			DPS:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+			MobAir: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 			Meta: model.TemplateMeta{
 				Name:    "test-template",
 				Version: 1,
-				Width:   2,
-				Height:  2,
+				Width:   4,
+				Height:  4,
 			},
 		},
 	}
@@ -379,7 +392,7 @@ func TestTemplateHandler_ListTemplates_Success(t *testing.T) {
 	}
 
 	// Mock store response
-	mockStore.On("List", mock.Anything, 20, 0, "").Return(expectedItems, 2, nil)
+	mockStore.On("List", mock.Anything, mock.Anything).Return(expectedItems, 2, nil)
 
 	// Create HTTP request
 	httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/templates", nil)
@@ -407,7 +420,7 @@ func TestTemplateHandler_ListTemplates_WithQueryParams(t *testing.T) {
 	mockStore := handler.store.(*MockTemplateStore)
 
 	// Mock store response
-	mockStore.On("List", mock.Anything, 10, 5, "test").Return([]model.TemplateSummary{}, 0, nil)
+	mockStore.On("List", mock.Anything, mock.Anything).Return([]model.TemplateSummary{}, 0, nil)
 
 	// Create HTTP request with query parameters
 	httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/templates?limit=10&offset=5&name_like=test", nil)
@@ -427,7 +440,7 @@ func TestTemplateHandler_ListTemplates_InvalidParams(t *testing.T) {
 	mockStore := handler.store.(*MockTemplateStore)
 
 	// Mock store response with default values
-	mockStore.On("List", mock.Anything, 20, 0, "").Return([]model.TemplateSummary{}, 0, nil)
+	mockStore.On("List", mock.Anything, mock.Anything).Return([]model.TemplateSummary{}, 0, nil)
 
 	// Create HTTP request with invalid query parameters
 	httpReq := httptest.NewRequest(http.MethodGet, "/api/v1/templates?limit=invalid&offset=negative", nil)
@@ -447,16 +460,17 @@ func TestTemplateHandler_ValidateTemplate_Success(t *testing.T) {
 
 	// Create valid payload
 	payload := model.TemplatePayload{
-		Ground:    [][]int{{1, 1}, {1, 1}},
-		Static:    [][]int{{0, 1}, {1, 0}},
-		Turret:    [][]int{{0, 0}, {0, 0}},
-		MobGround: [][]int{{0, 0}, {0, 0}},
-		MobAir:    [][]int{{0, 1}, {1, 0}},
+		Ground: [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
+		Static: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
+		Chaser: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+		Zoner:  [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+		DPS:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+		MobAir: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 		Meta: model.TemplateMeta{
 			Name:    "test-template",
 			Version: 1,
-			Width:   2,
-			Height:  2,
+			Width:   4,
+			Height:  4,
 		},
 	}
 
@@ -486,8 +500,9 @@ func TestTemplateHandler_ValidateTemplate_WithStrictMode(t *testing.T) {
 	payload := model.TemplatePayload{
 		Ground:    [][]int{{0, 1}, {1, 1}},
 		Static:    [][]int{{1, 1}, {1, 0}}, // Static at (0,0) where ground=0
-		Turret:    [][]int{{0, 0}, {0, 0}},
-		MobGround: [][]int{{0, 0}, {0, 0}},
+		Chaser: [][]int{{0, 0}, {0, 0}},
+		Zoner:  [][]int{{0, 0}, {0, 0}},
+		DPS:    [][]int{{0, 0}, {0, 0}},
 		MobAir:    [][]int{{0, 1}, {1, 0}},
 		Meta: model.TemplateMeta{
 			Name:    "test-template",
@@ -596,16 +611,17 @@ func TestTemplateHandler_CreateTemplate_NameFromMeta(t *testing.T) {
 	req := model.CreateTemplateRequest{
 		// Name: "", // Empty name at root level
 		Payload: model.TemplatePayload{
-			Ground:    [][]int{{1, 1}, {1, 1}},
-			Static:    [][]int{{0, 1}, {1, 0}},
-			Turret:    [][]int{{0, 0}, {0, 0}},
-			MobGround: [][]int{{0, 0}, {0, 0}},
-			MobAir:    [][]int{{0, 1}, {1, 0}},
+			Ground: [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
+			Static: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
+			Chaser: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+			Zoner:  [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+			DPS:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+			MobAir: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 			Meta: model.TemplateMeta{
 				Name:    "meta-template-name", // Name should come from here
 				Version: 1,
-				Width:   2,
-				Height:  2,
+				Width:   4,
+				Height:  4,
 			},
 		},
 	}
@@ -616,8 +632,8 @@ func TestTemplateHandler_CreateTemplate_NameFromMeta(t *testing.T) {
 		ID:        uuid.New(),
 		Name:      "meta-template-name", // Should use name from meta
 		Version:   1,
-		Width:     2,
-		Height:    2,
+		Width:     4,
+		Height:    4,
 		Payload:   req.Payload,
 		CreatedAt: now,
 		UpdatedAt: now,

@@ -131,24 +131,34 @@ func (h *TemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) 
 			params.MaxStaticCount = &i
 		}
 	}
-	if val := query.Get("min_turret_count"); val != "" {
+	if val := query.Get("min_chaser_count"); val != "" {
 		if i, err := strconv.Atoi(val); err == nil {
-			params.MinTurretCount = &i
+			params.MinChaserCount = &i
 		}
 	}
-	if val := query.Get("max_turret_count"); val != "" {
+	if val := query.Get("max_chaser_count"); val != "" {
 		if i, err := strconv.Atoi(val); err == nil {
-			params.MaxTurretCount = &i
+			params.MaxChaserCount = &i
 		}
 	}
-	if val := query.Get("min_mobground_count"); val != "" {
+	if val := query.Get("min_zoner_count"); val != "" {
 		if i, err := strconv.Atoi(val); err == nil {
-			params.MinMobGroundCount = &i
+			params.MinZonerCount = &i
 		}
 	}
-	if val := query.Get("max_mobground_count"); val != "" {
+	if val := query.Get("max_zoner_count"); val != "" {
 		if i, err := strconv.Atoi(val); err == nil {
-			params.MaxMobGroundCount = &i
+			params.MaxZonerCount = &i
+		}
+	}
+	if val := query.Get("min_dps_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MinDPSCount = &i
+		}
+	}
+	if val := query.Get("max_dps_count"); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			params.MaxDPSCount = &i
 		}
 	}
 	if val := query.Get("min_mobair_count"); val != "" {
@@ -162,36 +172,9 @@ func (h *TemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	// Parse room attribute filters
-	if val := query.Get("has_boss"); val != "" {
-		if b, err := strconv.ParseBool(val); err == nil {
-			params.HasBoss = &b
-		}
-	}
-	if val := query.Get("has_elite"); val != "" {
-		if b, err := strconv.ParseBool(val); err == nil {
-			params.HasElite = &b
-		}
-	}
-	if val := query.Get("has_mob"); val != "" {
-		if b, err := strconv.ParseBool(val); err == nil {
-			params.HasMob = &b
-		}
-	}
-	if val := query.Get("has_treasure"); val != "" {
-		if b, err := strconv.ParseBool(val); err == nil {
-			params.HasTreasure = &b
-		}
-	}
-	if val := query.Get("has_teleport"); val != "" {
-		if b, err := strconv.ParseBool(val); err == nil {
-			params.HasTeleport = &b
-		}
-	}
-	if val := query.Get("has_story"); val != "" {
-		if b, err := strconv.ParseBool(val); err == nil {
-			params.HasStory = &b
-		}
+	// Parse stage type filter
+	if val := query.Get("stage_type"); val != "" {
+		params.StageType = val
 	}
 
 	// Parse door connectivity filters
