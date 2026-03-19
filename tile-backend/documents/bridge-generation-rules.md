@@ -11,9 +11,11 @@ This document describes the auto-generation algorithm for bridge-type rooms.
 | `doors` | Doors to connect (at least 2 required: top, right, bottom, left) |
 | `softEdgeCount` | Suggested number of soft edges to place (optional, default 0) |
 | `staticCount` | Suggested number of statics to place (optional, default 0) |
-| `turretCount` | Suggested number of turrets to place (optional, default 0) |
-| `mobGroundCount` | Suggested number of mob ground to place (optional, default 0) |
+| `chaserCount` | Suggested number of chasers to place (optional, default 0) |
+| `zonerCount` | Suggested number of zoners to place (optional, default 0) |
+| `dpsCount` | Suggested number of DPS enemies to place (optional, default 0) |
 | `mobAirCount` | Suggested number of mob air (fly) to place (optional, default 0) |
+| `stageType` | Stage type identifier (optional) |
 
 ## Ground Layer Generation
 
@@ -241,26 +243,28 @@ Two alternating strategies are used:
 
 Uses BFS (Breadth-First Search) to verify all doors remain connected after a hypothetical static placement. A static placement is rejected if it would block the only path between any two doors.
 
-## Turret Layer Generation
+## Chaser Layer Generation
+
+Chasers are enemy units that pursue the player. See [enemy-system-rules.md](enemy-system-rules.md) for detailed enemy system rules.
 
 ### Input Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| `turretCount` | Suggested number of turrets to place (optional, default 0) |
+| `chaserCount` | Suggested number of chasers to place (optional, default 0) |
 
 ### Placement Rules
 
-1. **Turret size**: Fixed at 1×1 cell per turret
-2. **Ground requirement**: Turret cell must be on ground (ground=1)
-3. **Door distance**: Turrets must be at least **4 cells** (Manhattan distance) away from any door
-4. **Turret spacing**: Turrets must be at least **2 cells** (Manhattan distance) apart from each other
-5. **No overlap**: Turret cells must not overlap with softEdge, bridge, or static layers
-6. **Connectivity preservation**: After placing a turret, all doors must remain connected via walkable paths
+1. **Chaser size**: Fixed at 1×1 cell per chaser
+2. **Ground requirement**: Chaser cell must be on ground (ground=1)
+3. **Door distance**: Chasers must be at least **4 cells** (Manhattan distance) away from any door
+4. **Chaser spacing**: Chasers must be at least **2 cells** (Manhattan distance) apart from each other
+5. **No overlap**: Chaser cells must not overlap with softEdge, bridge, or static layers
+6. **Connectivity preservation**: After placing a chaser, all doors must remain connected via walkable paths
 
 ### Placement Preference
 
-Turrets are preferentially placed (in order of priority):
+Chasers are preferentially placed (in order of priority):
 1. **Ground corners (90°/270°)**: Tiles where ground forms an L-shape (highest priority)
    - **90° right angle**: Ground tile with exactly 2 orthogonal neighbors that are adjacent (L-shape corner)
    - **270° inner corner**: Ground tile with exactly 3 orthogonal neighbors (inverted L-shape)
@@ -272,32 +276,34 @@ Turrets are preferentially placed (in order of priority):
 
 1. Find all valid positions (satisfying ground, layer overlap, door distance constraints)
 2. Sort positions by preference score (corners > edges > center distance)
-3. Set remaining count = turretCount
-4. Attempt to place one turret:
+3. Set remaining count = chaserCount
+4. Attempt to place one chaser:
    - Find first valid position that maintains door connectivity
-   - If found: place turret, filter out positions too close, decrement remaining
+   - If found: place chaser, filter out positions too close, decrement remaining
    - If not found: decrement max attempts
 5. Repeat from step 4 until remaining = 0 or max attempts reached
 
 ### Connectivity Check
 
-Uses BFS (Breadth-First Search) to verify all doors remain connected after a hypothetical turret placement. A turret placement is rejected if it would block the only path between any two doors.
+Uses BFS (Breadth-First Search) to verify all doors remain connected after a hypothetical chaser placement. A chaser placement is rejected if it would block the only path between any two doors.
 
-## Mob Ground Layer Generation
+## Zoner Layer Generation
+
+Zoners are area-denial enemies that control zones. See [enemy-system-rules.md](enemy-system-rules.md) for detailed enemy system rules.
 
 ### Input Parameters
 
 | Parameter | Description |
 |-----------|-------------|
-| `mobGroundCount` | Suggested number of mob ground to place (optional, default 0) |
+| `zonerCount` | Suggested number of zoners to place (optional, default 0) |
 
 ### Placement Rules
 
-1. **Mob Ground size**: 2×2 (preferred) or 1×1 (fallback)
+1. **Zoner size**: 2×2 (preferred) or 1×1 (fallback)
 2. **Ground requirement**: All cells must be on ground (ground=1)
-3. **Door distance**: Mob ground must be at least **2 cells** (Manhattan distance) away from any door
-4. **No touching**: Mob ground cannot touch each other (including diagonals)
-5. **No overlap**: Mob ground cells must not overlap with softEdge, bridge, static, or turret layers
+3. **Door distance**: Zoners must be at least **2 cells** (Manhattan distance) away from any door
+4. **No touching**: Zoners cannot touch each other (including diagonals)
+5. **No overlap**: Zoner cells must not overlap with softEdge, bridge, static, or chaser layers
 6. **Size preference**: Always try 2×2 first, fall back to 1×1 if 2×2 cannot fit
 
 ### Placement Strategies
@@ -323,40 +329,71 @@ Three strategies are available, each group uses a different strategy:
 3. **Execute per group**: For each group:
    - Find all valid positions based on rules
    - Sort positions by strategy preference
-   - Place mob ground (prefer 2×2, fallback to 1×1)
+   - Place zoner (prefer 2×2, fallback to 1×1)
    - Continue until group count reached or placement fails
 
-### Mob Ground Layer Example
+## DPS Layer Generation
+
+DPS enemies are damage-dealing units. See [enemy-system-rules.md](enemy-system-rules.md) for detailed enemy system rules.
+
+### Input Parameters
+
+| Parameter | Description |
+|-----------|-------------|
+| `dpsCount` | Suggested number of DPS enemies to place (optional, default 0) |
+
+### Placement Rules
+
+1. **DPS size**: Fixed at 1×1 cell per DPS
+2. **Ground requirement**: DPS cell must be on ground (ground=1)
+3. **Door distance**: DPS must be at least **3 cells** (Manhattan distance) away from any door
+4. **DPS spacing**: DPS must be at least **2 cells** (Manhattan distance) apart from each other
+5. **No overlap**: DPS cells must not overlap with softEdge, bridge, static, chaser, or zoner layers
+6. **Connectivity preservation**: After placing a DPS, all doors must remain connected via walkable paths
+
+### Placement Steps
+
+1. Find all valid positions (satisfying ground, layer overlap, door distance constraints)
+2. Sort positions by distance from center (center outward)
+3. Set remaining count = dpsCount
+4. Attempt to place one DPS:
+   - Find first valid position that maintains door connectivity
+   - If found: place DPS, filter out positions too close, decrement remaining
+   - If not found: decrement max attempts
+5. Repeat from step 4 until remaining = 0 or max attempts reached
+
+### Enemy Layers Example
 
 ```
-mobGroundCount: 4
+chaserCount: 4, zonerCount: 2, dpsCount: 2
 
-Ground + Static + Turret + MobGround overlay:
+Ground + Static + Enemy overlay:
 
 ····████████····████
 ····████████····████
 ····██▓▓████····████
-····██▓▓███T····████
+····██▓▓███C····████
 ····████████····████
 ████████████████████
-██T████MM███████▓▓██
-████████MM██████▓▓██
+██C████ZZ███████▓▓██
+████████ZZ██████▓▓██
 ████████████████████
-██████████████M█████
+██████████████D█████
 ····████████········
-····███T████········
+····███C████········
 ····████████········
-····████████····T···
+····████████····D···
 ····████████········
 
 █ = Ground only (walkable)
 ▓ = Static on ground (blocked, 2×2 blocks)
-T = Turret on ground (blocked, 1×1 tile)
-M = Mob Ground (2×2 or 1×1 spawn point)
+C = Chaser on ground (1×1 enemy)
+Z = Zoner on ground (2×2 or 1×1 enemy)
+D = DPS on ground (1×1 enemy)
 · = Empty (void)
 
-Note: Mob ground maintains minimum 2-cell distance from doors
-      and cannot touch other mob ground (including diagonals).
+Note: Enemies maintain minimum distance from doors
+      and cannot overlap with each other.
 ```
 
 ## Mob Air (Fly) Layer Generation
@@ -374,7 +411,7 @@ Note: Mob ground maintains minimum 2-cell distance from doors
 3. **Door distance**: Mob air must be at least **4 cells** (Manhattan distance) away from any door
 4. **Edge distance**: Mob air must be at least **2 cells** away from room edges (all four sides)
 5. **No touching**: Mob air cannot touch each other (including diagonals)
-6. **No overlap**: Mob air cells must not overlap with softEdge, bridge, static, turret, or mobGround layers
+6. **No overlap**: Mob air cells must not overlap with softEdge, bridge, static, chaser, zoner, or dps layers
 
 ### Placement Strategies
 
@@ -410,28 +447,29 @@ For even distribution based on target count:
 ```
 mobAirCount: 4
 
-Ground + Static + Turret + MobGround + MobAir overlay:
+Ground + Static + Enemies + MobAir overlay:
 
 ····████████····████
 ····████████····████
 ····██▓▓██A█····████
-····██▓▓███T····████
+····██▓▓███C····████
 ····████████····████
 ████████████████████
-██T████MM██A████▓▓██
-████████MM██████▓▓██
+██C████ZZ██A████▓▓██
+████████ZZ██████▓▓██
 ████████████████████
-██████████████M█████
+██████████████D█████
 ····██A█████········
-····███T████········
+····███C████········
 ····████████····A···
-····████████····T···
+····████████····D···
 ····████████········
 
 █ = Ground only (walkable)
 ▓ = Static on ground (blocked, 2×2 blocks)
-T = Turret on ground (blocked, 1×1 tile)
-M = Mob Ground (2×2 or 1×1 spawn point)
+C = Chaser on ground (1×1 enemy)
+Z = Zoner on ground (2×2 or 1×1 enemy)
+D = DPS on ground (1×1 enemy)
 A = Mob Air (1×1 flying mob spawn point)
 · = Empty (void)
 
@@ -530,6 +568,7 @@ y 9: ········BB··········
 |-------|-------------|
 | SoftEdge | Generated based on `softEdgeCount` parameter (fills void notches) |
 | Bridge | Connects floating islands and fills concave gaps (auto-generated) |
+| MainPath | Main traversal path through the room (auto-generated) |
 
 ## Visual Examples
 
@@ -590,36 +629,38 @@ Note: Statics maintain minimum 1-cell gap from each other
       and doors, preserving path connectivity.
 ```
 
-### Turret Layer Example
+### Enemy Layers Example
 
 ```
-turretCount: 4
+chaserCount: 2, zonerCount: 1, dpsCount: 1
 
-Ground + Static + Turret overlay:
+Ground + Static + Enemies overlay:
 
 ····████████····████
 ····████████····████
 ····██▓▓████····████
-····██▓▓███T····████
+····██▓▓███C····████
 ····████████····████
 ████████████████████
-██T█████████████▓▓██
+██C█████████████▓▓██
 ████████████████▓▓██
 ████████████████████
-████████████████████
+██████████████D█████
 ····████████········
-····███T████········
 ····████████········
-····████████····T···
 ····████████········
+····██ZZ████········
+····██ZZ████········
 
 █ = Ground only (walkable)
 ▓ = Static on ground (blocked, 2×2 blocks)
-T = Turret on ground (blocked, 1×1 tile)
+C = Chaser on ground (1×1 enemy)
+Z = Zoner on ground (2×2 enemy)
+D = DPS on ground (1×1 enemy)
 · = Empty (void)
 
-Note: Turrets maintain minimum 4-cell distance from doors
-      and minimum 2-cell distance from each other.
+Note: Enemies maintain appropriate minimum distances from doors
+      and from each other.
 ```
 
 ## API Response Debug Info
@@ -730,7 +771,7 @@ Each layer's debug info includes:
         }
       ]
     },
-    "turret": {
+    "chaser": {
       "skipped": false,
       "targetCount": 4,
       "placedCount": 4,
@@ -742,7 +783,7 @@ Each layer's debug info includes:
         }
       ]
     },
-    "mobGround": {
+    "zoner": {
       "skipped": false,
       "targetCount": 3,
       "placedCount": 3,
@@ -765,6 +806,18 @@ Each layer's debug info includes:
       "misses": [
         {
           "reason": "large_open_area strategy not viable (no 4x4 open area found)"
+        }
+      ]
+    },
+    "dps": {
+      "skipped": false,
+      "targetCount": 2,
+      "placedCount": 2,
+      "placements": [
+        {
+          "position": "(10,10)",
+          "size": "1x1",
+          "reason": "center outward placement"
         }
       ]
     },
@@ -809,8 +862,9 @@ When a layer's count is 0 or not specified:
 | Soft Edge | `no valid concave areas found in ground layer`, `overlapping with already placed soft edge`, `only N valid placements available, needed M more` |
 | Bridge | `no floating islands found (all ground is connected)`, `cannot find valid bridge path for island at (x,y)-(x,y)`, `no bridges needed (no floating islands and no concave gaps)` |
 | Static | `no valid 2x2 positions found`, `position invalidated by previous placement (touching existing static)`, `position would block door connectivity`, `reached max strategy attempts` |
-| Turret | `no valid positions found`, `position invalidated (too close to existing turret or blocked)`, `position would block door connectivity` |
-| Mob Ground | `large_open_area strategy not viable (no 4x4 open area found)`, `group N skipped: no more strategies available`, `no valid positions available`, `positions found but neither 2x2 nor 1x1 placement possible` |
+| Chaser | `no valid positions found`, `position invalidated (too close to existing chaser or blocked)`, `position would block door connectivity` |
+| Zoner | `large_open_area strategy not viable (no 4x4 open area found)`, `group N skipped: no more strategies available`, `no valid positions available`, `positions found but neither 2x2 nor 1x1 placement possible` |
+| DPS | `no valid positions found`, `position invalidated (too close to existing dps or blocked)`, `position would block door connectivity` |
 | Mob Air | `no valid positions found`, `position invalidated by previous placement (already occupied)`, `exhausted all N valid positions, needed M more` |
 
 ### Strategy Names
@@ -822,6 +876,7 @@ When a layer's count is 0 or not specified:
 | Soft Edge | N/A (finds concave areas automatically) |
 | Bridge | N/A (connects islands via flood-fill + fills concave gaps) |
 | Static | `center_outward`, `edge_inward` (alternating) |
-| Turret | Priority-based: `ground corner (90° right angle)`, `ground corner (270° inner corner)`, `near room corner`, `near room edge`, `center outward placement` |
-| Mob Ground | `large_open_area`, `near_doors`, `center_outward` |
+| Chaser | Priority-based: `ground corner (90° right angle)`, `ground corner (270° inner corner)`, `near room corner`, `near room edge`, `center outward placement` |
+| Zoner | `large_open_area`, `near_doors`, `center_outward` |
+| DPS | `center_outward` |
 | Mob Air | `center_outward`, `evenly_spaced` |

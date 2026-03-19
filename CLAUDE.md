@@ -4,7 +4,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a **room template editor** for game development, consisting of a React TypeScript frontend and a Go backend service. The editor creates tile-based room templates with a 5-layer system (ground, static, turret, mobGround, mobAir) and rule-based validation for game room layouts.
+This is a **room template editor** for game development, consisting of a React TypeScript frontend and a Go backend service. The editor creates tile-based room templates with a multi-layer system and rule-based validation for game room layouts.
+
+**Layer System**: ground, softEdge, bridge, rail, mainPath, static, chaser, zoner, dps, mobAir
+**Stage Types**: teaching, building, pressure, peak, release, boss
 
 ## Common Commands
 
@@ -75,7 +78,7 @@ TEST_INTEGRATION=1 go test -v ./tests/...
 ### Frontend Architecture (React + TypeScript + Zustand)
 
 **State Management**: Zustand store (`src/store/newTemplateStore.ts`) manages:
-- Template data (5 layers: ground, static, turret, mobGround, mobAir)
+- Template data (layers: ground, softEdge, bridge, rail, mainPath, static, chaser, zoner, dps, mobAir)
 - UI state (active layer, drag operations, layer visibility)
 - Validation results with error highlighting
 - API state (loading, errors, last saved template)
@@ -88,9 +91,16 @@ TEST_INTEGRATION=1 go test -v ./tests/...
 - `src/components/new/ToolBar.tsx` - Main toolbar with validation and export
 
 **Layer System**:
-- 5 layers with hierarchical constraints enforced in validation
+- Base layers: ground, softEdge, bridge, rail (generated in order)
+- MainPath: center-biased path connecting doors (computed after bridge)
+- Static: 2×2 obstacle blocks on ground
+- Enemy layers: chaser (pressure), zoner (area control), dps (damage), mobAir (flying)
 - Each layer is a 2D grid of 0s and 1s
-- Ground layer can be auto-generated with room types (rectangular, cross, custom)
+- Ground layer can be auto-generated with room types (full, bridge, platform)
+
+**Stage System**:
+- Stage type determines enemy counts and room constraints
+- teaching → building → pressure → peak → release → boss
 
 **Validation**:
 - Real-time validation in `src/utils/newTemplateUtils.ts`
@@ -132,15 +142,31 @@ internal/
 
 ### Validation Rules
 
-**Hierarchical Constraints** (enforced in strict mode):
+**Layer Constraints** (enforced in strict mode):
 1. **Static layer**: `static==1` requires `ground==1`
-2. **Turret layer**: `turret==1` requires `ground==1 AND static==0`
-3. **MobGround layer**: `mobGround==1` requires `ground==1 AND static==0 AND turret==0`
-4. **MobAir layer**: No constraints
+2. **Chaser layer**: `chaser==1` requires `ground==1`, cannot overlap static/bridge/rail/zoner
+3. **Zoner layer**: `zoner==1` requires `ground==1`, cannot overlap static/bridge/rail/chaser
+4. **DPS layer**: `dps==1` requires `ground==1`, cannot overlap bridge/rail/zoner
+5. **MobAir layer**: No ground requirement, cannot overlap other entity layers
+
+**Enemy Placement (Generation)**:
+- Door forbidden zone: radius 2 (Manhattan distance) from all doors
+- Chaser: 0-3 cells from main path, prefer low squishy score
+- Zoner: 0-5 cells from main path, prefer high squishy score, no static blocking LOS
+- DPS: 0-4 cells from main path, prefers proximity to chaser/static
+- MobAir: prefers zoner/chaser dense areas, spacing >= 1
+
+**Stage Rules**:
+- Teaching: DPS only (2-3)
+- Building: DPS (2-3) + Chaser (2-3)
+- Pressure: DPS (4-6) + Chaser (6-8) + Zoner (1) + MobAir (2-4), not bridge
+- Peak: DPS (6-12) + Chaser (6-8) + Zoner (2-3) + MobAir (2-4), full only
+- Release: minimal or no enemies
+- Boss: requires 6×6 clear center area, restricted door configs
 
 **Structure Validation**:
 - Dimensions: 4-200 for width/height
-- All 5 layers required
+- Required layers: ground, static, chaser, zoner, dps, mobAir
 - Correct grid dimensions (height × width)
 - Cell values: only 0 or 1
 
@@ -269,8 +295,15 @@ make test-integration    # Requires database setup
 - Mirror changes in `src/utils/newTemplateUtils.ts` for real-time feedback
 - Add tests in both locations
 
-### When Modifying Bridge Generation
-- `tile-backend/internal/generate/bridge.go` implements the rules in `tile-backend/documents/bridge-generation-rules.md`
+### When Modifying Room Generation
+- Generation pipeline order: ground → softEdge → bridge → rail → **stageRules** → **mainPath** → static → zoner → chaser → dps → mobAir
+- `tile-backend/internal/generate/` contains all generation logic:
+  - `fullroom.go`, `bridge.go`, `platform.go` — room type generators
+  - `mainpath.go` — center-biased pathfinding + squishy score computation
+  - `layer_chaser.go`, `layer_zoner.go`, `layer_dps.go` — enemy placement
+  - `stage_rules.go` — stage type validation and enemy count ranges
+  - `rules.go` — shared validation functions and constants
+- Documents in `tile-backend/documents/` describe generation rules
 - When updating generation logic, keep the documentation in sync with the implementation
 
 ### Database Migrations

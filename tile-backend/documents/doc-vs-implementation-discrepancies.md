@@ -2,7 +2,7 @@
 
 本文档记录 bridge 和 platform 房间生成规则中，**文档描述**与**实际代码实现**之间的差异。
 
-> 最后更新：2026-03-16
+> 最后更新：2026-03-19
 
 ## 差异总览
 
@@ -152,9 +152,15 @@ Platform 房间的文档与实现**基本一致**，以下已验证匹配：
 | Soft Edge | ✅ 一致 |
 | Bridge Layer | ✅ 一致 |
 | Static | ✅ 一致 |
-| Turret | ✅ 一致 |
-| MobGround | ✅ 一致 |
+| Chaser | ✅ 一致（替代旧 Turret 层） |
+| Zoner | ✅ 一致（替代旧 MobGround 层） |
+| DPS | ✅ 一致（新增层） |
 | MobAir | ✅ 一致 |
+
+> **注意**：2026-03-19 起，旧的 turret/mobGround 系统已被新的 chaser/zoner/dps 敌人系统替代。
+> 旧的 Turret 层和 MobGround 层不再存在，相关的一致性验证已不再适用。
+> 新增的 mainPath 和 stageType 字段也已加入 API 响应。
+> 详细的敌人系统规则请参考 [enemy-system-rules.md](enemy-system-rules.md)。
 
 ---
 
@@ -162,4 +168,4 @@ Platform 房间的文档与实现**基本一致**，以下已验证匹配：
 
 | 日期 | 差异 # | 操作 | 说明 |
 |------|--------|------|------|
-| - | - | - | 暂无修正记录 |
+| 2026-03-19 | N/A | 敌人系统替换 | 旧 turret/mobGround 系统被 chaser/zoner/dps 系统替代，文档已同步更新 |

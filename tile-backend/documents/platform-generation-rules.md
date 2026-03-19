@@ -11,9 +11,11 @@ This document describes the auto-generation algorithm for platform-type rooms.
 | `doors` | Doors to connect (at least 2 required: top, right, bottom, left) |
 | `softEdgeCount` | Suggested number of soft edges to place (optional, default 0) |
 | `staticCount` | Suggested number of statics to place (optional, default 0) |
-| `turretCount` | Suggested number of turrets to place (optional, default 0) |
-| `mobGroundCount` | Suggested number of mob ground to place (optional, default 0) |
+| `chaserCount` | Suggested number of chasers to place (optional, default 0) |
+| `zonerCount` | Suggested number of zoners to place (optional, default 0) |
+| `dpsCount` | Suggested number of DPS enemies to place (optional, default 0) |
 | `mobAirCount` | Suggested number of mob air (fly) to place (optional, default 0) |
+| `stageType` | Stage type identifier (optional) |
 
 ## Ground Layer Generation
 
@@ -186,9 +188,11 @@ After ground generation, the following layers are generated using the same algor
 | SoftEdge | Fills concave void notches in ground |
 | Bridge | Connects floating islands and fills concave gaps |
 | Static | 2×2 obstacle blocks on ground |
-| Turret | 1×1 turrets preferring ground corners |
-| MobGround | Ground-based mob spawn points |
+| Chaser | 1×1 chaser enemies preferring ground corners |
+| Zoner | 2×2/1×1 area-denial enemies |
+| DPS | 1×1 damage-dealing enemies |
 | MobAir | Flying mob spawn points |
+| MainPath | Main traversal path through the room |
 
 ## API Endpoint
 
@@ -205,9 +209,11 @@ POST /api/v1/generate/platform
   "doors": ["top", "bottom", "left", "right"],
   "softEdgeCount": 3,
   "staticCount": 4,
-  "turretCount": 3,
-  "mobGroundCount": 5,
-  "mobAirCount": 4
+  "chaserCount": 3,
+  "zonerCount": 5,
+  "dpsCount": 2,
+  "mobAirCount": 4,
+  "stageType": ""
 }
 ```
 
@@ -220,15 +226,18 @@ POST /api/v1/generate/platform
     "softEdge": [[...]],
     "bridge": [[...]],
     "static": [[...]],
-    "turret": [[...]],
-    "mobGround": [[...]],
+    "chaser": [[...]],
+    "zoner": [[...]],
+    "dps": [[...]],
     "mobAir": [[...]],
+    "mainPath": [[...]],
     "doors": {
       "top": 1,
       "right": 1,
       "bottom": 1,
       "left": 1
     },
+    "stageType": "",
     "roomType": "platform",
     "meta": {
       "name": "platform-20x20",
@@ -273,8 +282,9 @@ POST /api/v1/generate/platform
     "softEdge": { ... },
     "bridgeLayer": { ... },
     "static": { ... },
-    "turret": { ... },
-    "mobGround": { ... },
+    "chaser": { ... },
+    "zoner": { ... },
+    "dps": { ... },
     "mobAir": { ... }
   }
 }
@@ -305,13 +315,13 @@ Platform room with all features (25×20):
  4:  █▓▓██████████████████▓▓█
  5:  █▓▓██████████████████▓▓█
  6:  ████████████████████████
- 7:  █████T██████████████T███
+ 7:  █████C██████████████C███
  8:  ████████████████████████
- 9:  ████████MM██████████████
-10:  ████████MM██████████████
+ 9:  ████████ZZ██████████████
+10:  ████████ZZ██████████████
 11:  ████████████████████████
 12:  █████████████A██████████
-13:  ████████████████████████
+13:  ██████████D█████████████
 14:  ██▓▓████████████████▓▓██
 15:  ██▓▓████████████████▓▓██
 16:  ████████████████████████
@@ -321,8 +331,9 @@ Platform room with all features (25×20):
 
 █ = Ground (walkable)
 ▓ = Static (2×2 blocks)
-T = Turret (1×1)
-M = Mob Ground (spawn point)
+C = Chaser (1×1 enemy)
+Z = Zoner (2×2 enemy)
+D = DPS (1×1 enemy)
 A = Mob Air (flying spawn)
 · = Void
 ```
