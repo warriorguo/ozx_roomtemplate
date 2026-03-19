@@ -503,15 +503,15 @@ func generateFullRoomCenterPits(ground [][]int, width, height int, doors []DoorP
 
 	// Select brush: 1 <= x <= M/3, 1 <= y <= N/2
 	maxBrushW := width / 3
-	if maxBrushW < 1 {
-		maxBrushW = 1
+	if maxBrushW < 2 {
+		maxBrushW = 2
 	}
 	maxBrushH := height / 2
-	if maxBrushH < 1 {
-		maxBrushH = 1
+	if maxBrushH < 2 {
+		maxBrushH = 2
 	}
-	brushW := 1 + rand.Intn(maxBrushW)
-	brushH := 1 + rand.Intn(maxBrushH)
+	brushW := 2 + rand.Intn(maxBrushW-1)
+	brushH := 2 + rand.Intn(maxBrushH-1)
 
 	pitsDebug.BrushSize = fmt.Sprintf("%dx%d", brushW, brushH)
 
