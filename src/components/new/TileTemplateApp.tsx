@@ -99,6 +99,29 @@ export const TileTemplateApp: React.FC = () => {
   const [mobAirCount, setMobAirCount] = useState<number>(10);
   const [advancedOptionsExpanded, setAdvancedOptionsExpanded] = useState(false);
 
+  // Stage config: recommended counts per stage type
+  const stageDefaults: Record<string, { chaser: [number, number]; zoner: [number, number]; dps: [number, number]; mobAir: [number, number] }> = {
+    teaching: { chaser: [0, 0], zoner: [0, 0], dps: [2, 3], mobAir: [0, 0] },
+    building: { chaser: [2, 3], zoner: [0, 0], dps: [2, 3], mobAir: [0, 0] },
+    pressure: { chaser: [6, 8], zoner: [1, 1], dps: [4, 6], mobAir: [2, 4] },
+    peak:     { chaser: [6, 8], zoner: [2, 3], dps: [6, 12], mobAir: [2, 4] },
+    release:  { chaser: [0, 0], zoner: [0, 0], dps: [0, 3], mobAir: [0, 0] },
+    boss:     { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
+  };
+
+  // Auto-fill counts when stage type changes
+  const handleStageTypeChange = (stageType: string) => {
+    setStageType(stageType as any);
+    const defaults = stageDefaults[stageType];
+    if (defaults) {
+      // Use midpoint of range as default
+      setChaserCount(Math.round((defaults.chaser[0] + defaults.chaser[1]) / 2));
+      setZonerCount(Math.round((defaults.zoner[0] + defaults.zoner[1]) / 2));
+      setDpsCount(Math.round((defaults.dps[0] + defaults.dps[1]) / 2));
+      setMobAirCount(Math.round((defaults.mobAir[0] + defaults.mobAir[1]) / 2));
+    }
+  };
+
   // Toggle door selection
   const toggleDoorSelection = (door: 'top' | 'right' | 'bottom' | 'left') => {
     setSelectedDoors(prev => ({ ...prev, [door]: !prev[door] }));
@@ -155,6 +178,7 @@ export const TileTemplateApp: React.FC = () => {
         zonerCount,
         dpsCount,
         mobAirCount,
+        stageType: template.stageType,
       };
 
       const response = template.roomType === 'platform'
@@ -943,7 +967,7 @@ export const TileTemplateApp: React.FC = () => {
                 }}>
                   <select
                     value={template.stageType}
-                    onChange={(e) => setStageType(e.target.value as any)}
+                    onChange={(e) => handleStageTypeChange(e.target.value)}
                     style={{
                       width: '100%',
                       padding: '8px',
@@ -953,13 +977,21 @@ export const TileTemplateApp: React.FC = () => {
                       cursor: 'pointer',
                     }}
                   >
-                    <option value="teaching">Teaching</option>
-                    <option value="building">Building</option>
-                    <option value="pressure">Pressure</option>
-                    <option value="peak">Peak</option>
-                    <option value="release">Release</option>
-                    <option value="boss">Boss</option>
+                    <option value="teaching">Teaching (引导期)</option>
+                    <option value="building">Building (建立期)</option>
+                    <option value="pressure">Pressure (压力期)</option>
+                    <option value="peak">Peak (峰值期)</option>
+                    <option value="release">Release (释放期)</option>
+                    <option value="boss">Boss (Boss期)</option>
                   </select>
+                  {stageDefaults[template.stageType] && (
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
+                      Chaser: {stageDefaults[template.stageType].chaser[0]}-{stageDefaults[template.stageType].chaser[1]} |
+                      Zoner: {stageDefaults[template.stageType].zoner[0]}-{stageDefaults[template.stageType].zoner[1]} |
+                      DPS: {stageDefaults[template.stageType].dps[0]}-{stageDefaults[template.stageType].dps[1]} |
+                      MobAir: {stageDefaults[template.stageType].mobAir[0]}-{stageDefaults[template.stageType].mobAir[1]}
+                    </div>
+                  )}
                 </div>
               </div>
 

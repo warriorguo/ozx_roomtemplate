@@ -1,6 +1,9 @@
 package generate
 
-import "math/rand"
+import (
+	"fmt"
+	"math/rand"
+)
 
 // createEmptyLayer creates a new empty (all-zero) layer of the given dimensions
 func createEmptyLayer(width, height int) [][]int {
@@ -177,6 +180,29 @@ func TryMutateWithRollback(layer [][]int, mutate func(), validate func() bool) b
 		return false
 	}
 	return true
+}
+
+// countCells counts cells with value 1 in a layer
+func countCells(layer [][]int) int {
+	count := 0
+	for _, row := range layer {
+		for _, v := range row {
+			if v == 1 {
+				count++
+			}
+		}
+	}
+	return count
+}
+
+// countLayerDebug creates a simple debug info by counting placed cells
+func countLayerDebug(layer [][]int, target int, name string) *EnemyLayerDebugInfo {
+	placed := countCells(layer)
+	return &EnemyLayerDebugInfo{
+		TargetCount: target,
+		PlacedCount: placed,
+		Placements:  []PlaceInfo{{Reason: fmt.Sprintf("grouped placement for %s", name)}},
+	}
 }
 
 // selectByWeight selects a strategy index by weight

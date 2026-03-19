@@ -52,6 +52,9 @@ func SetupRouter(templateStore store.TemplateStore, logger *zap.Logger, corsOrig
 			r.Post("/platform", templateHandler.GeneratePlatform)
 			r.Post("/fullroom", templateHandler.GenerateFullRoom)
 		})
+
+		// Stage config endpoint
+		r.Get("/stage-configs", templateHandler.GetStageConfigs)
 	})
 
 	return r

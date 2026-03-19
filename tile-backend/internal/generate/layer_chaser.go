@@ -8,7 +8,7 @@ import (
 // GenerateChaserLayer generates the chaser layer.
 // Chasers must be on ground, within 0-3 of main path, prefer LOW squishy score.
 func GenerateChaserLayer(chaserLayer, ground, softEdge, bridge, rail, staticLayer, zonerLayer [][]int,
-	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int) *EnemyLayerDebugInfo {
+	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int, regionFilter ...*RegionFilter) *EnemyLayerDebugInfo {
 
 	debug := &EnemyLayerDebugInfo{
 		TargetCount: targetCount,
@@ -18,10 +18,19 @@ func GenerateChaserLayer(chaserLayer, ground, softEdge, bridge, rail, staticLaye
 
 	forbidden := getDoorForbiddenCellsRadius(doorPositions, width, height, doorForbiddenRadius)
 
+	// Get optional region filter
+	var rf *RegionFilter
+	if len(regionFilter) > 0 {
+		rf = regionFilter[0]
+	}
+
 	// Find valid positions
 	var candidates []Point
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
+			if !rf.Contains(x, y) {
+				continue
+			}
 			pos := Point{x, y}
 			if !isValidEnemyPosition(pos, ground, softEdge, bridge, rail, staticLayer, forbidden, width, height) {
 				continue

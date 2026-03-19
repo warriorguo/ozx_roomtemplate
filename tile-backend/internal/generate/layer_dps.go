@@ -8,7 +8,7 @@ import (
 // GenerateDPSLayer generates the DPS layer.
 // DPS must be on ground, within 0-4 of main path. Can be near chaser/static.
 func GenerateDPSLayer(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zonerLayer, chaserLayer [][]int,
-	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int) *EnemyLayerDebugInfo {
+	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int, regionFilter ...*RegionFilter) *EnemyLayerDebugInfo {
 
 	debug := &EnemyLayerDebugInfo{
 		TargetCount: targetCount,
@@ -18,10 +18,18 @@ func GenerateDPSLayer(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zon
 
 	forbidden := getDoorForbiddenCellsRadius(doorPositions, width, height, doorForbiddenRadius)
 
+	var rf *RegionFilter
+	if len(regionFilter) > 0 {
+		rf = regionFilter[0]
+	}
+
 	// Find valid positions
 	var candidates []Point
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
+			if !rf.Contains(x, y) {
+				continue
+			}
 			pos := Point{x, y}
 			if !isValidEnemyPosition(pos, ground, softEdge, bridge, rail, staticLayer, forbidden, width, height) {
 				continue

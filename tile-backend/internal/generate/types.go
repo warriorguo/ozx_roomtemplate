@@ -197,6 +197,20 @@ var platformBrushes = []BrushSize{
 	{4, 4}, {6, 6},
 }
 
+// RegionFilter restricts placement to a rectangular region
+type RegionFilter struct {
+	MinY, MaxY int // y range [MinY, MaxY)
+	MinX, MaxX int // x range [MinX, MaxX)
+}
+
+// Contains checks if a point is within this region
+func (r *RegionFilter) Contains(x, y int) bool {
+	if r == nil {
+		return true
+	}
+	return x >= r.MinX && x < r.MaxX && y >= r.MinY && y < r.MaxY
+}
+
 // MainPathData holds per-cell computed main path metrics
 type MainPathData struct {
 	Width, Height   int

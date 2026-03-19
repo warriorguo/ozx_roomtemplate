@@ -210,11 +210,13 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	if stageErr != nil {
 		return nil, stageErr
 	}
+	var hints *StagePlacementHints
 	if stageResult != nil && stageResult.Valid && req.StageType != "" {
 		req.ChaserCount = stageResult.ChaserCount
 		req.ZonerCount = stageResult.ZonerCount
 		req.DPSCount = stageResult.DPSCount
 		req.MobAirCount = stageResult.MobAirCount
+		hints = stageResult.PlacementHints
 	}
 
 	// Main path computation
@@ -233,40 +235,81 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		}
 	}
 
-	// Zoner layer (place before chaser — zoner prefers high squishy score positions)
+	// Use grouped or default placement depending on hints
 	zonerLayer := copyLayer(emptyLayer)
-	if req.ZonerCount > 0 {
-		zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount)
-		debugInfo.Zoner = zonerDebug
-	} else {
-		debugInfo.Zoner = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "zonerCount is 0 or not specified"}
-	}
-
-	// Chaser layer
 	chaserLayer := copyLayer(emptyLayer)
-	if req.ChaserCount > 0 {
-		chaserDebug := GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, req.ChaserCount)
-		debugInfo.Chaser = chaserDebug
-	} else {
-		debugInfo.Chaser = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "chaserCount is 0 or not specified"}
-	}
-
-	// DPS layer
 	dpsLayer := copyLayer(emptyLayer)
-	if req.DPSCount > 0 {
-		dpsDebug := GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, req.DPSCount)
-		debugInfo.DPS = dpsDebug
-	} else {
-		debugInfo.DPS = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "dpsCount is 0 or not specified"}
-	}
-
-	// Mob air layer
 	mobAirLayer := copyLayer(emptyLayer)
-	if req.MobAirCount > 0 {
-		mobAirDebug := GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, req.MobAirCount)
-		debugInfo.MobAir = mobAirDebug
+
+	if hints != nil && hints.GroupCount > 0 && len(hints.Groups) > 0 {
+		// Grouped placement — place enemies per region
+		for _, group := range hints.Groups {
+			minY, maxY, minX, maxX := GetRegionBounds(group.Region, req.Width, req.Height)
+			regionFilter := &RegionFilter{MinY: minY, MaxY: maxY, MinX: minX, MaxX: maxX}
+
+			if group.ZonerCount > 0 {
+				GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, group.ZonerCount, regionFilter)
+			}
+			if group.ChaserCount > 0 {
+				GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, group.ChaserCount, regionFilter)
+			}
+			if group.DPSCount > 0 {
+				GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, group.DPSCount, regionFilter)
+			}
+			if group.MobAirCount > 0 {
+				GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, group.MobAirCount, nil)
+			}
+		}
+
+		// Count placed for debug
+		debugInfo.Zoner = countLayerDebug(zonerLayer, req.ZonerCount, "zoner")
+		debugInfo.Chaser = countLayerDebug(chaserLayer, req.ChaserCount, "chaser")
+		debugInfo.DPS = countLayerDebug(dpsLayer, req.DPSCount, "dps")
+		debugInfo.MobAir = &MobAirDebugInfo{TargetCount: req.MobAirCount, PlacedCount: countCells(mobAirLayer), Strategy: "grouped"}
 	} else {
-		debugInfo.MobAir = &MobAirDebugInfo{Skipped: true, SkipReason: "mobAirCount is 0 or not specified"}
+		// Default placement (no grouping)
+		// Build region filter from hints
+		var dpsFilter, chaserFilter *RegionFilter
+		if hints != nil && hints.DPSYRange != [2]int{0, 0} {
+			dpsFilter = &RegionFilter{MinY: hints.DPSYRange[0], MaxY: hints.DPSYRange[1] + 1, MinX: 0, MaxX: req.Width}
+		}
+		if hints != nil && hints.ChaserCenterY {
+			centerY := req.Height / 2
+			chaserFilter = &RegionFilter{MinY: centerY - req.Height/4, MaxY: centerY + req.Height/4, MinX: 0, MaxX: req.Width}
+		}
+
+		if req.ZonerCount > 0 {
+			var zonerFilter *RegionFilter
+			if hints != nil && hints.ZonerCentral {
+				cx, cy := req.Width/2, req.Height/2
+				zonerFilter = &RegionFilter{MinY: cy - 3, MaxY: cy + 3, MinX: cx - 3, MaxX: cx + 3}
+			}
+			zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount, zonerFilter)
+			debugInfo.Zoner = zonerDebug
+		} else {
+			debugInfo.Zoner = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "zonerCount is 0 or not specified"}
+		}
+
+		if req.ChaserCount > 0 {
+			chaserDebug := GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, req.ChaserCount, chaserFilter)
+			debugInfo.Chaser = chaserDebug
+		} else {
+			debugInfo.Chaser = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "chaserCount is 0 or not specified"}
+		}
+
+		if req.DPSCount > 0 {
+			dpsDebug := GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, req.DPSCount, dpsFilter)
+			debugInfo.DPS = dpsDebug
+		} else {
+			debugInfo.DPS = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "dpsCount is 0 or not specified"}
+		}
+
+		if req.MobAirCount > 0 {
+			mobAirDebug := GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, req.MobAirCount, nil)
+			debugInfo.MobAir = mobAirDebug
+		} else {
+			debugInfo.MobAir = &MobAirDebugInfo{Skipped: true, SkipReason: "mobAirCount is 0 or not specified"}
+		}
 	}
 
 	// Create door states

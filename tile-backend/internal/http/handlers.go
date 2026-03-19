@@ -423,3 +423,9 @@ func (h *TemplateHandler) GenerateFullRoom(w http.ResponseWriter, r *http.Reques
 
 	h.respondJSON(w, http.StatusOK, result)
 }
+
+// GetStageConfigs returns all stage type configurations for frontend use
+func (h *TemplateHandler) GetStageConfigs(w http.ResponseWriter, r *http.Request) {
+	configs := generate.GetAllStageConfigs()
+	h.respondJSON(w, http.StatusOK, configs)
+}

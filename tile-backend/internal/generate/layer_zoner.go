@@ -9,7 +9,7 @@ import (
 // Zoners must be on ground, within 0-5 of main path, prefer HIGH squishy score,
 // and no static between zoner and main path.
 func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer [][]int,
-	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int) *EnemyLayerDebugInfo {
+	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int, regionFilter ...*RegionFilter) *EnemyLayerDebugInfo {
 
 	debug := &EnemyLayerDebugInfo{
 		TargetCount: targetCount,
@@ -19,10 +19,18 @@ func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer 
 
 	forbidden := getDoorForbiddenCellsRadius(doorPositions, width, height, doorForbiddenRadius)
 
+	var rf *RegionFilter
+	if len(regionFilter) > 0 {
+		rf = regionFilter[0]
+	}
+
 	// Find valid positions
 	var candidates []Point
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
+			if !rf.Contains(x, y) {
+				continue
+			}
 			pos := Point{x, y}
 			if !isValidEnemyPosition(pos, ground, softEdge, bridge, rail, staticLayer, forbidden, width, height) {
 				continue

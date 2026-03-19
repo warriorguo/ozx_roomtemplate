@@ -1338,7 +1338,7 @@ func isValidMobAirPositionNew(pos Point, ground, softEdge, bridge, staticLayer, 
 
 // GenerateMobAirLayerNew generates mob air layer using new enemy layers instead of turret/mobGround
 func GenerateMobAirLayerNew(mobAirLayer, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer [][]int,
-	doorPositions map[DoorPosition]Point, width, height, targetCount int) *MobAirDebugInfo {
+	doorPositions map[DoorPosition]Point, width, height, targetCount int, regionFilter ...*RegionFilter) *MobAirDebugInfo {
 
 	debug := &MobAirDebugInfo{
 		TargetCount: targetCount,
