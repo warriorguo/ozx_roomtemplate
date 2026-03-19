@@ -60,15 +60,18 @@ func GenerateChaserLayer(chaserLayer, ground, softEdge, bridge, rail, staticLaye
 	})
 
 	remaining := targetCount
-	for _, pos := range candidates {
-		if remaining <= 0 {
-			break
-		}
+	for remaining > 0 && len(candidates) > 0 {
+		// Pick randomly from top 30% of candidates (min 3)
+		pos, idx := pickFromTopN(candidates, 0.3, 3)
 		// Re-check: no adjacent existing chaser (8-directional)
 		if touchesLayer(pos, chaserLayer, width, height) {
+			candidates = append(candidates[:idx], candidates[idx+1:]...)
 			continue
 		}
 		chaserLayer[pos.Y][pos.X] = 1
+		candidates = append(candidates[:idx], candidates[idx+1:]...)
+		// Filter out adjacent positions
+		candidates = filterAdjacent(candidates, pos)
 		remaining--
 		debug.PlacedCount++
 		debug.Placements = append(debug.Placements, PlaceInfo{

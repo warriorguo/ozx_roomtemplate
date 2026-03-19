@@ -60,14 +60,15 @@ func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer 
 	})
 
 	remaining := targetCount
-	for _, pos := range candidates {
-		if remaining <= 0 {
-			break
-		}
+	for remaining > 0 && len(candidates) > 0 {
+		pos, idx := pickFromTopN(candidates, 0.3, 3)
 		if touchesLayer(pos, zonerLayer, width, height) {
+			candidates = append(candidates[:idx], candidates[idx+1:]...)
 			continue
 		}
 		zonerLayer[pos.Y][pos.X] = 1
+		candidates = append(candidates[:idx], candidates[idx+1:]...)
+		candidates = filterAdjacent(candidates, pos)
 		remaining--
 		debug.PlacedCount++
 		debug.Placements = append(debug.Placements, PlaceInfo{

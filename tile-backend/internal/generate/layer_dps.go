@@ -61,19 +61,16 @@ func GenerateDPSLayer(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zon
 	})
 
 	remaining := targetCount
-	for _, pos := range candidates {
-		if remaining <= 0 {
-			break
-		}
+	for remaining > 0 && len(candidates) > 0 {
+		pos, idx := pickFromTopN(candidates, 0.3, 3)
 		// No adjacent existing DPS
-		if touchesLayer(pos, dpsLayer, width, height) {
-			continue
-		}
-		// Cannot be on existing chaser
-		if chaserLayer[pos.Y][pos.X] != 0 {
+		if touchesLayer(pos, dpsLayer, width, height) || chaserLayer[pos.Y][pos.X] != 0 {
+			candidates = append(candidates[:idx], candidates[idx+1:]...)
 			continue
 		}
 		dpsLayer[pos.Y][pos.X] = 1
+		candidates = append(candidates[:idx], candidates[idx+1:]...)
+		candidates = filterAdjacent(candidates, pos)
 		remaining--
 		debug.PlacedCount++
 		debug.Placements = append(debug.Placements, PlaceInfo{

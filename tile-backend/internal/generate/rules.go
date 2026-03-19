@@ -1,6 +1,9 @@
 package generate
 
-import "fmt"
+import (
+	"fmt"
+	"math/rand"
+)
 
 // ============================================================================
 // Validation constants
@@ -1269,6 +1272,35 @@ func isValidEnemyPosition(pos Point, ground, softEdge, bridge, rail, staticLayer
 		return false
 	}
 	return true
+}
+
+// pickFromTopN randomly selects one candidate from the top fraction of a sorted slice.
+// fraction is 0.0-1.0, minN is the minimum pool size.
+// Returns the selected point and its index in the slice.
+func pickFromTopN(candidates []Point, fraction float64, minN int) (Point, int) {
+	n := int(float64(len(candidates)) * fraction)
+	if n < minN {
+		n = minN
+	}
+	if n > len(candidates) {
+		n = len(candidates)
+	}
+	idx := rand.Intn(n)
+	return candidates[idx], idx
+}
+
+// filterAdjacent removes positions that are 8-directionally adjacent to pos
+func filterAdjacent(candidates []Point, pos Point) []Point {
+	var result []Point
+	for _, c := range candidates {
+		dx := abs(c.X - pos.X)
+		dy := abs(c.Y - pos.Y)
+		if dx <= 1 && dy <= 1 {
+			continue // adjacent or same
+		}
+		result = append(result, c)
+	}
+	return result
 }
 
 // touchesLayer checks if a position has any 8-directional neighbor with value != 0
