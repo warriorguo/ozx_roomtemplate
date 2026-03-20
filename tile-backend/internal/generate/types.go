@@ -29,8 +29,9 @@ type BridgeGenerateRequest struct {
 
 // BridgeGenerateResponse represents the generated template
 type BridgeGenerateResponse struct {
-	Payload   model.TemplatePayload `json:"payload"`
-	DebugInfo *GenerateDebugInfo    `json:"debugInfo,omitempty"`
+	Payload    model.TemplatePayload `json:"payload"`
+	DebugInfo  *GenerateDebugInfo    `json:"debugInfo,omitempty"`
+	Difficulty *DifficultyScore      `json:"difficulty,omitempty"`
 }
 
 // GenerateDebugInfo contains debug information about the generation process

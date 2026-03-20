@@ -23,8 +23,9 @@ type PlatformGenerateRequest struct {
 
 // PlatformGenerateResponse represents the generated template
 type PlatformGenerateResponse struct {
-	Payload   model.TemplatePayload `json:"payload"`
-	DebugInfo *PlatformDebugInfo    `json:"debugInfo,omitempty"`
+	Payload    model.TemplatePayload `json:"payload"`
+	DebugInfo  *PlatformDebugInfo    `json:"debugInfo,omitempty"`
+	Difficulty *DifficultyScore      `json:"difficulty,omitempty"`
 }
 
 // PlatformDebugInfo contains debug information about the platform generation process
@@ -263,9 +264,12 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 		},
 	}
 
+	difficulty := ComputeDifficulty(ground, softEdgeLayer, staticLayer, chaserLayer, zonerLayer, dpsLayer, mobAirLayer, mainPathData, req.Width, req.Height)
+
 	return &PlatformGenerateResponse{
-		Payload:   payload,
-		DebugInfo: debugInfo,
+		Payload:    payload,
+		DebugInfo:  debugInfo,
+		Difficulty: difficulty,
 	}, nil
 }
 

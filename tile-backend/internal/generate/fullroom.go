@@ -23,8 +23,9 @@ type FullRoomGenerateRequest struct {
 
 // FullRoomGenerateResponse represents the generated template
 type FullRoomGenerateResponse struct {
-	Payload   model.TemplatePayload `json:"payload"`
-	DebugInfo *FullRoomDebugInfo    `json:"debugInfo,omitempty"`
+	Payload    model.TemplatePayload `json:"payload"`
+	DebugInfo  *FullRoomDebugInfo    `json:"debugInfo,omitempty"`
+	Difficulty *DifficultyScore      `json:"difficulty,omitempty"`
 }
 
 // FullRoomDebugInfo contains debug information about the full room generation process
@@ -372,9 +373,13 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		},
 	}
 
+	// Compute difficulty
+	difficulty := ComputeDifficulty(ground, softEdgeLayer, staticLayer, chaserLayer, zonerLayer, dpsLayer, mobAirLayer, mainPathData, req.Width, req.Height)
+
 	return &FullRoomGenerateResponse{
-		Payload:   payload,
-		DebugInfo: debugInfo,
+		Payload:    payload,
+		DebugInfo:  debugInfo,
+		Difficulty: difficulty,
 	}, nil
 }
 

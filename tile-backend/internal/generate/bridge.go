@@ -192,7 +192,9 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		},
 	}
 
-	return &BridgeGenerateResponse{Payload: payload, DebugInfo: debugInfo}, nil
+	difficulty := ComputeDifficulty(ground, softEdgeLayer, staticLayer, chaserLayer, zonerLayer, dpsLayer, mobAirLayer, mainPathData, req.Width, req.Height)
+
+	return &BridgeGenerateResponse{Payload: payload, DebugInfo: debugInfo, Difficulty: difficulty}, nil
 }
 
 // connectDoors connects all doors using random brushes with straight or L-shaped paths
