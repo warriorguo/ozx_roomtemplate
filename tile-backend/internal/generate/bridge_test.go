@@ -2114,27 +2114,38 @@ func TestGenerateBridgeLayerWithDebug_WithFloatingIsland(t *testing.T) {
 }
 
 func TestCanPlaceBridge(t *testing.T) {
+	// Ground: two vertical columns separated by a 2-cell void gap.
+	// A bridge at (2,1) connects them: all 4 bridge cells have adjacent ground.
 	ground := [][]int{
-		{0, 0, 0, 0},
-		{0, 0, 0, 0},
-		{1, 1, 0, 0},
-		{1, 1, 0, 0},
+		{0, 1, 0, 0, 1}, // y=0
+		{0, 1, 0, 0, 1}, // y=1
+		{0, 1, 0, 0, 1}, // y=2
+		{0, 0, 0, 0, 0}, // y=3
 	}
-	bridgeLayer := createEmptyLayer(4, 4)
+	bridgeLayer := createEmptyLayer(5, 4)
 
 	tests := []struct {
 		name     string
 		x, y     int
 		expected bool
 	}{
-		{"valid position in void", 2, 0, true},
-		{"invalid - overlaps ground", 0, 2, false},
-		{"invalid - out of bounds", 3, 3, false},
+		// Bridge at (2,0) occupies (2,0),(3,0),(2,1),(3,1).
+		// (2,0): right=(4,0) is out of bound concern... actually width=5, so (4,0)=ground[0][4]=1 ✓
+		// (3,0): right=(4,0)=1 ✓; up OOB, down=(3,1) inside bridge.
+		// (2,1): left=(1,1)=1 ✓
+		// (3,1): right=(4,1)=1 ✓
+		{"valid position - touches ground on both sides", 2, 0, true},
+		// Bridge at (0,0) has ground to the right (col 1) but the left side (col -1) is OOB.
+		// Cell (0,0): left OOB, right=(1,0) inside... wait width=5: bridge at (0,0) occupies (0,0),(1,0),(0,1),(1,1).
+		// Cell (0,0): ground[0][0]=0, left=-1 OOB, right=(2,0)=0 (outside bridge), up OOB, down=(0,1) inside bridge. No ground → false.
+		{"invalid - no adjacent ground", 0, 0, false},
+		{"invalid - overlaps ground", 0, 1, false},
+		{"invalid - out of bounds", 4, 3, false},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := canPlaceBridge(tt.x, tt.y, ground, bridgeLayer, createEmptyLayer(4, 4), 4, 4)
+			result := canPlaceBridge(tt.x, tt.y, ground, bridgeLayer, createEmptyLayer(5, 4), 5, 4)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -2196,30 +2207,33 @@ func TestGenerateBridgeRoom_BridgeLayerDebugInfo(t *testing.T) {
 }
 
 func TestFillConcaveGapsWithBridges(t *testing.T) {
-	// Test case matching user's example:
-	// y=7: full ground
-	// y=8: ground at x=0-2 and x=16-19, gap at x=3-15
-	// This creates a concave gap that should have a bridge placed
+	// Test case: a 2-row-tall concave gap flanked by ground above and below.
+	// A valid 2x2 bridge can be placed there because all 4 cells touch ground
+	// (top row touches ground above at y=3, bottom row touches ground below at y=6).
+	//
+	// Layout (width=20, height=10):
+	//   y=0-3: full ground rows
+	//   y=4: ground at x=0-3 and x=14-19, gap at x=4-13  <- concave gap row 1
+	//   y=5: ground at x=0-3 and x=14-19, gap at x=4-13  <- concave gap row 2
+	//   y=6-9: full ground rows
 	ground := [][]int{
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=0
-		{0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0}, // y=1
-		{1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1}, // y=2
-		{1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 1}, // y=3
-		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=4
-		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=5
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=0
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=1
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=2
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=3
+		{1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1}, // y=4 - gap
+		{1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1}, // y=5 - gap
 		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=6
 		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=7
-		{1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1}, // y=8 - concave gap
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=9
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=10
-		{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0}, // y=11
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=8
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}, // y=9
 	}
 
 	width := 20
-	height := 12
+	height := 10
 	bridgeLayer := createEmptyLayer(width, height)
 
-	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, createEmptyLayer(len(ground[0]), len(ground)), width, height)
+	debug := generateBridgeLayerWithDebug(bridgeLayer, ground, createEmptyLayer(width, height), width, height)
 
 	t.Logf("Islands found: %d", debug.IslandsFound)
 	t.Logf("Bridges placed: %d", debug.BridgesPlaced)
@@ -2229,14 +2243,34 @@ func TestFillConcaveGapsWithBridges(t *testing.T) {
 		t.Logf("  Concave gap bridge: %s -> %s at %s", conn.From, conn.To, conn.Position)
 	}
 
-	// Verify a bridge was placed in the concave gap at y=8
+	// All ground is one island (connected via y=0-3 and y=6-9 full rows)
 	assert.Equal(t, 1, debug.IslandsFound, "all ground should be connected as 1 island")
+	// A bridge should be placed in the gap area (x=4..11, y=4..5)
 	assert.GreaterOrEqual(t, len(debug.ConcaveGapBridges), 1, "should place at least one bridge in concave gap")
 
-	// Check that bridge is placed in the gap area (x=3 to x=15, y=8 or y=9)
+	// Verify no bridge cell is missing ground adjacency
+	dirs := []struct{ dx, dy int }{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if bridgeLayer[y][x] != 1 {
+				continue
+			}
+			hasGround := false
+			for _, d := range dirs {
+				nx, ny := x+d.dx, y+d.dy
+				if nx >= 0 && nx < width && ny >= 0 && ny < height && ground[ny][nx] == 1 {
+					hasGround = true
+					break
+				}
+			}
+			assert.True(t, hasGround, "bridge cell (%d,%d) must have at least one adjacent ground cell", x, y)
+		}
+	}
+
+	// Verify bridge is actually placed in the gap area
 	bridgePlaced := false
-	for y := 8; y <= 9; y++ {
-		for x := 3; x < 15; x++ {
+	for y := 4; y <= 5; y++ {
+		for x := 4; x < 14; x++ {
 			if bridgeLayer[y][x] == 1 {
 				bridgePlaced = true
 				t.Logf("Bridge cell at (%d,%d)", x, y)

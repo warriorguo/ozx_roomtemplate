@@ -837,6 +837,40 @@ func areAllDoorsConnected(ground [][]int, width, height int, doors []DoorPositio
 // Bridge validation
 // ============================================================================
 
+// allBridgeCellsTouchGround checks that every cell of a 2x2 bridge at (x, y)
+// has at least one orthogonally adjacent ground=1 cell outside the bridge block.
+// This invariant prevents "floating" bridge cells that have no ground support.
+func allBridgeCellsTouchGround(x, y int, ground [][]int, width, height int) bool {
+	// For each of the 4 cells in the 2x2 bridge, check that at least one
+	// orthogonal neighbor outside the bridge block is ground=1.
+	for dy := 0; dy < bridgeSize; dy++ {
+		for dx := 0; dx < bridgeSize; dx++ {
+			cx, cy := x+dx, y+dy
+			hasGround := false
+			neighbors := []struct{ nx, ny int }{
+				{cx - 1, cy}, {cx + 1, cy},
+				{cx, cy - 1}, {cx, cy + 1},
+			}
+			for _, n := range neighbors {
+				// Skip if neighbor is inside the bridge block itself
+				if n.nx >= x && n.nx < x+bridgeSize && n.ny >= y && n.ny < y+bridgeSize {
+					continue
+				}
+				if n.nx >= 0 && n.nx < width && n.ny >= 0 && n.ny < height {
+					if ground[n.ny][n.nx] == 1 {
+						hasGround = true
+						break
+					}
+				}
+			}
+			if !hasGround {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // canPlaceBridge checks if a 2x2 bridge can be placed at (x, y)
 func canPlaceBridge(x, y int, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) bool {
 	// Bridge must be within bounds
@@ -851,6 +885,12 @@ func canPlaceBridge(x, y int, ground, bridgeLayer, softEdgeLayer [][]int, width,
 				return false
 			}
 		}
+	}
+
+	// Every bridge cell must have at least one adjacent ground cell so that
+	// no bridge tile ends up floating without ground support.
+	if !allBridgeCellsTouchGround(x, y, ground, width, height) {
+		return false
 	}
 
 	return true
@@ -870,6 +910,12 @@ func canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer [][]int, x, y, width, h
 				return false
 			}
 		}
+	}
+
+	// Every bridge cell must have at least one adjacent ground cell so that
+	// no bridge tile ends up floating without ground support.
+	if !allBridgeCellsTouchGround(x, y, ground, width, height) {
+		return false
 	}
 
 	return true
