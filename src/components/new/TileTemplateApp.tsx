@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ToolBar } from './ToolBar';
 import { LayerEditor } from './LayerEditor';
 import { CompositeLayerEditor } from './CompositeLayerEditor';
+import { HeatmapLayerEditor } from './HeatmapLayerEditor';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
 import { ROOM_TYPES } from '../../types/newTemplate';
@@ -368,6 +369,30 @@ export const TileTemplateApp: React.FC = () => {
               </div>
 
               <CompositeLayerEditor />
+            </div>
+
+            {/* Heatmap Layer */}
+            <div style={{
+              backgroundColor: 'white',
+              border: '2px solid #FF4500',
+              borderRadius: '8px',
+              padding: '15px',
+              marginBottom: '20px',
+              boxShadow: '0 2px 4px rgba(255, 69, 0, 0.15)'
+            }}>
+              <div style={{
+                marginBottom: '10px',
+                paddingBottom: '10px',
+                borderBottom: '1px solid #eee'
+              }}>
+                <h3 style={{ margin: '0 0 5px 0', color: '#FF4500', fontSize: '18px' }}>
+                  🔥 Threat Heatmap (威胁热力图)
+                </h3>
+                <p style={{ margin: 0, fontSize: '12px', color: '#6c757d' }}>
+                  Grid-based threat coverage from DPS (×1.0) and Zoner (×0.8) layers, radius 5
+                </p>
+              </div>
+              <HeatmapLayerEditor />
             </div>
           </div>
 
