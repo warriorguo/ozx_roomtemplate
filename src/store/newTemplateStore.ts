@@ -76,6 +76,7 @@ interface NewTemplateStore {
   toggleErrorDisplay: () => void;
   toggleCompositeView: () => void;
   toggleAcceptPaste: () => void;
+  toggleHeatmap: () => void;
   
   // Validation
   validateTemplate: () => void;
@@ -127,6 +128,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       },
       showCompositeView: true,  // 总图层默认打开
       acceptPaste: false,  // 默认关闭paste功能
+      showHeatmap: false,  // 默认关闭威胁热力图
     },
   apiState: {
     isLoading: false,
@@ -356,6 +358,15 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       uiState: {
         ...state.uiState,
         acceptPaste: !state.uiState.acceptPaste,
+      },
+    }));
+  },
+
+  toggleHeatmap: () => {
+    set((state) => ({
+      uiState: {
+        ...state.uiState,
+        showHeatmap: !state.uiState.showHeatmap,
       },
     }));
   },

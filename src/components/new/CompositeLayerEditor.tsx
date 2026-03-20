@@ -1,5 +1,7 @@
+import { useMemo } from 'react';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { CellValue } from '../../types/newTemplate';
+import { computeThreatHeatmap, heatmapScoreToColor } from '../../utils/heatmapUtils';
 
 interface CompositeCellProps {
   x: number;
@@ -16,6 +18,8 @@ interface CompositeCellProps {
   mobAirValue: CellValue;
   isValid: boolean;
   showErrors: boolean;
+  heatmapScore: number;
+  showHeatmap: boolean;
   onCellMouseEnter: (x: number, y: number) => void;
   onCellMouseLeave: () => void;
 }
@@ -35,6 +39,8 @@ const CompositeCell: React.FC<CompositeCellProps> = ({
   mobAirValue,
   isValid,
   showErrors,
+  heatmapScore,
+  showHeatmap,
   onCellMouseEnter,
   onCellMouseLeave,
 }) => {
@@ -100,8 +106,16 @@ const CompositeCell: React.FC<CompositeCellProps> = ({
       style={getCellStyle()}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={onCellMouseLeave}
-      title={`(${x}, ${y}) - Ground:${groundValue} Bridge:${bridgeValue} Pipeline:${pipelineValue} Rail:${railValue} Static:${staticValue} Chaser:${chaserValue} Zoner:${zonerValue} DPS:${dpsValue} MainPath:${mainPathValue} MobAir:${mobAirValue}${!isValid ? ' [INVALID]' : ''}`}
+      title={`(${x}, ${y}) - Ground:${groundValue} Bridge:${bridgeValue} Pipeline:${pipelineValue} Rail:${railValue} Static:${staticValue} Chaser:${chaserValue} Zoner:${zonerValue} DPS:${dpsValue} MainPath:${mainPathValue} MobAir:${mobAirValue}${!isValid ? ' [INVALID]' : ''}${showHeatmap ? ` Threat:${(heatmapScore * 100).toFixed(0)}%` : ''}`}
     >
+      {showHeatmap && heatmapScore >= 0.01 && (
+        <div style={{
+          position: 'absolute',
+          inset: 0,
+          backgroundColor: heatmapScoreToColor(heatmapScore),
+          pointerEvents: 'none',
+        }} />
+      )}
     </div>
   );
 };
@@ -113,10 +127,18 @@ export const CompositeLayerEditor: React.FC = () => {
     setHoveredCell,
     clearHoveredCell,
     toggleCompositeView,
+    toggleHeatmap,
   } = useNewTemplateStore();
 
   const validationResult = uiState.validationResult;
   const showCompositeView = uiState.showCompositeView;
+  const showHeatmap = uiState.showHeatmap;
+
+  const heatmap = useMemo(
+    () => (showHeatmap ? computeThreatHeatmap(template) : null),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [showHeatmap, template.dps, template.zoner, template.width, template.height]
+  );
 
   const handleToggleVisibility = () => {
     toggleCompositeView();
@@ -173,6 +195,15 @@ export const CompositeLayerEditor: React.FC = () => {
             onChange={handleToggleVisibility}
           />
           👁️ Show
+        </label>
+
+        <label style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+          <input
+            type="checkbox"
+            checked={showHeatmap}
+            onChange={toggleHeatmap}
+          />
+          🔥 Threat Heatmap
         </label>
 
         <div style={{
@@ -234,12 +265,38 @@ export const CompositeLayerEditor: React.FC = () => {
                   mobAirValue={mobAirValue}
                   isValid={allLayersValid}
                   showErrors={uiState.showErrors}
+                  heatmapScore={heatmap ? heatmap[y][x] : 0}
+                  showHeatmap={showHeatmap}
                   onCellMouseEnter={setHoveredCell}
                   onCellMouseLeave={clearHoveredCell}
                 />
               );
             })
           )}
+        </div>
+      )}
+
+      {showCompositeView && showHeatmap && (
+        <div style={{
+          marginTop: '10px',
+          padding: '10px',
+          backgroundColor: '#f8f9fa',
+          borderRadius: '4px',
+          fontSize: '12px',
+          color: '#666',
+        }}>
+          <strong>🔥 Threat Heatmap:</strong> DPS (权重 1.0) + Zoner (权重 0.8) 影响半径 5 格
+          <div style={{ marginTop: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+            <span>低威胁</span>
+            <div style={{
+              width: '160px',
+              height: '14px',
+              borderRadius: '3px',
+              background: 'linear-gradient(to right, rgba(0,0,255,0.25), rgba(0,200,255,0.35), rgba(0,220,80,0.45), rgba(255,165,0,0.55), rgba(255,0,0,0.70))',
+              border: '1px solid #ccc',
+            }} />
+            <span>高威胁</span>
+          </div>
         </div>
       )}
 

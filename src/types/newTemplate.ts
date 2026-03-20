@@ -120,5 +120,6 @@ export interface UIState {
   };
   showCompositeView: boolean;  // 是否显示总图层视图
   acceptPaste: boolean;  // 是否接受paste操作
+  showHeatmap: boolean;  // 是否显示威胁热力图
 }
 
