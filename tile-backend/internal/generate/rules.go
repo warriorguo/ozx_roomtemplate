@@ -837,38 +837,80 @@ func areAllDoorsConnected(ground [][]int, width, height int, doors []DoorPositio
 // Bridge validation
 // ============================================================================
 
-// allBridgeCellsTouchGround checks that every cell of a bw×bh bridge at (x, y)
-// has at least one orthogonally adjacent ground=1 cell outside the bridge block.
-// This invariant prevents "floating" bridge cells that have no ground support.
+// allBridgeCellsTouchGround checks that the bw×bh bridge at (x, y) has at least
+// one full edge where ALL adjacent external cells are ground=1.
+//
+// The four edges are:
+//   - Top edge:    row y-1,    columns x..x+bw-1
+//   - Bottom edge: row y+bh,   columns x..x+bw-1
+//   - Left edge:   col x-1,    rows y..y+bh-1
+//   - Right edge:  col x+bw,   rows y..y+bh-1
+//
+// This allows larger bridges (e.g. 4×2 or 2×4) to be valid even when inner
+// cells cannot individually touch ground, as long as one entire side of the
+// block is grounded.
 func allBridgeCellsTouchGround(x, y, bw, bh int, ground [][]int, width, height int) bool {
-	// For each cell in the bridge block, check that at least one
-	// orthogonal neighbor outside the bridge block is ground=1.
-	for dy := 0; dy < bh; dy++ {
+	// Top edge: row y-1, cols x..x+bw-1
+	topOK := y-1 >= 0
+	if topOK {
 		for dx := 0; dx < bw; dx++ {
-			cx, cy := x+dx, y+dy
-			hasGround := false
-			neighbors := []struct{ nx, ny int }{
-				{cx - 1, cy}, {cx + 1, cy},
-				{cx, cy - 1}, {cx, cy + 1},
-			}
-			for _, n := range neighbors {
-				// Skip if neighbor is inside the bridge block itself
-				if n.nx >= x && n.nx < x+bw && n.ny >= y && n.ny < y+bh {
-					continue
-				}
-				if n.nx >= 0 && n.nx < width && n.ny >= 0 && n.ny < height {
-					if ground[n.ny][n.nx] == 1 {
-						hasGround = true
-						break
-					}
-				}
-			}
-			if !hasGround {
-				return false
+			nx, ny := x+dx, y-1
+			if nx < 0 || nx >= width || ny < 0 || ny >= height || ground[ny][nx] != 1 {
+				topOK = false
+				break
 			}
 		}
 	}
-	return true
+	if topOK {
+		return true
+	}
+
+	// Bottom edge: row y+bh, cols x..x+bw-1
+	bottomOK := y+bh < height
+	if bottomOK {
+		for dx := 0; dx < bw; dx++ {
+			nx, ny := x+dx, y+bh
+			if nx < 0 || nx >= width || ny < 0 || ny >= height || ground[ny][nx] != 1 {
+				bottomOK = false
+				break
+			}
+		}
+	}
+	if bottomOK {
+		return true
+	}
+
+	// Left edge: col x-1, rows y..y+bh-1
+	leftOK := x-1 >= 0
+	if leftOK {
+		for dy := 0; dy < bh; dy++ {
+			nx, ny := x-1, y+dy
+			if nx < 0 || nx >= width || ny < 0 || ny >= height || ground[ny][nx] != 1 {
+				leftOK = false
+				break
+			}
+		}
+	}
+	if leftOK {
+		return true
+	}
+
+	// Right edge: col x+bw, rows y..y+bh-1
+	rightOK := x+bw < width
+	if rightOK {
+		for dy := 0; dy < bh; dy++ {
+			nx, ny := x+bw, y+dy
+			if nx < 0 || nx >= width || ny < 0 || ny >= height || ground[ny][nx] != 1 {
+				rightOK = false
+				break
+			}
+		}
+	}
+	if rightOK {
+		return true
+	}
+
+	return false
 }
 
 // canPlaceBridge checks if a bw×bh bridge can be placed at (x, y).
