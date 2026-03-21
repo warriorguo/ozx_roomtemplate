@@ -575,8 +575,10 @@ func applyEraserOperations(ground [][]int, width, height int, doors []DoorPositi
 		// Apply eraser method
 		opInfo := applyEraserMethod(ground, width, height, doors, isStrategy2, method, debug)
 
-		// Check connectivity
-		if !areAllDoorsConnected(ground, width, height, doors) {
+		// Check connectivity: multi-door connectivity AND no isolated ground islands
+		disconnected := !areAllDoorsConnected(ground, width, height, doors) ||
+			len(findAllIslands(ground, width, height)) > 1
+		if disconnected {
 			// Rollback
 			for y := 0; y < height; y++ {
 				for x := 0; x < width; x++ {
@@ -584,7 +586,7 @@ func applyEraserOperations(ground [][]int, width, height int, doors []DoorPositi
 				}
 			}
 			opInfo.RolledBack = true
-			opInfo.Reason = "would break door connectivity"
+			opInfo.Reason = "would break door connectivity or create isolated ground islands"
 		}
 
 		debug.EraserOps = append(debug.EraserOps, opInfo)
