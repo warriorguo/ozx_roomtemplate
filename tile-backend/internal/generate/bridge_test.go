@@ -2156,7 +2156,7 @@ func TestCanPlaceBridge(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := canPlaceBridge(tt.x, tt.y, ground, bridgeLayer, createEmptyLayer(5, 4), 5, 4)
+			result := canPlaceBridge(tt.x, tt.y, bridgeSize, bridgeSize, ground, bridgeLayer, createEmptyLayer(5, 4), 5, 4)
 			assert.Equal(t, tt.expected, result)
 		})
 	}
@@ -2187,7 +2187,7 @@ func TestBridgeTouchesIsland(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := bridgeTouchesIsland(tt.bx, tt.by, island, ground)
+			result := bridgeTouchesIsland(tt.bx, tt.by, bridgeSize, bridgeSize, island, ground)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

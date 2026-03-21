@@ -837,14 +837,14 @@ func areAllDoorsConnected(ground [][]int, width, height int, doors []DoorPositio
 // Bridge validation
 // ============================================================================
 
-// allBridgeCellsTouchGround checks that every cell of a 2x2 bridge at (x, y)
+// allBridgeCellsTouchGround checks that every cell of a bw×bh bridge at (x, y)
 // has at least one orthogonally adjacent ground=1 cell outside the bridge block.
 // This invariant prevents "floating" bridge cells that have no ground support.
-func allBridgeCellsTouchGround(x, y int, ground [][]int, width, height int) bool {
-	// For each of the 4 cells in the 2x2 bridge, check that at least one
+func allBridgeCellsTouchGround(x, y, bw, bh int, ground [][]int, width, height int) bool {
+	// For each cell in the bridge block, check that at least one
 	// orthogonal neighbor outside the bridge block is ground=1.
-	for dy := 0; dy < bridgeSize; dy++ {
-		for dx := 0; dx < bridgeSize; dx++ {
+	for dy := 0; dy < bh; dy++ {
+		for dx := 0; dx < bw; dx++ {
 			cx, cy := x+dx, y+dy
 			hasGround := false
 			neighbors := []struct{ nx, ny int }{
@@ -853,7 +853,7 @@ func allBridgeCellsTouchGround(x, y int, ground [][]int, width, height int) bool
 			}
 			for _, n := range neighbors {
 				// Skip if neighbor is inside the bridge block itself
-				if n.nx >= x && n.nx < x+bridgeSize && n.ny >= y && n.ny < y+bridgeSize {
+				if n.nx >= x && n.nx < x+bw && n.ny >= y && n.ny < y+bh {
 					continue
 				}
 				if n.nx >= 0 && n.nx < width && n.ny >= 0 && n.ny < height {
@@ -871,16 +871,16 @@ func allBridgeCellsTouchGround(x, y int, ground [][]int, width, height int) bool
 	return true
 }
 
-// canPlaceBridge checks if a 2x2 bridge can be placed at (x, y)
-func canPlaceBridge(x, y int, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) bool {
+// canPlaceBridge checks if a bw×bh bridge can be placed at (x, y).
+func canPlaceBridge(x, y, bw, bh int, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) bool {
 	// Bridge must be within bounds
-	if x < 0 || x+bridgeSize > width || y < 0 || y+bridgeSize > height {
+	if x < 0 || x+bw > width || y < 0 || y+bh > height {
 		return false
 	}
 
 	// All cells must be void (ground=0), no existing bridge, and no soft edge
-	for dy := 0; dy < bridgeSize; dy++ {
-		for dx := 0; dx < bridgeSize; dx++ {
+	for dy := 0; dy < bh; dy++ {
+		for dx := 0; dx < bw; dx++ {
 			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 || softEdgeLayer[y+dy][x+dx] != 0 {
 				return false
 			}
@@ -889,23 +889,23 @@ func canPlaceBridge(x, y int, ground, bridgeLayer, softEdgeLayer [][]int, width,
 
 	// Every bridge cell must have at least one adjacent ground cell so that
 	// no bridge tile ends up floating without ground support.
-	if !allBridgeCellsTouchGround(x, y, ground, width, height) {
+	if !allBridgeCellsTouchGround(x, y, bw, bh, ground, width, height) {
 		return false
 	}
 
 	return true
 }
 
-// canPlaceBridgeAt checks if a 2x2 bridge can be placed at the given position
-func canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer [][]int, x, y, width, height int) bool {
+// canPlaceBridgeAt checks if a bw×bh bridge can be placed at the given position.
+func canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer [][]int, x, y, bw, bh, width, height int) bool {
 	// Bridge must be within bounds
-	if x < 0 || x+bridgeSize > width || y < 0 || y+bridgeSize > height {
+	if x < 0 || x+bw > width || y < 0 || y+bh > height {
 		return false
 	}
 
 	// All cells must be void (ground=0), no existing bridge, and no soft edge
-	for dy := 0; dy < bridgeSize; dy++ {
-		for dx := 0; dx < bridgeSize; dx++ {
+	for dy := 0; dy < bh; dy++ {
+		for dx := 0; dx < bw; dx++ {
 			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 || softEdgeLayer[y+dy][x+dx] != 0 {
 				return false
 			}
@@ -914,50 +914,46 @@ func canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer [][]int, x, y, width, h
 
 	// Every bridge cell must have at least one adjacent ground cell so that
 	// no bridge tile ends up floating without ground support.
-	if !allBridgeCellsTouchGround(x, y, ground, width, height) {
+	if !allBridgeCellsTouchGround(x, y, bw, bh, ground, width, height) {
 		return false
 	}
 
 	return true
 }
 
-// bridgeTouchesIsland checks if a 2x2 bridge at (bx, by) fully touches the island (2x2 contact)
-func bridgeTouchesIsland(bx, by int, island Island, ground [][]int) bool {
-	// Check if the bridge has at least 2 adjacent cells touching the island
+// bridgeTouchesIsland checks if a bw×bh bridge at (bx, by) touches the island
+// (requires at least 2 adjacent cells).
+func bridgeTouchesIsland(bx, by, bw, bh int, island Island, ground [][]int) bool {
 	touchCount := 0
 
-	// Check all 4 sides of the bridge
-	bridgeCells := []Point{
-		{bx, by}, {bx + 1, by}, {bx, by + 1}, {bx + 1, by + 1},
+	islandSet := make(map[Point]bool, len(island.Cells))
+	for _, ic := range island.Cells {
+		islandSet[ic] = true
 	}
 
-	for _, bc := range bridgeCells {
-		// Check adjacent cells (not diagonal)
-		adjacents := []Point{
-			{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y}, {bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
-		}
-		for _, adj := range adjacents {
-			// Check if adjacent cell is part of the island
-			for _, ic := range island.Cells {
-				if ic.X == adj.X && ic.Y == adj.Y {
+	for dy := 0; dy < bh; dy++ {
+		for dx := 0; dx < bw; dx++ {
+			bc := Point{bx + dx, by + dy}
+			adjacents := []Point{
+				{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y}, {bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
+			}
+			for _, adj := range adjacents {
+				// Skip cells inside the bridge itself
+				if adj.X >= bx && adj.X < bx+bw && adj.Y >= by && adj.Y < by+bh {
+					continue
+				}
+				if islandSet[adj] {
 					touchCount++
-					break
 				}
 			}
 		}
 	}
 
-	// Need at least 2 touch points for 2x2 full contact
 	return touchCount >= 2
 }
 
-// bridgeTouchesExistingGround checks if bridge touches ground that's not part of the given island
-func bridgeTouchesExistingGround(bx, by int, excludeIsland Island, allIslands []Island, connected map[int]bool, ground [][]int, width, height int) (bool, string) {
-	// Check all cells adjacent to the bridge
-	bridgeCells := []Point{
-		{bx, by}, {bx + 1, by}, {bx, by + 1}, {bx + 1, by + 1},
-	}
-
+// bridgeTouchesExistingGround checks if a bw×bh bridge touches ground that's not part of the given island.
+func bridgeTouchesExistingGround(bx, by, bw, bh int, excludeIsland Island, allIslands []Island, connected map[int]bool, ground [][]int, width, height int) (bool, string) {
 	excludeCells := make(map[Point]bool)
 	for _, c := range excludeIsland.Cells {
 		excludeCells[c] = true
@@ -966,27 +962,34 @@ func bridgeTouchesExistingGround(bx, by int, excludeIsland Island, allIslands []
 	touchCount := 0
 	var targetDesc string
 
-	for _, bc := range bridgeCells {
-		adjacents := []Point{
-			{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y}, {bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
-		}
-		for _, adj := range adjacents {
-			if adj.X < 0 || adj.X >= width || adj.Y < 0 || adj.Y >= height {
-				continue
+	for dy := 0; dy < bh; dy++ {
+		for dx := 0; dx < bw; dx++ {
+			bc := Point{bx + dx, by + dy}
+			adjacents := []Point{
+				{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y}, {bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
 			}
-			if ground[adj.Y][adj.X] == 1 && !excludeCells[adj] {
-				touchCount++
-				// Find which island this belongs to
-				for i, island := range allIslands {
-					if connected[i] {
-						for _, ic := range island.Cells {
-							if ic.X == adj.X && ic.Y == adj.Y {
-								if i == 0 {
-									targetDesc = "main ground"
-								} else {
-									targetDesc = "island"
+			for _, adj := range adjacents {
+				// Skip cells inside the bridge itself
+				if adj.X >= bx && adj.X < bx+bw && adj.Y >= by && adj.Y < by+bh {
+					continue
+				}
+				if adj.X < 0 || adj.X >= width || adj.Y < 0 || adj.Y >= height {
+					continue
+				}
+				if ground[adj.Y][adj.X] == 1 && !excludeCells[adj] {
+					touchCount++
+					// Find which island this belongs to
+					for i, island := range allIslands {
+						if connected[i] {
+							for _, ic := range island.Cells {
+								if ic.X == adj.X && ic.Y == adj.Y {
+									if i == 0 {
+										targetDesc = "main ground"
+									} else {
+										targetDesc = "island"
+									}
+									break
 								}
-								break
 							}
 						}
 					}
