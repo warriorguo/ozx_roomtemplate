@@ -294,6 +294,7 @@ func buildPlacementHints(cfg *StageConfig, chaserCount, zonerCount, dpsCount, mo
 		// Split enemies into 2 groups, pick top/bottom or left/right randomly
 		groupDPS := splitCount(dpsCount, 2)
 		groupChaser := splitCount(chaserCount, 2)
+		groupZoner := splitCount(zonerCount, 2)
 		groupMobAir := splitCount(mobAirCount, 2)
 		regions := pickHalves()
 		for i := 0; i < 2; i++ {
@@ -301,6 +302,7 @@ func buildPlacementHints(cfg *StageConfig, chaserCount, zonerCount, dpsCount, mo
 				Region:      regions[i],
 				DPSCount:    groupDPS[i],
 				ChaserCount: groupChaser[i],
+				ZonerCount:  groupZoner[i],
 				MobAirCount: groupMobAir[i],
 			})
 		}

@@ -47,8 +47,29 @@ func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer 
 		}
 	}
 
+	// Fallback: if no candidates found with LOS constraint, retry without static-blocking-path filter.
+	// This ensures at least some valid positions exist in heavily-static rooms.
 	if len(candidates) == 0 {
-		debug.Misses = append(debug.Misses, MissInfo{Reason: "no valid positions found"})
+		debug.Misses = append(debug.Misses, MissInfo{Reason: "no valid positions with LOS constraint, retrying without static-blocking-path filter"})
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				if !rf.Contains(x, y) {
+					continue
+				}
+				pos := Point{x, y}
+				if !isValidEnemyPosition(pos, ground, softEdge, bridge, rail, staticLayer, forbidden, width, height) {
+					continue
+				}
+				if mainPath == nil || mainPath.DirectDistance[y][x] > zonerMaxPathDist {
+					continue
+				}
+				candidates = append(candidates, pos)
+			}
+		}
+	}
+
+	if len(candidates) == 0 {
+		debug.Misses = append(debug.Misses, MissInfo{Reason: "no valid positions found even without LOS constraint"})
 		return debug
 	}
 

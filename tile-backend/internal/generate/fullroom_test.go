@@ -259,6 +259,39 @@ func TestGenerateFullRoom_WithOptionalLayers(t *testing.T) {
 	assert.False(t, resp.DebugInfo.MobAir.Skipped)
 }
 
+// TestGenerateFullRoom_PressureStageZonerCount is a regression test for ORT-26.
+// Pressure stage requires exactly 1 zoner; the grouped placement path was missing
+// ZonerCount in PlacementGroup, causing 0 zoners to be placed.
+func TestGenerateFullRoom_PressureStageZonerCount(t *testing.T) {
+	// Run multiple times to account for randomness in group halves selection
+	for i := 0; i < 20; i++ {
+		req := FullRoomGenerateRequest{
+			Width:         20,
+			Height:        12,
+			Doors:         []DoorPosition{DoorTop, DoorRight},
+			StageType:     "pressure",
+			SoftEdgeCount: 5,
+			StaticCount:   5,
+			RailEnabled:   true,
+		}
+		resp, err := GenerateFullRoom(req)
+		require.NoError(t, err, "iteration %d", i)
+		require.NotNil(t, resp, "iteration %d", i)
+
+		// Count actual zoner cells placed
+		zonerCount := 0
+		for y := 0; y < req.Height; y++ {
+			for x := 0; x < req.Width; x++ {
+				if resp.Payload.Zoner[y][x] == 1 {
+					zonerCount++
+				}
+			}
+		}
+		// Pressure stage ZonerRange is [1,1], so exactly 1 zoner must be placed
+		assert.Equal(t, 1, zonerCount, "pressure stage must place exactly 1 zoner (iteration %d)", i)
+	}
+}
+
 func TestGenerateFullRoom_DebugInfoPopulated(t *testing.T) {
 	req := FullRoomGenerateRequest{
 		Width:          20,
