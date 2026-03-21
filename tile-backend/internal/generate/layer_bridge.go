@@ -106,12 +106,66 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer [][]int, wi
 	debug.ConcaveGapBridges = concaveGapBridges
 	debug.BridgesPlaced += len(concaveGapBridges)
 
+	// Step 4: Fallback — if no bridges were placed at all, force at least one.
+	// A bridge room with zero bridge tiles is indistinguishable from a flat ground
+	// room, which defeats the purpose of the bridge room type.
 	if debug.BridgesPlaced == 0 {
-		debug.Skipped = true
-		debug.SkipReason = "no bridges needed (no floating islands and no concave gaps)"
+		placed := placeAtLeastOneBridge(bridgeLayer, ground, softEdgeLayer, width, height)
+		if placed != nil {
+			debug.BridgesPlaced++
+			debug.Connections = append(debug.Connections, BridgeConnection{
+				From:     "fallback",
+				To:       "adjacent ground",
+				Position: fmt.Sprintf("(%d,%d)", placed.X, placed.Y),
+				Size:     fmt.Sprintf("%dx%d", bridgeSize, bridgeSize),
+			})
+		} else {
+			debug.Skipped = true
+			debug.SkipReason = "no bridges needed (no floating islands, no concave gaps, no valid void positions)"
+		}
 	}
 
 	return debug
+}
+
+// placeAtLeastOneBridge scans for any valid 2x2 void area adjacent to ground and places
+// a bridge there. Returns the top-left corner of the placed bridge, or nil if none found.
+func placeAtLeastOneBridge(bridgeLayer, ground, softEdgeLayer [][]int, width, height int) *Point {
+	// Prefer positions near the vertical center of the room
+	centerY := height / 2
+
+	type candidate struct {
+		pos  Point
+		dist int // distance from center row
+	}
+	var candidates []candidate
+
+	for y := 0; y <= height-bridgeSize; y++ {
+		for x := 0; x <= width-bridgeSize; x++ {
+			if canPlaceBridge(x, y, bridgeSize, bridgeSize, ground, bridgeLayer, softEdgeLayer, width, height) {
+				dist := abs(y - centerY)
+				if dist > height-centerY {
+					dist = height - centerY - dist
+				}
+				candidates = append(candidates, candidate{Point{x, y}, dist})
+			}
+		}
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// Pick the candidate closest to center
+	best := candidates[0]
+	for _, c := range candidates[1:] {
+		if c.dist < best.dist {
+			best = c
+		}
+	}
+
+	placeBridge(bridgeLayer, best.pos.X, best.pos.Y, bridgeSize, bridgeSize)
+	return &best.pos
 }
 
 // bridgeConnectionResult holds the result of finding a bridge connection

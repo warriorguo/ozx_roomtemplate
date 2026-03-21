@@ -128,3 +128,64 @@ func TestBridgeBlockAlwaysHasOneFullEdgeOnGround(t *testing.T) {
 		}
 	}
 }
+
+// TestBridgeRoomAlwaysHasBridgeTiles verifies that every bridge room generation
+// produces at least one bridge tile. Bridge rooms without any bridge tiles are
+// indistinguishable from flat ground rooms.
+// Regression test for ORT-29: bridge rooms were producing 0 tiles when stageType omitted.
+func TestBridgeRoomAlwaysHasBridgeTiles(t *testing.T) {
+	doors := [][]DoorPosition{
+		{DoorTop, DoorBottom},
+		{DoorLeft, DoorRight},
+		{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		{DoorTop, DoorRight},
+		{DoorBottom, DoorLeft},
+	}
+
+	stageTypes := []string{"", "teaching", "building"}
+
+	sizes := [][2]int{
+		{20, 12},
+		{15, 15},
+		{20, 20},
+	}
+
+	failures := 0
+
+	for trial := 0; trial < 300; trial++ {
+		doorSet := doors[trial%len(doors)]
+		size := sizes[trial%len(sizes)]
+		stage := stageTypes[trial%len(stageTypes)]
+		w, h := size[0], size[1]
+
+		req := BridgeGenerateRequest{
+			Width:         w,
+			Height:        h,
+			Doors:         doorSet,
+			StageType:     stage,
+			SoftEdgeCount: 3,
+			StaticCount:   3,
+		}
+
+		resp, err := GenerateBridgeRoom(req)
+		if err != nil {
+			continue
+		}
+
+		bridgeCount := 0
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				bridgeCount += resp.Payload.Bridge[y][x]
+			}
+		}
+
+		if bridgeCount == 0 {
+			failures++
+			t.Errorf("trial %d (size %dx%d, doors %v, stage %q): bridge room has 0 bridge tiles",
+				trial, w, h, doorSet, stage)
+			if failures > 5 {
+				t.FailNow()
+			}
+		}
+	}
+}
