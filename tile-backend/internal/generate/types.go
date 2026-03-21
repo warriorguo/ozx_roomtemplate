@@ -216,8 +216,8 @@ func (r *RegionFilter) Contains(x, y int) bool {
 type MainPathData struct {
 	Width, Height   int
 	OnMainPath      [][]bool    // true if cell is on main path
-	DirectDistance   [][]int     // straight-line distance to nearest main path cell
-	WalkingDistance  [][]int     // BFS walking distance to nearest main path cell (-1 if unreachable)
+	DirectDistance  [][]int     // straight-line distance to nearest main path cell
+	WalkingDistance [][]int     // BFS walking distance to nearest main path cell (-1 if unreachable)
 	SquishyScore    [][]float64 // walking_distance / direct_distance (higher = better for ranged)
 }
 

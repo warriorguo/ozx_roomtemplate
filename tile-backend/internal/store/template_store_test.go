@@ -3,8 +3,8 @@ package store
 import (
 	"context"
 	"testing"
-	"time"
 	"tile-backend/internal/model"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/pashagolub/pgxmock/v4"
@@ -26,12 +26,12 @@ func TestPostgreSQLTemplateStore_Create(t *testing.T) {
 		Width:   10,
 		Height:  8,
 		Payload: model.TemplatePayload{
-			Ground:    [][]int{{1, 0}, {0, 1}},
-			Static:    [][]int{{0, 1}, {1, 0}},
+			Ground: [][]int{{1, 0}, {0, 1}},
+			Static: [][]int{{0, 1}, {1, 0}},
 			Chaser: [][]int{{0, 0}, {0, 0}},
 			Zoner:  [][]int{{0, 0}, {0, 0}},
 			DPS:    [][]int{{0, 0}, {0, 0}},
-			MobAir:    [][]int{{1, 0}, {0, 1}},
+			MobAir: [][]int{{1, 0}, {0, 1}},
 			Meta: model.TemplateMeta{
 				Name:    "test-template",
 				Version: 1,
@@ -158,7 +158,7 @@ func TestPostgreSQLTemplateStore_Get(t *testing.T) {
 	assert.Equal(t, 8, result.Height)
 	assert.Equal(t, now, result.CreatedAt)
 	assert.Equal(t, now, result.UpdatedAt)
-	
+
 	// Check payload was properly unmarshaled
 	assert.Equal(t, model.Layer{{1, 0}, {0, 1}}, result.Payload.Ground)
 	assert.Equal(t, model.Layer{{0, 1}, {1, 0}}, result.Payload.Static)

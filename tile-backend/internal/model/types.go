@@ -70,47 +70,47 @@ type DoorsConnected struct {
 
 // TemplatePayload represents the complete template data as received from frontend
 type TemplatePayload struct {
-	Ground         Layer           `json:"ground"`
-	SoftEdge       Layer           `json:"softEdge,omitempty"`       // Optional for backward compatibility
-	Bridge         Layer           `json:"bridge,omitempty"`         // Optional for backward compatibility
-	Pipeline       Layer           `json:"pipeline,omitempty"`       // Optional for backward compatibility
-	PipelineLines  []LineSegment   `json:"pipelineLines,omitempty"`  // Line segments describing pipeline paths
-	Rail           Layer           `json:"rail,omitempty"`           // Optional for backward compatibility
-	RailLines      []LineSegment   `json:"railLines,omitempty"`      // Line segments describing rail paths
-	Static         Layer           `json:"static"`
-	Chaser         Layer           `json:"chaser,omitempty"`
-	Zoner          Layer           `json:"zoner,omitempty"`
-	DPS            Layer           `json:"dps,omitempty"`
-	MobAir         Layer           `json:"mobAir"`
-	MainPath       Layer           `json:"mainPath,omitempty"`       // Main path through room center
-	Doors          *DoorStates     `json:"doors,omitempty"`
-	Attributes     *RoomAttributes `json:"attributes,omitempty"`     // Deprecated
-	StageType      *string         `json:"stageType,omitempty"`      // teaching, building, pressure, peak, release, boss
-	RoomType       *string         `json:"roomType,omitempty"`       // "full", "bridge", or "platform"
-	Meta           TemplateMeta    `json:"meta"`
+	Ground        Layer           `json:"ground"`
+	SoftEdge      Layer           `json:"softEdge,omitempty"`      // Optional for backward compatibility
+	Bridge        Layer           `json:"bridge,omitempty"`        // Optional for backward compatibility
+	Pipeline      Layer           `json:"pipeline,omitempty"`      // Optional for backward compatibility
+	PipelineLines []LineSegment   `json:"pipelineLines,omitempty"` // Line segments describing pipeline paths
+	Rail          Layer           `json:"rail,omitempty"`          // Optional for backward compatibility
+	RailLines     []LineSegment   `json:"railLines,omitempty"`     // Line segments describing rail paths
+	Static        Layer           `json:"static"`
+	Chaser        Layer           `json:"chaser,omitempty"`
+	Zoner         Layer           `json:"zoner,omitempty"`
+	DPS           Layer           `json:"dps,omitempty"`
+	MobAir        Layer           `json:"mobAir"`
+	MainPath      Layer           `json:"mainPath,omitempty"` // Main path through room center
+	Doors         *DoorStates     `json:"doors,omitempty"`
+	Attributes    *RoomAttributes `json:"attributes,omitempty"` // Deprecated
+	StageType     *string         `json:"stageType,omitempty"`  // teaching, building, pressure, peak, release, boss
+	RoomType      *string         `json:"roomType,omitempty"`   // "full", "bridge", or "platform"
+	Meta          TemplateMeta    `json:"meta"`
 }
 
 // Template represents a complete template record
 type Template struct {
-	ID              uuid.UUID        `json:"id"`
-	Name            string           `json:"name"`
-	Version         int              `json:"version"`
-	Width           int              `json:"width"`
-	Height          int              `json:"height"`
-	Payload         TemplatePayload  `json:"payload"`
-	Thumbnail       *string          `json:"thumbnail,omitempty"` // Base64 encoded PNG
-	WalkableRatio   *float64         `json:"walkable_ratio,omitempty"`
-	RoomType        *string          `json:"room_type,omitempty"`
-	RoomAttributes  *RoomAttributes  `json:"room_attributes,omitempty"`
-	DoorsConnected  *DoorsConnected  `json:"doors_connected,omitempty"`
-	StaticCount     *int             `json:"static_count,omitempty"`
-	ChaserCount     *int             `json:"chaser_count,omitempty"`
-	ZonerCount      *int             `json:"zoner_count,omitempty"`
-	DPSCount        *int             `json:"dps_count,omitempty"`
-	MobAirCount     *int             `json:"mobair_count,omitempty"`
-	StageType       *string          `json:"stage_type,omitempty"`
-	CreatedAt       time.Time        `json:"created_at"`
-	UpdatedAt       time.Time        `json:"updated_at"`
+	ID             uuid.UUID       `json:"id"`
+	Name           string          `json:"name"`
+	Version        int             `json:"version"`
+	Width          int             `json:"width"`
+	Height         int             `json:"height"`
+	Payload        TemplatePayload `json:"payload"`
+	Thumbnail      *string         `json:"thumbnail,omitempty"` // Base64 encoded PNG
+	WalkableRatio  *float64        `json:"walkable_ratio,omitempty"`
+	RoomType       *string         `json:"room_type,omitempty"`
+	RoomAttributes *RoomAttributes `json:"room_attributes,omitempty"`
+	DoorsConnected *DoorsConnected `json:"doors_connected,omitempty"`
+	StaticCount    *int            `json:"static_count,omitempty"`
+	ChaserCount    *int            `json:"chaser_count,omitempty"`
+	ZonerCount     *int            `json:"zoner_count,omitempty"`
+	DPSCount       *int            `json:"dps_count,omitempty"`
+	MobAirCount    *int            `json:"mobair_count,omitempty"`
+	StageType      *string         `json:"stage_type,omitempty"`
+	CreatedAt      time.Time       `json:"created_at"`
+	UpdatedAt      time.Time       `json:"updated_at"`
 }
 
 // TemplateSummary represents a template summary for list responses
@@ -137,10 +137,10 @@ type TemplateSummary struct {
 
 // ListTemplatesQueryParams represents query parameters for listing templates
 type ListTemplatesQueryParams struct {
-	Limit           int
-	Offset          int
-	NameLike        string
-	RoomType        string
+	Limit            int
+	Offset           int
+	NameLike         string
+	RoomType         string
 	MinWalkableRatio *float64
 	MaxWalkableRatio *float64
 	MinStaticCount   *int

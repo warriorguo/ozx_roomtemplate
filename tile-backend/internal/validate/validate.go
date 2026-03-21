@@ -109,7 +109,7 @@ func validateLayers(payload *model.TemplatePayload) []model.ValidationError {
 		"dps":    payload.DPS,
 		"mobAir": payload.MobAir,
 	}
-	
+
 	// Add softEdge layer if present (optional for backward compatibility)
 	if payload.SoftEdge != nil {
 		layers["softEdge"] = payload.SoftEdge
@@ -403,8 +403,8 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 func bridgeConnectsWalkableAreas(payload *model.TemplatePayload, x, y, width, height int) bool {
 	// Check all four directions (horizontal and vertical)
 	directions := []struct{ dx, dy int }{
-		{-1, 0}, {1, 0},  // left, right
-		{0, -1}, {0, 1},  // up, down
+		{-1, 0}, {1, 0}, // left, right
+		{0, -1}, {0, 1}, // up, down
 	}
 
 	for _, dir := range directions {
@@ -469,13 +469,13 @@ func countRailNeighbors(payload *model.TemplatePayload, x, y, width, height int)
 func isAdjacentToGround(payload *model.TemplatePayload, x, y, width, height int) bool {
 	// Check all four directions
 	directions := []struct{ dx, dy int }{
-		{-1, 0}, {1, 0},  // left, right
-		{0, -1}, {0, 1},  // up, down
+		{-1, 0}, {1, 0}, // left, right
+		{0, -1}, {0, 1}, // up, down
 	}
 
 	for _, dir := range directions {
 		nx, ny := x+dir.dx, y+dir.dy
-		
+
 		// Check bounds
 		if nx >= 0 && nx < width && ny >= 0 && ny < height {
 			if payload.Ground[ny][nx] == 1 {

@@ -237,14 +237,14 @@ func TestGenerateFullRoom_HighGroundCoverage(t *testing.T) {
 
 func TestGenerateFullRoom_WithOptionalLayers(t *testing.T) {
 	req := FullRoomGenerateRequest{
-		Width:          25,
-		Height:         25,
-		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		SoftEdgeCount:  3,
-		StaticCount:    4,
-		ChaserCount:    3,
-		ZonerCount: 5,
-		MobAirCount:    4,
+		Width:         25,
+		Height:        25,
+		Doors:         []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		SoftEdgeCount: 3,
+		StaticCount:   4,
+		ChaserCount:   3,
+		ZonerCount:    5,
+		MobAirCount:   4,
 	}
 
 	resp, err := GenerateFullRoom(req)
@@ -294,14 +294,14 @@ func TestGenerateFullRoom_PressureStageZonerCount(t *testing.T) {
 
 func TestGenerateFullRoom_DebugInfoPopulated(t *testing.T) {
 	req := FullRoomGenerateRequest{
-		Width:          20,
-		Height:         20,
-		Doors:          []DoorPosition{DoorTop, DoorBottom},
-		SoftEdgeCount:  2,
-		StaticCount:    2,
-		ChaserCount:    2,
-		ZonerCount: 2,
-		MobAirCount:    2,
+		Width:         20,
+		Height:        20,
+		Doors:         []DoorPosition{DoorTop, DoorBottom},
+		SoftEdgeCount: 2,
+		StaticCount:   2,
+		ChaserCount:   2,
+		ZonerCount:    2,
+		MobAirCount:   2,
 	}
 
 	resp, err := GenerateFullRoom(req)

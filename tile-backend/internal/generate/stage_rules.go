@@ -40,16 +40,16 @@ type StagePlacementHints struct {
 	ZonerCentral bool // place zoner as close to room center as possible
 
 	// Grouping
-	GroupCount int             // 0 = no grouping, just use default placement
+	GroupCount int              // 0 = no grouping, just use default placement
 	Groups     []PlacementGroup // if GroupCount > 0, defines how enemies are split per group
 }
 
 // PlacementGroup defines enemy allocation for one spatial group
 type PlacementGroup struct {
-	Region     GroupRegion // which part of the room
-	DPSCount   int
+	Region      GroupRegion // which part of the room
+	DPSCount    int
 	ChaserCount int
-	ZonerCount int
+	ZonerCount  int
 	MobAirCount int
 }
 
@@ -57,15 +57,15 @@ type PlacementGroup struct {
 type GroupRegion int
 
 const (
-	RegionFull       GroupRegion = iota // entire room
-	RegionTop                          // top half
-	RegionBottom                       // bottom half
-	RegionLeft                         // left half
-	RegionRight                        // right half
-	RegionTopLeft                      // top-left quadrant
-	RegionTopRight                     // top-right quadrant
-	RegionBottomLeft                   // bottom-left quadrant
-	RegionBottomRight                  // bottom-right quadrant
+	RegionFull        GroupRegion = iota // entire room
+	RegionTop                            // top half
+	RegionBottom                         // bottom half
+	RegionLeft                           // left half
+	RegionRight                          // right half
+	RegionTopLeft                        // top-left quadrant
+	RegionTopRight                       // top-right quadrant
+	RegionBottomLeft                     // bottom-left quadrant
+	RegionBottomRight                    // bottom-right quadrant
 )
 
 // GetRegionBounds returns the y and x bounds [minY, maxY, minX, maxX] for a region

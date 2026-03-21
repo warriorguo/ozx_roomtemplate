@@ -417,4 +417,3 @@ func filterTouchingPositions(positions []Point, placedPos Point) []Point {
 	}
 	return filtered
 }
-

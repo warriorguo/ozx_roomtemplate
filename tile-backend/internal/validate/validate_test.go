@@ -66,12 +66,12 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 		{
 			name: "invalid dimensions - too small",
 			payload: &model.TemplatePayload{
-				Ground:    [][]int{{1}, {1}},
-				Static:    [][]int{{0}, {1}},
-				Chaser:    [][]int{{0}, {0}},
-				Zoner: [][]int{{0}, {0}},
-				DPS:   [][]int{{0}, {0}},
-				MobAir:    [][]int{{0}, {1}},
+				Ground: [][]int{{1}, {1}},
+				Static: [][]int{{0}, {1}},
+				Chaser: [][]int{{0}, {0}},
+				Zoner:  [][]int{{0}, {0}},
+				DPS:    [][]int{{0}, {0}},
+				MobAir: [][]int{{0}, {1}},
 				Meta: model.TemplateMeta{
 					Name:    "test",
 					Version: 1,
@@ -98,12 +98,12 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 		{
 			name: "mismatched layer dimensions",
 			payload: &model.TemplatePayload{
-				Ground:    [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
-				Static:    [][]int{{0, 1, 1, 0}}, // Wrong height
-				Chaser:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				Zoner: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				DPS:   [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				MobAir:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
+				Ground: [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
+				Static: [][]int{{0, 1, 1, 0}}, // Wrong height
+				Chaser: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Zoner:  [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				DPS:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				MobAir: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "test",
 					Version: 1,
@@ -117,12 +117,12 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 		{
 			name: "invalid cell values",
 			payload: &model.TemplatePayload{
-				Ground:    [][]int{{1, 2, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}}, // Invalid value '2'
-				Static:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
-				Chaser:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				Zoner: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				DPS:   [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				MobAir:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
+				Ground: [][]int{{1, 2, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}}, // Invalid value '2'
+				Static: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
+				Chaser: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Zoner:  [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				DPS:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				MobAir: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "test",
 					Version: 1,
@@ -136,15 +136,15 @@ func TestValidateTemplate_BasicStructure_Fixed(t *testing.T) {
 		{
 			name: "empty name and version",
 			payload: &model.TemplatePayload{
-				Ground:    [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
-				Static:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
-				Chaser:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				Zoner: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				DPS:   [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-				MobAir:    [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
+				Ground: [][]int{{1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}, {1, 1, 1, 1}},
+				Static: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
+				Chaser: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				Zoner:  [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				DPS:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
+				MobAir: [][]int{{0, 1, 1, 0}, {1, 0, 0, 1}, {1, 0, 0, 1}, {0, 1, 1, 0}},
 				Meta: model.TemplateMeta{
 					Name:    "", // Empty name
-					Version: 0, // Zero version
+					Version: 0,  // Zero version
 					Width:   4,
 					Height:  4,
 				},
@@ -436,7 +436,7 @@ func TestValidateTemplate_LogicalRules_Fixed(t *testing.T) {
 			} else {
 				assert.Equal(t, tt.errors, len(result.Errors), "Expected exactly %d errors for test %s, got %d", tt.errors, tt.name, len(result.Errors))
 			}
-			
+
 			// Check that error details are populated for failed validations
 			if !result.Valid {
 				for _, err := range result.Errors {

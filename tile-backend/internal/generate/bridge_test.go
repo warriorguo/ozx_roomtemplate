@@ -223,10 +223,10 @@ func TestGenerateBridgeRoom_DoorsConnected(t *testing.T) {
 
 	// Use BFS to verify all doors are connected
 	doorPositions := []Point{
-		{X: 15 / 2, Y: 0},       // top
-		{X: 15 / 2, Y: 14},      // bottom
-		{X: 0, Y: 15 / 2},       // left
-		{X: 14, Y: 15 / 2},      // right
+		{X: 15 / 2, Y: 0},  // top
+		{X: 15 / 2, Y: 14}, // bottom
+		{X: 0, Y: 15 / 2},  // left
+		{X: 14, Y: 15 / 2}, // right
 	}
 
 	// Start BFS from first door position
@@ -729,9 +729,9 @@ func TestGenerateBridgeRoom_DoorsConnectedWithStatics(t *testing.T) {
 
 	// Get door positions
 	doorPositions := []Point{
-		{X: req.Width / 2, Y: 0},            // top
+		{X: req.Width / 2, Y: 0},              // top
 		{X: req.Width / 2, Y: req.Height - 1}, // bottom
-		{X: 0, Y: req.Height / 2},           // left
+		{X: 0, Y: req.Height / 2},             // left
 		{X: req.Width - 1, Y: req.Height / 2}, // right
 	}
 
@@ -1203,9 +1203,9 @@ func TestGenerateBridgeRoom_ZeroTurretCount(t *testing.T) {
 
 func TestGenerateBridgeRoom_WithMobGroundCount(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          25,
-		Height:         25,
-		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		Width:      25,
+		Height:     25,
+		Doors:      []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
 		ZonerCount: 5,
 	}
 
@@ -1229,9 +1229,9 @@ func TestGenerateBridgeRoom_WithMobGroundCount(t *testing.T) {
 
 func TestGenerateBridgeRoom_MobGroundOnGround(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          20,
-		Height:         20,
-		Doors:          []DoorPosition{DoorTop, DoorBottom},
+		Width:      20,
+		Height:     20,
+		Doors:      []DoorPosition{DoorTop, DoorBottom},
 		ZonerCount: 3,
 	}
 
@@ -1251,12 +1251,12 @@ func TestGenerateBridgeRoom_MobGroundOnGround(t *testing.T) {
 
 func TestGenerateBridgeRoom_MobGroundNotOnOtherLayers(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          30,
-		Height:         30,
-		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		StaticCount:    3,
-		ChaserCount:    4,
-		ZonerCount: 5,
+		Width:       30,
+		Height:      30,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount: 3,
+		ChaserCount: 4,
+		ZonerCount:  5,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1277,9 +1277,9 @@ func TestGenerateBridgeRoom_MobGroundNotOnOtherLayers(t *testing.T) {
 
 func TestGenerateBridgeRoom_MobGroundDistanceFromDoors(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          20,
-		Height:         20,
-		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		Width:      20,
+		Height:     20,
+		Doors:      []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
 		ZonerCount: 4,
 	}
 
@@ -1306,9 +1306,9 @@ func TestGenerateBridgeRoom_MobGroundDistanceFromDoors(t *testing.T) {
 
 func TestGenerateBridgeRoom_MobGroundDoNotTouch(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          30,
-		Height:         30,
-		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		Width:      30,
+		Height:     30,
+		Doors:      []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
 		ZonerCount: 6,
 	}
 
@@ -1379,9 +1379,9 @@ func TestGenerateBridgeRoom_MobGroundDoNotTouch(t *testing.T) {
 
 func TestGenerateBridgeRoom_ZeroMobGroundCount(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          15,
-		Height:         15,
-		Doors:          []DoorPosition{DoorTop, DoorBottom},
+		Width:      15,
+		Height:     15,
+		Doors:      []DoorPosition{DoorTop, DoorBottom},
 		ZonerCount: 0,
 	}
 
@@ -1555,13 +1555,13 @@ func TestGenerateBridgeRoom_MobAirNoGroundRequirement(t *testing.T) {
 
 func TestGenerateBridgeRoom_MobAirNotOnOtherLayers(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          30,
-		Height:         30,
-		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		StaticCount:    3,
-		ChaserCount:    4,
-		ZonerCount: 3,
-		MobAirCount:    5,
+		Width:       30,
+		Height:      30,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount: 3,
+		ChaserCount: 4,
+		ZonerCount:  3,
+		MobAirCount: 5,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1756,13 +1756,13 @@ func TestArrangeMobAirEvenlySpaced(t *testing.T) {
 
 func TestGenerateBridgeRoom_DebugInfoPopulated(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          25,
-		Height:         25,
-		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		StaticCount:    3,
-		ChaserCount:    4,
-		ZonerCount: 3,
-		MobAirCount:    4,
+		Width:       25,
+		Height:      25,
+		Doors:       []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		StaticCount: 3,
+		ChaserCount: 4,
+		ZonerCount:  3,
+		MobAirCount: 4,
 	}
 
 	resp, err := GenerateBridgeRoom(req)
@@ -1822,14 +1822,14 @@ func TestGenerateBridgeRoom_DebugInfoPopulated(t *testing.T) {
 
 func TestGenerateBridgeRoom_DebugInfoWithZeroCounts(t *testing.T) {
 	req := BridgeGenerateRequest{
-		Width:          20,
-		Height:         20,
-		Doors:          []DoorPosition{DoorTop, DoorBottom},
-		SoftEdgeCount:  0,
-		StaticCount:    0,
-		ChaserCount:    0,
-		ZonerCount: 0,
-		MobAirCount:    0,
+		Width:         20,
+		Height:        20,
+		Doors:         []DoorPosition{DoorTop, DoorBottom},
+		SoftEdgeCount: 0,
+		StaticCount:   0,
+		ChaserCount:   0,
+		ZonerCount:    0,
+		MobAirCount:   0,
 	}
 
 	resp, err := GenerateBridgeRoom(req)

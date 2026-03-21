@@ -17,11 +17,11 @@ const (
 
 // RailDebugInfo contains debug information about rail generation
 type RailDebugInfo struct {
-	Skipped        bool            `json:"skipped"`
-	SkipReason     string          `json:"skipReason,omitempty"`
-	PlatformsFound int             `json:"platformsFound"`
-	RailLoops      []RailLoopInfo  `json:"railLoops"`
-	Misses         []MissInfo      `json:"misses,omitempty"`
+	Skipped        bool           `json:"skipped"`
+	SkipReason     string         `json:"skipReason,omitempty"`
+	PlatformsFound int            `json:"platformsFound"`
+	RailLoops      []RailLoopInfo `json:"railLoops"`
+	Misses         []MissInfo     `json:"misses,omitempty"`
 }
 
 // RailLoopInfo describes a rail loop placement

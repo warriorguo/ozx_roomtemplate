@@ -10,15 +10,15 @@ import (
 // per the design specification.
 func TestStageRangeConfig(t *testing.T) {
 	tests := []struct {
-		stage       string
-		dpsMin      int
-		dpsMax      int
-		chaserMin   int
-		chaserMax   int
-		zonerMin    int
-		zonerMax    int
-		mobAirMin   int
-		mobAirMax   int
+		stage     string
+		dpsMin    int
+		dpsMax    int
+		chaserMin int
+		chaserMax int
+		zonerMin  int
+		zonerMax  int
+		mobAirMin int
+		mobAirMax int
 	}{
 		{"teaching", 2, 3, 0, 0, 0, 0, 0, 0},
 		{"building", 2, 3, 2, 3, 0, 0, 0, 0},

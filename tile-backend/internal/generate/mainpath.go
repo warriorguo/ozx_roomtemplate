@@ -92,8 +92,8 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 		Width:           width,
 		Height:          height,
 		OnMainPath:      onMainPath,
-		DirectDistance:   directDist,
-		WalkingDistance:  walkingDist,
+		DirectDistance:  directDist,
+		WalkingDistance: walkingDist,
 		SquishyScore:    squishyScore,
 	}, debug
 }

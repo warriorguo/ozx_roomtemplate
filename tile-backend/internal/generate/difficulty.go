@@ -13,19 +13,19 @@ type DifficultyScore struct {
 // DifficultyDetail holds per-factor breakdown
 type DifficultyDetail struct {
 	// Terrain factors
-	GroundCoverage    float64 `json:"groundCoverage"`    // ratio 0-1 (lower = harder)
-	NarrowPassages    int     `json:"narrowPassages"`    // count of 1-2 wide corridors
-	SoftEdgeCount     int     `json:"softEdgeCount"`     // number of soft edge cells
-	PathTortuosity    float64 `json:"pathTortuosity"`    // main path actual/straight ratio
-	PathStaticBlocks  int     `json:"pathStaticBlocks"`  // statics within 2 of main path
-	IslandCount       int     `json:"islandCount"`       // disconnected ground regions
+	GroundCoverage   float64 `json:"groundCoverage"`   // ratio 0-1 (lower = harder)
+	NarrowPassages   int     `json:"narrowPassages"`   // count of 1-2 wide corridors
+	SoftEdgeCount    int     `json:"softEdgeCount"`    // number of soft edge cells
+	PathTortuosity   float64 `json:"pathTortuosity"`   // main path actual/straight ratio
+	PathStaticBlocks int     `json:"pathStaticBlocks"` // statics within 2 of main path
+	IslandCount      int     `json:"islandCount"`      // disconnected ground regions
 
 	// Enemy factors
-	ChaserCount       int     `json:"chaserCount"`
-	ZonerCount        int     `json:"zonerCount"`
-	DPSCount          int     `json:"dpsCount"`
-	MobAirCount       int     `json:"mobAirCount"`
-	EnemyDensity      float64 `json:"enemyDensity"`      // enemies / walkable area
+	ChaserCount        int     `json:"chaserCount"`
+	ZonerCount         int     `json:"zonerCount"`
+	DPSCount           int     `json:"dpsCount"`
+	MobAirCount        int     `json:"mobAirCount"`
+	EnemyDensity       float64 `json:"enemyDensity"`       // enemies / walkable area
 	EnemyConcentration float64 `json:"enemyConcentration"` // spatial clustering 0-1 (higher = more clustered)
 }
 

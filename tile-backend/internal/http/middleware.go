@@ -12,14 +12,14 @@ func LoggerMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
-			
+
 			// Create a response writer wrapper to capture status code
 			wrapper := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
-			
+
 			next.ServeHTTP(wrapper, r)
-			
+
 			duration := time.Since(start)
-			
+
 			logger.Info("HTTP request",
 				zap.String("method", r.Method),
 				zap.String("path", r.URL.Path),
@@ -40,7 +40,7 @@ func RequestSizeLimitMiddleware(maxSize int64) func(http.Handler) http.Handler {
 				http.Error(w, "Request body too large", http.StatusRequestEntityTooLarge)
 				return
 			}
-			
+
 			r.Body = http.MaxBytesReader(w, r.Body, maxSize)
 			next.ServeHTTP(w, r)
 		})
@@ -58,11 +58,11 @@ func RecoveryMiddleware(logger *zap.Logger) func(http.Handler) http.Handler {
 						zap.String("method", r.Method),
 						zap.String("path", r.URL.Path),
 					)
-					
+
 					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 				}
 			}()
-			
+
 			next.ServeHTTP(w, r)
 		})
 	}

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 	"tile-backend/internal/model"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -173,12 +173,12 @@ func TestTemplateHandler_CreateTemplate_ValidationFailed(t *testing.T) {
 	req := model.CreateTemplateRequest{
 		Name: "test-template",
 		Payload: model.TemplatePayload{
-			Ground:    [][]int{{1}}, // Too small
-			Static:    [][]int{{0}},
-			Chaser:    [][]int{{0}},
+			Ground: [][]int{{1}}, // Too small
+			Static: [][]int{{0}},
+			Chaser: [][]int{{0}},
 			Zoner:  [][]int{{0}},
 			DPS:    [][]int{{0}},
-			MobAir:    [][]int{{0}},
+			MobAir: [][]int{{0}},
 			Meta: model.TemplateMeta{
 				Name:    "test-template",
 				Version: 1,
@@ -498,12 +498,12 @@ func TestTemplateHandler_ValidateTemplate_WithStrictMode(t *testing.T) {
 
 	// Create payload with logical errors (static without ground)
 	payload := model.TemplatePayload{
-		Ground:    [][]int{{0, 1}, {1, 1}},
-		Static:    [][]int{{1, 1}, {1, 0}}, // Static at (0,0) where ground=0
+		Ground: [][]int{{0, 1}, {1, 1}},
+		Static: [][]int{{1, 1}, {1, 0}}, // Static at (0,0) where ground=0
 		Chaser: [][]int{{0, 0}, {0, 0}},
 		Zoner:  [][]int{{0, 0}, {0, 0}},
 		DPS:    [][]int{{0, 0}, {0, 0}},
-		MobAir:    [][]int{{0, 1}, {1, 0}},
+		MobAir: [][]int{{0, 1}, {1, 0}},
 		Meta: model.TemplateMeta{
 			Name:    "test-template",
 			Version: 1,

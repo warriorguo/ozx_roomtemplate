@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"time"
 	"tile-backend/internal/model"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -414,7 +414,7 @@ func (s *PostgreSQLTemplateStore) Delete(ctx context.Context, id string) error {
 	}
 
 	query := `DELETE FROM room_templates WHERE id = $1`
-	
+
 	result, err := s.db.Exec(ctx, query, templateID)
 	if err != nil {
 		return fmt.Errorf("failed to delete template: %w", err)

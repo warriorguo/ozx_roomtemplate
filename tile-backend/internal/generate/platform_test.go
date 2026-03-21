@@ -229,14 +229,14 @@ func TestGeneratePlatformRoom_GroundHasWalkableTiles(t *testing.T) {
 
 func TestGeneratePlatformRoom_WithOptionalLayers(t *testing.T) {
 	req := PlatformGenerateRequest{
-		Width:          25,
-		Height:         25,
-		Doors:          []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
-		SoftEdgeCount:  3,
-		StaticCount:    4,
-		ChaserCount:    3,
-		ZonerCount: 5,
-		MobAirCount:    4,
+		Width:         25,
+		Height:        25,
+		Doors:         []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		SoftEdgeCount: 3,
+		StaticCount:   4,
+		ChaserCount:   3,
+		ZonerCount:    5,
+		MobAirCount:   4,
 	}
 
 	resp, err := GeneratePlatformRoom(req)
@@ -277,14 +277,14 @@ func TestCanGroupDoorsIntoCorners(t *testing.T) {
 
 func TestGeneratePlatformRoom_DebugInfoPopulated(t *testing.T) {
 	req := PlatformGenerateRequest{
-		Width:          20,
-		Height:         20,
-		Doors:          []DoorPosition{DoorTop, DoorBottom},
-		SoftEdgeCount:  2,
-		StaticCount:    2,
-		ChaserCount:    2,
-		ZonerCount: 2,
-		MobAirCount:    2,
+		Width:         20,
+		Height:        20,
+		Doors:         []DoorPosition{DoorTop, DoorBottom},
+		SoftEdgeCount: 2,
+		StaticCount:   2,
+		ChaserCount:   2,
+		ZonerCount:    2,
+		MobAirCount:   2,
 	}
 
 	resp, err := GeneratePlatformRoom(req)

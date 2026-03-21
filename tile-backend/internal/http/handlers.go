@@ -305,7 +305,7 @@ func (h *TemplateHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 func (h *TemplateHandler) respondJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	
+
 	if err := json.NewEncoder(w).Encode(data); err != nil {
 		h.logger.Error("Failed to encode JSON response", zap.Error(err))
 	}

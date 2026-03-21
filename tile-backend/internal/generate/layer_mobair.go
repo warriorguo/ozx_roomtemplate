@@ -307,4 +307,3 @@ func findNearestValidPosition(validPositions []Point, target Point, used map[Poi
 
 	return bestPos
 }
-
