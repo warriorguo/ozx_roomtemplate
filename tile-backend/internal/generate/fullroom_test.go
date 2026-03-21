@@ -133,24 +133,6 @@ func TestGenerateFullRoom_InvalidInput(t *testing.T) {
 			expectedErr: "width must be between 4 and 200",
 		},
 		{
-			name: "only one door",
-			req: FullRoomGenerateRequest{
-				Width:  20,
-				Height: 20,
-				Doors:  []DoorPosition{DoorTop},
-			},
-			expectedErr: "at least 2 doors are required",
-		},
-		{
-			name: "no doors",
-			req: FullRoomGenerateRequest{
-				Width:  20,
-				Height: 20,
-				Doors:  []DoorPosition{},
-			},
-			expectedErr: "at least 2 doors are required",
-		},
-		{
 			name: "duplicate doors",
 			req: FullRoomGenerateRequest{
 				Width:  20,
@@ -168,6 +150,26 @@ func TestGenerateFullRoom_InvalidInput(t *testing.T) {
 			assert.Nil(t, resp)
 			assert.Contains(t, err.Error(), tt.expectedErr)
 		})
+	}
+}
+
+func TestGenerateFullRoom_SingleDoor(t *testing.T) {
+	// Single-door (and zero-door) fullrooms should generate successfully
+	for _, doors := range [][]DoorPosition{
+		{DoorTop},
+		{DoorBottom},
+		{DoorLeft},
+		{DoorRight},
+		{},
+	} {
+		req := FullRoomGenerateRequest{
+			Width:  20,
+			Height: 20,
+			Doors:  doors,
+		}
+		resp, err := GenerateFullRoom(req)
+		require.NoError(t, err, "expected no error for doors=%v", doors)
+		require.NotNil(t, resp)
 	}
 }
 

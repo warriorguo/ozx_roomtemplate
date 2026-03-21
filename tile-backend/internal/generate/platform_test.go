@@ -125,24 +125,6 @@ func TestGeneratePlatformRoom_InvalidInput(t *testing.T) {
 			expectedErr: "width must be between 10 and 200",
 		},
 		{
-			name: "only one door",
-			req: PlatformGenerateRequest{
-				Width:  20,
-				Height: 20,
-				Doors:  []DoorPosition{DoorTop},
-			},
-			expectedErr: "at least 2 doors are required",
-		},
-		{
-			name: "no doors",
-			req: PlatformGenerateRequest{
-				Width:  20,
-				Height: 20,
-				Doors:  []DoorPosition{},
-			},
-			expectedErr: "at least 2 doors are required",
-		},
-		{
 			name: "duplicate doors",
 			req: PlatformGenerateRequest{
 				Width:  20,
@@ -160,6 +142,26 @@ func TestGeneratePlatformRoom_InvalidInput(t *testing.T) {
 			assert.Nil(t, resp)
 			assert.Contains(t, err.Error(), tt.expectedErr)
 		})
+	}
+}
+
+func TestGeneratePlatformRoom_SingleDoor(t *testing.T) {
+	// Single-door (and zero-door) platform rooms should generate successfully
+	for _, doors := range [][]DoorPosition{
+		{DoorTop},
+		{DoorBottom},
+		{DoorLeft},
+		{DoorRight},
+		{},
+	} {
+		req := PlatformGenerateRequest{
+			Width:  20,
+			Height: 20,
+			Doors:  doors,
+		}
+		resp, err := GeneratePlatformRoom(req)
+		require.NoError(t, err, "expected no error for doors=%v", doors)
+		require.NotNil(t, resp)
 	}
 }
 

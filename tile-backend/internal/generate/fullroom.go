@@ -138,10 +138,6 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	if req.Height < 4 || req.Height > 200 {
 		return nil, fmt.Errorf("height must be between 4 and 200")
 	}
-	if len(req.Doors) < 2 {
-		return nil, fmt.Errorf("at least 2 doors are required")
-	}
-
 	// Check for duplicate doors
 	doorSet := make(map[DoorPosition]bool)
 	for _, door := range req.Doors {

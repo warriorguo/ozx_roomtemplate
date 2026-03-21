@@ -382,12 +382,6 @@ func (h *TemplateHandler) GeneratePlatform(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Validate doors
-	if len(req.Doors) < 2 {
-		h.respondError(w, http.StatusBadRequest, "Invalid request", "at least 2 doors are required")
-		return
-	}
-
 	// Generate platform room
 	result, err := generate.GeneratePlatformRoom(req)
 	if err != nil {
@@ -405,12 +399,6 @@ func (h *TemplateHandler) GenerateFullRoom(w http.ResponseWriter, r *http.Reques
 	// Parse request body
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		h.respondError(w, http.StatusBadRequest, "Invalid JSON", err.Error())
-		return
-	}
-
-	// Validate doors
-	if len(req.Doors) < 2 {
-		h.respondError(w, http.StatusBadRequest, "Invalid request", "at least 2 doors are required")
 		return
 	}
 

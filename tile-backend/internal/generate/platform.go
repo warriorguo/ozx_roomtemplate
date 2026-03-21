@@ -85,10 +85,6 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	if req.Height < 10 || req.Height > 200 {
 		return nil, fmt.Errorf("height must be between 10 and 200")
 	}
-	if len(req.Doors) < 2 {
-		return nil, fmt.Errorf("at least 2 doors are required")
-	}
-
 	// Check for duplicate doors
 	doorSet := make(map[DoorPosition]bool)
 	for _, door := range req.Doors {
