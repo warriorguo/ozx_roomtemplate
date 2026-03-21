@@ -190,6 +190,108 @@ func TestBridgeRoomAlwaysHasBridgeTiles(t *testing.T) {
 	}
 }
 
+// TestBridgeGroundAlwaysConnected verifies that all ground=1 cells in every bridge room
+// form a single 4-connected region, regardless of door configuration or RNG seed.
+// Regression test for ORT-35 / ORT-36: bridge rooms intermittently produced disconnected
+// ground fragments across all door configurations (left/right, top/bottom, 4-door).
+func TestBridgeGroundAlwaysConnected(t *testing.T) {
+	doors := [][]DoorPosition{
+		{DoorLeft, DoorRight},
+		{DoorTop, DoorBottom},
+		{DoorTop, DoorRight, DoorBottom},
+		{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		{DoorTop, DoorRight},
+		{DoorBottom, DoorLeft},
+	}
+
+	stageTypes := []string{"", "teaching", "building"}
+
+	sizes := [][2]int{
+		{20, 12},
+		{15, 15},
+		{20, 20},
+		{25, 15},
+		{30, 20},
+	}
+
+	dirs := []Point{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+	failures := 0
+
+	for trial := 0; trial < 600; trial++ {
+		doorSet := doors[trial%len(doors)]
+		size := sizes[trial%len(sizes)]
+		stage := stageTypes[trial%len(stageTypes)]
+		w, h := size[0], size[1]
+
+		req := BridgeGenerateRequest{
+			Width:         w,
+			Height:        h,
+			Doors:         doorSet,
+			StageType:     stage,
+			SoftEdgeCount: 3,
+			StaticCount:   3,
+			RailEnabled:   trial%2 == 0,
+		}
+
+		resp, err := GenerateBridgeRoom(req)
+		if err != nil {
+			continue
+		}
+
+		ground := resp.Payload.Ground
+
+		// Count total ground cells
+		totalGround := 0
+		var startCell *Point
+		for y := 0; y < h; y++ {
+			for x := 0; x < w; x++ {
+				if ground[y][x] == 1 {
+					totalGround++
+					if startCell == nil {
+						p := Point{x, y}
+						startCell = &p
+					}
+				}
+			}
+		}
+
+		if totalGround == 0 || startCell == nil {
+			continue
+		}
+
+		// BFS from first ground cell
+		visited := make([][]bool, h)
+		for y := 0; y < h; y++ {
+			visited[y] = make([]bool, w)
+		}
+		queue := []Point{*startCell}
+		visited[startCell.Y][startCell.X] = true
+		reachable := 0
+
+		for len(queue) > 0 {
+			curr := queue[0]
+			queue = queue[1:]
+			reachable++
+			for _, d := range dirs {
+				nx, ny := curr.X+d.X, curr.Y+d.Y
+				if nx >= 0 && nx < w && ny >= 0 && ny < h && ground[ny][nx] == 1 && !visited[ny][nx] {
+					visited[ny][nx] = true
+					queue = append(queue, Point{nx, ny})
+				}
+			}
+		}
+
+		if reachable != totalGround {
+			failures++
+			t.Errorf("trial %d (size %dx%d, doors %v, stage %q, railEnabled=%v): ground disconnected — %d of %d ground cells reachable",
+				trial, w, h, doorSet, stage, req.RailEnabled, reachable, totalGround)
+			if failures > 5 {
+				t.FailNow()
+			}
+		}
+	}
+}
+
 // TestBridgeIslandsHaveAdjacentBridgeTiles verifies that every disconnected ground island
 // in a bridge room has at least one adjacent bridge tile.
 // Regression test for ORT-32: isolated islands were left without bridge adjacency.

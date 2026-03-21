@@ -170,6 +170,11 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	// Step 3: Center pits (30% probability)
 	generateFullRoomCenterPits(ground, req.Width, req.Height, req.Doors, groundDebug)
 
+	// Step 3.5: Repair any disconnected ground fragments that may remain after
+	// corner erasing / pit carving. The per-step rollback only guards door
+	// connectivity, so small isolated chunks can still appear.
+	ensureGroundConnectivity(ground, req.Width, req.Height)
+
 	debugInfo.Ground = groundDebug
 
 	// Generate other layers using shared functions
@@ -625,4 +630,3 @@ func getCornerPosition(corner cornerID, width, height, brushW, brushH int) (int,
 		return 0, 0
 	}
 }
-

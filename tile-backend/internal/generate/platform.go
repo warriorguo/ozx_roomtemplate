@@ -105,6 +105,12 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 
 	// Step 1: Generate ground layer with platforms
 	groundDebug := generatePlatformGround(ground, req.Width, req.Height, req.Doors)
+
+	// Step 1.5: Repair any disconnected ground fragments produced by the platform
+	// generator. All ground cells must form a single 4-connected region before
+	// subsequent layers are built on top.
+	ensureGroundConnectivity(ground, req.Width, req.Height)
+
 	debugInfo.Ground = groundDebug
 
 	// Step 2: Generate soft edge layer

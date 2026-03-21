@@ -46,6 +46,11 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 
 	// Step 2.5: Draw floating islands in void areas (50% probability per island)
 	drawFloatingIslandsWithDebug(ground, req.Width, req.Height, groundDebug)
+
+	// Step 2.6: Repair any disconnected ground fragments left by platform/island drawing.
+	// All ground cells must form a single 4-connected region before other layers are built.
+	ensureGroundConnectivity(ground, req.Width, req.Height)
+
 	debugInfo.Ground = groundDebug
 
 	// Create empty layers for other layers
