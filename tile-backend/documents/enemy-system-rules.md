@@ -130,7 +130,7 @@ Zoner 先放置（占据高脆皮攻击度位置），然后 Chaser 填充近路
 - MobAir：2-4
 
 #### 释放期 (release)
-- DPS：0-3
+- DPS：0-2
 - 其他：0
 
 #### Boss 期 (boss)

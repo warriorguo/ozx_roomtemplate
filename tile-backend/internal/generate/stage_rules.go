@@ -161,7 +161,7 @@ var stageConfigs = map[string]StageConfig{
 	},
 	model.StageRelease: {
 		StageType:     model.StageRelease,
-		DPSRange:      [2]int{0, 3},
+		DPSRange:      [2]int{0, 2},
 		ChaserRange:   [2]int{0, 0},
 		ZonerRange:    [2]int{0, 0},
 		MobAirRange:   [2]int{0, 0},
