@@ -106,7 +106,52 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer [][]int, wi
 	debug.ConcaveGapBridges = concaveGapBridges
 	debug.BridgesPlaced += len(concaveGapBridges)
 
-	// Step 4: Fallback — if no bridges were placed at all, force at least one.
+	// Step 4: Ensure every disconnected island has at least one adjacent bridge tile.
+	// Some islands may be too far from main ground for the connection algorithm to
+	// bridge them in a single hop. In that case, place a bridge adjacent to the
+	// island using only the canPlaceBridge constraint (void cells with full edge on
+	// ground — the island itself counts as adjacent ground).
+	if len(islands) > 1 {
+		dirs := []Point{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+		for _, island := range islands {
+			hasBridgeNeighbor := false
+			for _, cell := range island.Cells {
+				for _, d := range dirs {
+					nx, ny := cell.X+d.X, cell.Y+d.Y
+					if nx >= 0 && nx < width && ny >= 0 && ny < height && bridgeLayer[ny][nx] == 1 {
+						hasBridgeNeighbor = true
+						break
+					}
+				}
+				if hasBridgeNeighbor {
+					break
+				}
+			}
+
+			if hasBridgeNeighbor {
+				continue
+			}
+
+			// Island has no adjacent bridge — place one using only canPlaceBridge.
+			placed := placeBridgeAdjacentToIsland(bridgeLayer, ground, softEdgeLayer, island, width, height)
+			if placed != nil {
+				debug.BridgesPlaced++
+				debug.Connections = append(debug.Connections, BridgeConnection{
+					From:     "island-adjacency-fallback",
+					To:       fmt.Sprintf("island (%d,%d)-(%d,%d)", island.MinX, island.MinY, island.MaxX, island.MaxY),
+					Position: fmt.Sprintf("(%d,%d)", placed.X, placed.Y),
+					Size:     fmt.Sprintf("%dx%d", bridgeSize, bridgeSize),
+				})
+			} else {
+				debug.Misses = append(debug.Misses, MissInfo{
+					Reason: fmt.Sprintf("island (%d,%d)-(%d,%d): no valid bridge adjacency position found",
+						island.MinX, island.MinY, island.MaxX, island.MaxY),
+				})
+			}
+		}
+	}
+
+	// Step 5: Fallback — if no bridges were placed at all, force at least one.
 	// A bridge room with zero bridge tiles is indistinguishable from a flat ground
 	// room, which defeats the purpose of the bridge room type.
 	if debug.BridgesPlaced == 0 {
@@ -126,6 +171,69 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer [][]int, wi
 	}
 
 	return debug
+}
+
+// placeBridgeAdjacentToIsland finds a valid 2x2 bridge position adjacent to the given island
+// and places it. Uses only canPlaceBridge (no cross-island connectivity requirement).
+// Returns the top-left corner of the placed bridge, or nil if no valid position found.
+func placeBridgeAdjacentToIsland(bridgeLayer, ground, softEdgeLayer [][]int, island Island, width, height int) *Point {
+	type candidate struct {
+		pos  Point
+		dist int
+	}
+	var candidates []candidate
+
+	islandCenterX := (island.MinX + island.MaxX) / 2
+	islandCenterY := (island.MinY + island.MaxY) / 2
+
+	// Try all 2x2 positions within a reasonable range of the island
+	margin := bridgeSize + 2
+	for y := island.MinY - margin; y <= island.MaxY+margin-bridgeSize; y++ {
+		for x := island.MinX - margin; x <= island.MaxX+margin-bridgeSize; x++ {
+			if !canPlaceBridge(x, y, bridgeSize, bridgeSize, ground, bridgeLayer, softEdgeLayer, width, height) {
+				continue
+			}
+			// Verify the bridge is actually adjacent to the island
+			touchesIsland := false
+			for dy := 0; dy < bridgeSize && !touchesIsland; dy++ {
+				for dx := 0; dx < bridgeSize && !touchesIsland; dx++ {
+					bc := Point{x + dx, y + dy}
+					neighbors := []Point{
+						{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y},
+						{bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
+					}
+					for _, nb := range neighbors {
+						if nb.X >= island.MinX && nb.X <= island.MaxX &&
+							nb.Y >= island.MinY && nb.Y <= island.MaxY &&
+							ground[nb.Y][nb.X] == 1 {
+							touchesIsland = true
+							break
+						}
+					}
+				}
+			}
+			if !touchesIsland {
+				continue
+			}
+			dist := abs(x-islandCenterX) + abs(y-islandCenterY)
+			candidates = append(candidates, candidate{Point{x, y}, dist})
+		}
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// Pick the closest to island center
+	best := candidates[0]
+	for _, c := range candidates[1:] {
+		if c.dist < best.dist {
+			best = c
+		}
+	}
+
+	placeBridge(bridgeLayer, best.pos.X, best.pos.Y, bridgeSize, bridgeSize)
+	return &best.pos
 }
 
 // placeAtLeastOneBridge scans for any valid 2x2 void area adjacent to ground and places

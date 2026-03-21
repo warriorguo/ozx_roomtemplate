@@ -189,3 +189,81 @@ func TestBridgeRoomAlwaysHasBridgeTiles(t *testing.T) {
 		}
 	}
 }
+
+// TestBridgeIslandsHaveAdjacentBridgeTiles verifies that every disconnected ground island
+// in a bridge room has at least one adjacent bridge tile.
+// Regression test for ORT-32: isolated islands were left without bridge adjacency.
+func TestBridgeIslandsHaveAdjacentBridgeTiles(t *testing.T) {
+	doors := [][]DoorPosition{
+		{DoorTop, DoorBottom},
+		{DoorLeft, DoorRight},
+		{DoorTop, DoorRight, DoorBottom},
+		{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		{DoorTop, DoorRight},
+	}
+
+	stageTypes := []string{"", "teaching", "building"}
+
+	sizes := [][2]int{
+		{20, 12},
+		{20, 20},
+		{25, 15},
+	}
+
+	dirs := []Point{{-1, 0}, {1, 0}, {0, -1}, {0, 1}}
+	failures := 0
+
+	for trial := 0; trial < 300; trial++ {
+		doorSet := doors[trial%len(doors)]
+		size := sizes[trial%len(sizes)]
+		stage := stageTypes[trial%len(stageTypes)]
+		w, h := size[0], size[1]
+
+		req := BridgeGenerateRequest{
+			Width:         w,
+			Height:        h,
+			Doors:         doorSet,
+			StageType:     stage,
+			SoftEdgeCount: 5,
+			StaticCount:   5,
+		}
+
+		resp, err := GenerateBridgeRoom(req)
+		if err != nil {
+			continue
+		}
+
+		ground := resp.Payload.Ground
+		bridge := resp.Payload.Bridge
+
+		islands := findAllIslands(ground, w, h)
+		if len(islands) <= 1 {
+			continue
+		}
+
+		for _, island := range islands {
+			hasBridgeNeighbor := false
+			for _, cell := range island.Cells {
+				for _, d := range dirs {
+					nx, ny := cell.X+d.X, cell.Y+d.Y
+					if nx >= 0 && nx < w && ny >= 0 && ny < h && bridge[ny][nx] == 1 {
+						hasBridgeNeighbor = true
+						break
+					}
+				}
+				if hasBridgeNeighbor {
+					break
+				}
+			}
+			if !hasBridgeNeighbor {
+				failures++
+				t.Errorf("trial %d (size %dx%d, doors %v, stage %q): island (%d,%d)-(%d,%d) with %d cells has no adjacent bridge",
+					trial, w, h, doorSet, stage,
+					island.MinX, island.MinY, island.MaxX, island.MaxY, len(island.Cells))
+				if failures > 5 {
+					t.FailNow()
+				}
+			}
+		}
+	}
+}
