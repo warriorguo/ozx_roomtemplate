@@ -139,26 +139,11 @@ func manhattanDistance(p1, p2 Point) int {
 	return abs(p1.X-p2.X) + abs(p1.Y-p2.Y)
 }
 
-// getDoorForbiddenCells returns all cells that are doors or adjacent to doors
+// getDoorForbiddenCells returns all cells within Manhattan distance doorForbiddenRadius of any door.
+// This is the same radius used for enemy placement forbidden zones, ensuring statics
+// also respect the door exclusion area.
 func getDoorForbiddenCells(doorPositions map[DoorPosition]Point, width, height int) map[Point]bool {
-	forbidden := make(map[Point]bool)
-
-	// Door area is typically larger than a single point
-	// For each door, mark a 4x4 area centered on the door position as forbidden
-	// This ensures statics don't touch door areas
-	for _, doorPos := range doorPositions {
-		for dy := -1; dy <= 1; dy++ {
-			for dx := -1; dx <= 1; dx++ {
-				x := doorPos.X + dx
-				y := doorPos.Y + dy
-				if x >= 0 && x < width && y >= 0 && y < height {
-					forbidden[Point{X: x, Y: y}] = true
-				}
-			}
-		}
-	}
-
-	return forbidden
+	return getDoorForbiddenCellsRadius(doorPositions, width, height, doorForbiddenRadius)
 }
 
 // restoreLayer copies backup data back into target

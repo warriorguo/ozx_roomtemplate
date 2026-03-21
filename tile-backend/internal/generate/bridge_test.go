@@ -893,10 +893,21 @@ func TestGetDoorForbiddenCells(t *testing.T) {
 	// Door position should be forbidden
 	assert.True(t, forbidden[Point{X: 10, Y: 0}])
 
-	// Adjacent cells should be forbidden
+	// Adjacent cells (distance 1) should be forbidden
 	assert.True(t, forbidden[Point{X: 9, Y: 0}])
 	assert.True(t, forbidden[Point{X: 11, Y: 0}])
 	assert.True(t, forbidden[Point{X: 10, Y: 1}])
+
+	// Cells at Manhattan distance 2 must also be forbidden (doorForbiddenRadius=2)
+	assert.True(t, forbidden[Point{X: 8, Y: 0}])
+	assert.True(t, forbidden[Point{X: 12, Y: 0}])
+	assert.True(t, forbidden[Point{X: 10, Y: 2}])
+	assert.True(t, forbidden[Point{X: 9, Y: 1}])
+	assert.True(t, forbidden[Point{X: 11, Y: 1}])
+
+	// Cells at distance 3 should not be forbidden
+	assert.False(t, forbidden[Point{X: 7, Y: 0}])
+	assert.False(t, forbidden[Point{X: 10, Y: 3}])
 
 	// Far cells should not be forbidden
 	assert.False(t, forbidden[Point{X: 0, Y: 10}])

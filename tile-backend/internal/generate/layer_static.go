@@ -22,7 +22,7 @@ const (
 // width, height: dimensions
 // targetCount: suggested number of statics to place
 func generateStaticLayer(staticLayer, ground, softEdge, bridge [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int) {
-	// Get all door cells and their adjacent cells (forbidden zone)
+	// Get all cells within doorForbiddenRadius of any door (forbidden zone)
 	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
 
 	// Find all valid 2x2 positions for static placement
@@ -92,7 +92,7 @@ func generateStaticLayerWithDebug(staticLayer, ground, softEdge, bridge [][]int,
 		Misses:      []MissInfo{},
 	}
 
-	// Get all door cells and their adjacent cells (forbidden zone)
+	// Get all cells within doorForbiddenRadius of any door (forbidden zone)
 	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
 
 	// Find all valid 2x2 positions for static placement
@@ -207,7 +207,7 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 		Misses:      []MissInfo{},
 	}
 
-	// Get all door cells and their adjacent cells (forbidden zone)
+	// Get all cells within doorForbiddenRadius of any door (forbidden zone)
 	forbiddenCells := getDoorForbiddenCells(doorPositions, width, height)
 
 	// Find all valid 2x2 positions for static placement (avoiding rail)
