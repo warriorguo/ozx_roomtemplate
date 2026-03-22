@@ -2125,8 +2125,9 @@ func TestGenerateBridgeLayerWithDebug_WithFloatingIsland(t *testing.T) {
 }
 
 func TestCanPlaceBridge(t *testing.T) {
-	// Ground: two vertical columns separated by a 2-cell void gap.
-	// A bridge at (2,1) connects them: all 4 bridge cells have adjacent ground.
+	// Ground: two vertical columns at x=1 and x=4, separated by a 2-cell void gap (x=2,3).
+	// A horizontal bridge at (2,y) spans the gap: left edge (col 1) all-ground,
+	// right edge (col 4) all-ground, top/bottom edges touch void.
 	ground := [][]int{
 		{0, 1, 0, 0, 1}, // y=0
 		{0, 1, 0, 0, 1}, // y=1
@@ -2140,16 +2141,14 @@ func TestCanPlaceBridge(t *testing.T) {
 		x, y     int
 		expected bool
 	}{
-		// Bridge at (2,0) occupies (2,0),(3,0),(2,1),(3,1).
-		// (2,0): right=(4,0) is out of bound concern... actually width=5, so (4,0)=ground[0][4]=1 ✓
-		// (3,0): right=(4,0)=1 ✓; up OOB, down=(3,1) inside bridge.
-		// (2,1): left=(1,1)=1 ✓
-		// (3,1): right=(4,1)=1 ✓
-		{"valid position - touches ground on both sides", 2, 0, true},
-		// Bridge at (0,0) has ground to the right (col 1) but the left side (col -1) is OOB.
-		// Cell (0,0): left OOB, right=(1,0) inside... wait width=5: bridge at (0,0) occupies (0,0),(1,0),(0,1),(1,1).
-		// Cell (0,0): ground[0][0]=0, left=-1 OOB, right=(2,0)=0 (outside bridge), up OOB, down=(0,1) inside bridge. No ground → false.
-		{"invalid - no adjacent ground", 0, 0, false},
+		// Bridge at (2,0), size 2×2: left edge col 1 all-ground ✓, right edge col 4 all-ground ✓,
+		// top edge row -1 OOB → not all-ground ✓, bottom edge row 2 cols 2-3 = [0,0] → not all-ground ✓.
+		// Direction = horizontal → valid.
+		{"valid position - horizontal bridge", 2, 0, true},
+		// Bridge at (0,0): left edge col -1 OOB → leftAll=false; right edge col 2 rows 0-1 = [0,0] → rightAll=false.
+		// No valid direction → false.
+		{"invalid - no valid direction", 0, 0, false},
+		// Bridge at (0,1): would overlap ground[1][1]=1 → false.
 		{"invalid - overlaps ground", 0, 1, false},
 		{"invalid - out of bounds", 4, 3, false},
 	}

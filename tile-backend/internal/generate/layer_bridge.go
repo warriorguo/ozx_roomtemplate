@@ -250,7 +250,7 @@ func placeAtLeastOneBridge(bridgeLayer, ground, softEdgeLayer [][]int, width, he
 
 	for y := 0; y <= height-bridgeSize; y++ {
 		for x := 0; x <= width-bridgeSize; x++ {
-			if canPlaceBridge(x, y, bridgeSize, bridgeSize, ground, bridgeLayer, softEdgeLayer, width, height) {
+			if canPlaceBridgeFallback(x, y, bridgeSize, bridgeSize, ground, bridgeLayer, softEdgeLayer, width, height) {
 				dist := abs(y - centerY)
 				if dist > height-centerY {
 					dist = height - centerY - dist

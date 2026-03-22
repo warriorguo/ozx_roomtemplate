@@ -837,90 +837,75 @@ func areAllDoorsConnected(ground [][]int, width, height int, doors []DoorPositio
 // Bridge validation
 // ============================================================================
 
-// allBridgeCellsTouchGround checks that the bw×bh bridge at (x, y) has at least
-// one full edge where ALL adjacent external cells are ground=1.
+// rowAllGround reports whether every cell in row gy, columns startX..startX+count-1
+// is ground=1. Returns false if the row is outside the grid bounds.
+func rowAllGround(ground [][]int, gy, startX, count, width, height int) bool {
+	if gy < 0 || gy >= height {
+		return false
+	}
+	for dx := 0; dx < count; dx++ {
+		x := startX + dx
+		if x < 0 || x >= width || ground[gy][x] != 1 {
+			return false
+		}
+	}
+	return true
+}
+
+// colAllGround reports whether every cell in col gx, rows startY..startY+count-1
+// is ground=1. Returns false if the column is outside the grid bounds.
+func colAllGround(ground [][]int, gx, startY, count, width, height int) bool {
+	if gx < 0 || gx >= width {
+		return false
+	}
+	for dy := 0; dy < count; dy++ {
+		y := startY + dy
+		if y < 0 || y >= height || ground[y][gx] != 1 {
+			return false
+		}
+	}
+	return true
+}
+
+// bridgeConnectingDirection returns the direction ("horizontal" or "vertical") in
+// which a bw×bh bridge at (x, y) connects two ground regions, or "" if no valid
+// direction exists.
 //
-// The four edges are:
-//   - Top edge:    row y-1,    columns x..x+bw-1
-//   - Bottom edge: row y+bh,   columns x..x+bw-1
-//   - Left edge:   col x-1,    rows y..y+bh-1
-//   - Right edge:  col x+bw,   rows y..y+bh-1
+// Rules:
+//   - Horizontal: left edge (col x-1) AND right edge (col x+bw) are both all-ground,
+//     while top and bottom edges are NOT all-ground (touch void).
+//   - Vertical: top edge (row y-1) AND bottom edge (row y+bh) are both all-ground,
+//     while left and right edges are NOT all-ground (touch void).
 //
-// This allows larger bridges (e.g. 4×2 or 2×4) to be valid even when inner
-// cells cannot individually touch ground, as long as one entire side of the
-// block is grounded.
-func allBridgeCellsTouchGround(x, y, bw, bh int, ground [][]int, width, height int) bool {
-	// Top edge: row y-1, cols x..x+bw-1
-	topOK := y-1 >= 0
-	if topOK {
-		for dx := 0; dx < bw; dx++ {
-			nx, ny := x+dx, y-1
-			if nx < 0 || nx >= width || ny < 0 || ny >= height || ground[ny][nx] != 1 {
-				topOK = false
-				break
-			}
-		}
-	}
-	if topOK {
-		return true
-	}
+// Bridge width (perpendicular to connection direction) is always 2.
+// The gap between the two ground regions (along the connection axis) can be 2 or 4,
+// corresponding to bridge sizes 2×2 / 4×2 (horizontal) or 2×2 / 2×4 (vertical).
+func bridgeConnectingDirection(x, y, bw, bh int, ground [][]int, width, height int) string {
+	topAll := rowAllGround(ground, y-1, x, bw, width, height)
+	bottomAll := rowAllGround(ground, y+bh, x, bw, width, height)
+	leftAll := colAllGround(ground, x-1, y, bh, width, height)
+	rightAll := colAllGround(ground, x+bw, y, bh, width, height)
 
-	// Bottom edge: row y+bh, cols x..x+bw-1
-	bottomOK := y+bh < height
-	if bottomOK {
-		for dx := 0; dx < bw; dx++ {
-			nx, ny := x+dx, y+bh
-			if nx < 0 || nx >= width || ny < 0 || ny >= height || ground[ny][nx] != 1 {
-				bottomOK = false
-				break
-			}
-		}
+	if leftAll && rightAll && !topAll && !bottomAll {
+		return "horizontal"
 	}
-	if bottomOK {
-		return true
+	if topAll && bottomAll && !leftAll && !rightAll {
+		return "vertical"
 	}
-
-	// Left edge: col x-1, rows y..y+bh-1
-	leftOK := x-1 >= 0
-	if leftOK {
-		for dy := 0; dy < bh; dy++ {
-			nx, ny := x-1, y+dy
-			if nx < 0 || nx >= width || ny < 0 || ny >= height || ground[ny][nx] != 1 {
-				leftOK = false
-				break
-			}
-		}
-	}
-	if leftOK {
-		return true
-	}
-
-	// Right edge: col x+bw, rows y..y+bh-1
-	rightOK := x+bw < width
-	if rightOK {
-		for dy := 0; dy < bh; dy++ {
-			nx, ny := x+bw, y+dy
-			if nx < 0 || nx >= width || ny < 0 || ny >= height || ground[ny][nx] != 1 {
-				rightOK = false
-				break
-			}
-		}
-	}
-	if rightOK {
-		return true
-	}
-
-	return false
+	return ""
 }
 
 // canPlaceBridge checks if a bw×bh bridge can be placed at (x, y).
+// A bridge is valid when:
+//  1. It is within grid bounds.
+//  2. All cells are void: ground=0, bridge=0, softEdge=0.
+//  3. It has a valid connecting direction: both edges along the connection axis
+//     are all-ground, and both edges on the perpendicular axis touch void.
 func canPlaceBridge(x, y, bw, bh int, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) bool {
-	// Bridge must be within bounds
 	if x < 0 || x+bw > width || y < 0 || y+bh > height {
 		return false
 	}
 
-	// All cells must be void (ground=0), no existing bridge, and no soft edge
 	for dy := 0; dy < bh; dy++ {
 		for dx := 0; dx < bw; dx++ {
 			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 || softEdgeLayer[y+dy][x+dx] != 0 {
@@ -929,23 +914,23 @@ func canPlaceBridge(x, y, bw, bh int, ground, bridgeLayer, softEdgeLayer [][]int
 		}
 	}
 
-	// Every bridge cell must have at least one adjacent ground cell so that
-	// no bridge tile ends up floating without ground support.
-	if !allBridgeCellsTouchGround(x, y, bw, bh, ground, width, height) {
-		return false
-	}
-
-	return true
+	return bridgeConnectingDirection(x, y, bw, bh, ground, width, height) != ""
 }
 
-// canPlaceBridgeAt checks if a bw×bh bridge can be placed at the given position.
+// canPlaceBridgeAt is canPlaceBridge with a different parameter order (bridgeLayer first).
 func canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer [][]int, x, y, bw, bh, width, height int) bool {
-	// Bridge must be within bounds
+	return canPlaceBridge(x, y, bw, bh, ground, bridgeLayer, softEdgeLayer, width, height)
+}
+
+// canPlaceBridgeFallback is a relaxed variant used only by the last-resort
+// placeAtLeastOneBridge fallback.  It requires that at least one full edge
+// (any of the four) is all-ground (OR logic).  This handles rooms where
+// ensureGroundConnectivity has already merged all islands, leaving no natural
+// directional gap that would satisfy the strict canPlaceBridge rule.
+func canPlaceBridgeFallback(x, y, bw, bh int, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) bool {
 	if x < 0 || x+bw > width || y < 0 || y+bh > height {
 		return false
 	}
-
-	// All cells must be void (ground=0), no existing bridge, and no soft edge
 	for dy := 0; dy < bh; dy++ {
 		for dx := 0; dx < bw; dx++ {
 			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 || softEdgeLayer[y+dy][x+dx] != 0 {
@@ -953,14 +938,10 @@ func canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer [][]int, x, y, bw, bh, 
 			}
 		}
 	}
-
-	// Every bridge cell must have at least one adjacent ground cell so that
-	// no bridge tile ends up floating without ground support.
-	if !allBridgeCellsTouchGround(x, y, bw, bh, ground, width, height) {
-		return false
-	}
-
-	return true
+	return rowAllGround(ground, y-1, x, bw, width, height) ||
+		rowAllGround(ground, y+bh, x, bw, width, height) ||
+		colAllGround(ground, x-1, y, bh, width, height) ||
+		colAllGround(ground, x+bw, y, bh, width, height)
 }
 
 // bridgeTouchesIsland checks if a bw×bh bridge at (bx, by) touches the island
