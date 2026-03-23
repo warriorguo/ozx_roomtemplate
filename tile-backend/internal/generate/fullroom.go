@@ -268,6 +268,32 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 			}
 		}
 
+		// Fallback: if grouped placement underplaced, fill remaining up to target
+		// using full-room placement (no region restriction). This guarantees that
+		// the stage minimum count is always met even when a region has too few
+		// valid positions (e.g. pressure stage chaser min=6 with tight room).
+		//
+		// Two-pass strategy:
+		//   1. Strict pass (respects 8-dir spacing) — preserves ideal spread.
+		//   2. Relaxed pass (drops spacing) — only used when strict pass still falls short,
+		//      guaranteeing the minimum is always met.
+		if remaining := req.ZonerCount - countCells(zonerLayer); remaining > 0 {
+			GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
+		}
+		if remaining := req.ChaserCount - countCells(chaserLayer); remaining > 0 {
+			GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
+			// Relaxed fallback: if strict pass still can't fill target, drop spacing constraint.
+			if remaining2 := req.ChaserCount - countCells(chaserLayer); remaining2 > 0 {
+				GenerateChaserLayerRelaxed(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, remaining2)
+			}
+		}
+		if remaining := req.DPSCount - countCells(dpsLayer); remaining > 0 {
+			GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
+		}
+		if remaining := req.MobAirCount - countCells(mobAirLayer); remaining > 0 {
+			GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, remaining, nil)
+		}
+
 		// Count placed for debug
 		debugInfo.Zoner = countLayerDebug(zonerLayer, req.ZonerCount, "zoner")
 		debugInfo.Chaser = countLayerDebug(chaserLayer, req.ChaserCount, "chaser")

@@ -88,6 +88,53 @@ func TestReleaseStage_DPSCountInRange(t *testing.T) {
 	}
 }
 
+// TestPressureStage_ChaserCountInRange verifies that pressure stage always places at
+// least 6 chasers (min of [6,8]) even when grouped placement exhausts valid positions
+// in one half-room region.
+//
+// Regression test for ORT-38: generator produced 5 chasers for pressure stage because
+// the grouped placement split 6 chasers across two half-regions; when one region had
+// insufficient valid positions the total fell below the minimum.
+func TestPressureStage_ChaserCountInRange(t *testing.T) {
+	doorConfigs := [][]DoorPosition{
+		{DoorTop, DoorRight},
+		{DoorTop, DoorBottom},
+		{DoorLeft, DoorRight},
+		{DoorTop, DoorRight, DoorBottom},
+		{DoorTop, DoorRight, DoorBottom, DoorLeft},
+	}
+	failures := 0
+	for trial := 0; trial < 300; trial++ {
+		doors := doorConfigs[trial%len(doorConfigs)]
+		req := FullRoomGenerateRequest{
+			Width:         20,
+			Height:        12,
+			Doors:         doors,
+			StageType:     "pressure",
+			SoftEdgeCount: 5,
+			StaticCount:   5,
+			RailEnabled:   trial%2 == 0,
+		}
+		resp, err := GenerateFullRoom(req)
+		if err != nil {
+			continue
+		}
+		chaserCount := countCells(resp.Payload.Chaser)
+		cfg := GetStageConfig("pressure")
+		if chaserCount < cfg.ChaserRange[0] {
+			failures++
+			t.Errorf("trial=%d (doors=%v): pressure stage chaser count=%d, expected [%d,%d]",
+				trial, doors, chaserCount, cfg.ChaserRange[0], cfg.ChaserRange[1])
+			if failures > 5 {
+				t.FailNow()
+			}
+		}
+	}
+	if failures == 0 {
+		t.Logf("All 300 trials produced pressure stage chaser count >= %d", GetStageConfig("pressure").ChaserRange[0])
+	}
+}
+
 // TestReleaseStage_OnlyDPSEnemies verifies release stage only spawns DPS enemies (no chaser, zoner, mobAir).
 func TestReleaseStage_OnlyDPSEnemies(t *testing.T) {
 	for trial := 0; trial < 50; trial++ {
