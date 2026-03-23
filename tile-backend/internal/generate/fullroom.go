@@ -190,10 +190,15 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		}
 	}
 
-	// Bridge layer
+	// Bridge layer — fullrooms never have bridge tiles.
+	// Bridge tiles are only meaningful in bridge rooms (floating islands over void).
+	// Calling generateBridgeLayerWithDebug here would trigger its "force at least
+	// one bridge" fallback whenever no islands exist, producing spurious bridge tiles.
 	bridgeLayer := copyLayer(emptyLayer)
-	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer, req.Width, req.Height)
-	debugInfo.BridgeLayer = bridgeLayerDebug
+	debugInfo.BridgeLayer = &BridgeLayerDebugInfo{
+		Skipped:    true,
+		SkipReason: "fullrooms do not use bridge tiles",
+	}
 
 	// Rail layer
 	railLayer := copyLayer(emptyLayer)

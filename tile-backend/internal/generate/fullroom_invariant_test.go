@@ -112,3 +112,69 @@ func TestFullRoomGroundAlwaysConnected(t *testing.T) {
 		}
 	}
 }
+
+// TestFullRoomNoBridgeTiles verifies the invariant:
+// fullroom generation must never produce bridge tiles (bridgeCount == 0 always).
+//
+// Regression test for ORT-31: the fullroom generator called generateBridgeLayerWithDebug
+// which triggers a "force at least one bridge" fallback, placing 4-8 spurious bridge
+// tiles in fullrooms across nearly all door configurations.
+func TestFullRoomNoBridgeTiles(t *testing.T) {
+	doorConfigs := [][]DoorPosition{
+		{DoorTop},
+		{DoorBottom},
+		{DoorLeft},
+		{DoorRight},
+		{DoorLeft, DoorRight},
+		{DoorTop, DoorBottom},
+		{DoorTop, DoorLeft},
+		{DoorTop, DoorRight},
+		{DoorBottom, DoorLeft},
+		{DoorTop, DoorBottom, DoorLeft, DoorRight},
+	}
+
+	stageTypes := []string{"", "teaching", "building", "pressure"}
+
+	sizes := [][2]int{
+		{8, 8},
+		{10, 10},
+		{15, 15},
+		{20, 20},
+	}
+
+	failures := 0
+
+	for trial := 0; trial < 400; trial++ {
+		doorSet := doorConfigs[trial%len(doorConfigs)]
+		size := sizes[trial%len(sizes)]
+		stage := stageTypes[trial%len(stageTypes)]
+		w, h := size[0], size[1]
+
+		req := FullRoomGenerateRequest{
+			Width:         w,
+			Height:        h,
+			Doors:         doorSet,
+			StageType:     stage,
+			SoftEdgeCount: 3,
+			StaticCount:   3,
+			RailEnabled:   trial%2 == 0,
+		}
+
+		resp, err := GenerateFullRoom(req)
+		if err != nil {
+			continue
+		}
+
+		bridgeCount := countCells(resp.Payload.Bridge)
+		if bridgeCount > 0 {
+			failures++
+			t.Errorf("trial %d (size %dx%d, doors %v, stage %q, railEnabled=%v): bridgeCount=%d (expected 0)",
+				trial, w, h, doorSet, stage, req.RailEnabled, bridgeCount)
+			if failures > 5 {
+				t.FailNow()
+			}
+		}
+	}
+
+	t.Logf("Fullroom no-bridge invariant: tested all door/stage/size combinations, %d failures", failures)
+}

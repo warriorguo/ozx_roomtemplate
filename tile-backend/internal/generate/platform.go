@@ -125,10 +125,15 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 		}
 	}
 
-	// Step 3: Generate bridge layer
+	// Step 3: Bridge layer — platform rooms never have bridge tiles.
+	// Bridge tiles are only meaningful in bridge rooms (floating islands over void).
+	// Calling generateBridgeLayerWithDebug here would trigger its "force at least
+	// one bridge" fallback whenever no islands exist, producing spurious bridge tiles.
 	bridgeLayer := copyLayer(emptyLayer)
-	bridgeLayerDebug := generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer, req.Width, req.Height)
-	debugInfo.BridgeLayer = bridgeLayerDebug
+	debugInfo.BridgeLayer = &BridgeLayerDebugInfo{
+		Skipped:    true,
+		SkipReason: "platform rooms do not use bridge tiles",
+	}
 
 	// Step 3.5: Generate rail layer
 	railLayer := copyLayer(emptyLayer)
