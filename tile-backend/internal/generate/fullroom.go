@@ -289,6 +289,10 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		}
 		if remaining := req.DPSCount - countCells(dpsLayer); remaining > 0 {
 			GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
+			// Relaxed fallback: if strict pass still can't fill target, drop spacing constraint.
+			if remaining2 := req.DPSCount - countCells(dpsLayer); remaining2 > 0 {
+				GenerateDPSLayerRelaxed(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining2)
+			}
 		}
 		if remaining := req.MobAirCount - countCells(mobAirLayer); remaining > 0 {
 			GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, remaining, nil)

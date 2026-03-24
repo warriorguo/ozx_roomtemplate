@@ -229,3 +229,95 @@ func TestStaticOnGroundInvariant_Platform(t *testing.T) {
 
 	t.Logf("Tested %d platform room combinations, %d failures", totalCases, failures)
 }
+
+// TestStaticPlacementFallback_P4 is a regression test for ORT-40.
+// Platform generation with all 4 doors and staticCount=5 must always place at least 1 static
+// block even when the standard door-forbidden-zone radius exhausts valid positions.
+func TestStaticPlacementFallback_P4(t *testing.T) {
+	zeroCount := 0
+	trials := 100
+
+	for trial := 0; trial < trials; trial++ {
+		req := PlatformGenerateRequest{
+			Width:         20,
+			Height:        12,
+			Doors:         []DoorPosition{DoorTop, DoorRight, DoorBottom, DoorLeft},
+			StageType:     "teaching",
+			SoftEdgeCount: 5,
+			StaticCount:   5,
+			RailEnabled:   false,
+		}
+
+		resp, err := GeneratePlatformRoom(req)
+		if err != nil {
+			// Generation error is not the bug we're testing; skip trial
+			continue
+		}
+
+		// Count placed statics
+		placed := 0
+		for y := 0; y < req.Height; y++ {
+			for x := 0; x < req.Width; x++ {
+				if resp.Payload.Static[y][x] == 1 {
+					placed++
+				}
+			}
+		}
+		// Static is 2x2, so each block = 4 cells; we just need at least one block (4 cells)
+		if placed == 0 {
+			zeroCount++
+			t.Errorf("ORT-40 trial=%d: staticCount=5 but 0 static cells placed (door forbidden zones exhausted all positions)", trial)
+		}
+	}
+
+	t.Logf("ORT-40: ran %d trials, %d produced zero statics (expected 0)", trials, zeroCount)
+}
+
+// TestDPSMinimum_BridgeBuilding verifies that bridge rooms with building stage
+// always place the minimum DPS count (2). Regression test for ORT-34.
+func TestDPSMinimum_BridgeBuilding(t *testing.T) {
+	doorCombos := [][]DoorPosition{
+		{DoorTop, DoorRight, DoorBottom, DoorLeft},
+		{DoorTop, DoorBottom},
+		{DoorLeft, DoorRight},
+		{DoorTop, DoorRight},
+	}
+
+	trials := 50
+	failures := 0
+
+	for _, doors := range doorCombos {
+		for trial := 0; trial < trials; trial++ {
+			req := BridgeGenerateRequest{
+				Width:         20,
+				Height:        12,
+				Doors:         doors,
+				StageType:     "building",
+				SoftEdgeCount: 0,
+				StaticCount:   0,
+				RailEnabled:   true,
+			}
+
+			resp, err := GenerateBridgeRoom(req)
+			if err != nil {
+				continue
+			}
+
+			dpsCount := 0
+			for y := 0; y < req.Height; y++ {
+				for x := 0; x < req.Width; x++ {
+					if resp.Payload.DPS[y][x] == 1 {
+						dpsCount++
+					}
+				}
+			}
+
+			if dpsCount < 2 {
+				failures++
+				t.Errorf("ORT-34 doors=%v trial=%d: dps count=%d, expected >= 2", doors, trial, dpsCount)
+			}
+		}
+	}
+
+	t.Logf("ORT-34: tested %d combinations, %d failures", len(doorCombos)*trials, failures)
+}

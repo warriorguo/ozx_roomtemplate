@@ -9,6 +9,25 @@ import (
 // DPS must be on ground, within 0-4 of main path. Can be near chaser/static.
 func GenerateDPSLayer(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zonerLayer, chaserLayer [][]int,
 	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int, regionFilter ...*RegionFilter) *EnemyLayerDebugInfo {
+	return generateDPSLayerCore(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zonerLayer, chaserLayer,
+		doorPositions, mainPath, width, height, targetCount, false, regionFilter...)
+}
+
+// GenerateDPSLayerRelaxed is like GenerateDPSLayer but skips the 8-directional
+// spacing constraint and allows overlap with chaser cells. It is used as a
+// last-resort fallback when strict placement exhausts all spaced candidates
+// but the stage minimum has not been met.
+func GenerateDPSLayerRelaxed(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zonerLayer, chaserLayer [][]int,
+	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int) *EnemyLayerDebugInfo {
+	return generateDPSLayerCore(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zonerLayer, chaserLayer,
+		doorPositions, mainPath, width, height, targetCount, true)
+}
+
+// generateDPSLayerCore is the shared implementation. When relaxSpacing is true the
+// 8-directional spacing constraint and chaser-overlap check are not enforced —
+// this allows meeting minimum counts in constrained rooms.
+func generateDPSLayerCore(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zonerLayer, chaserLayer [][]int,
+	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int, relaxSpacing bool, regionFilter ...*RegionFilter) *EnemyLayerDebugInfo {
 
 	debug := &EnemyLayerDebugInfo{
 		TargetCount: targetCount,
@@ -42,6 +61,10 @@ func GenerateDPSLayer(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zon
 			if mainPath == nil || mainPath.DirectDistance[y][x] > dpsMaxPathDist {
 				continue
 			}
+			// In relaxed mode, skip candidates that already have a DPS placed
+			if relaxSpacing && dpsLayer[y][x] != 0 {
+				continue
+			}
 			candidates = append(candidates, pos)
 		}
 	}
@@ -63,20 +86,28 @@ func GenerateDPSLayer(dpsLayer, ground, softEdge, bridge, rail, staticLayer, zon
 	remaining := targetCount
 	for remaining > 0 && len(candidates) > 0 {
 		pos, idx := pickFromTopN(candidates, 0.3, 3)
-		// No adjacent existing DPS
-		if touchesLayer(pos, dpsLayer, width, height) || chaserLayer[pos.Y][pos.X] != 0 {
-			candidates = append(candidates[:idx], candidates[idx+1:]...)
-			continue
+
+		if !relaxSpacing {
+			// No adjacent existing DPS and cannot overlap chaser
+			if touchesLayer(pos, dpsLayer, width, height) || chaserLayer[pos.Y][pos.X] != 0 {
+				candidates = append(candidates[:idx], candidates[idx+1:]...)
+				continue
+			}
 		}
+
 		dpsLayer[pos.Y][pos.X] = 1
 		candidates = append(candidates[:idx], candidates[idx+1:]...)
-		candidates = filterAdjacent(candidates, pos)
+
+		if !relaxSpacing {
+			candidates = filterAdjacent(candidates, pos)
+		}
+
 		remaining--
 		debug.PlacedCount++
 		debug.Placements = append(debug.Placements, PlaceInfo{
 			Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
 			Size:     "1x1",
-			Reason:   fmt.Sprintf("squishy=%.2f pathDist=%d", mainPath.SquishyScore[pos.Y][pos.X], mainPath.DirectDistance[pos.Y][pos.X]),
+			Reason:   fmt.Sprintf("squishy=%.2f pathDist=%d relaxed=%v", mainPath.SquishyScore[pos.Y][pos.X], mainPath.DirectDistance[pos.Y][pos.X], relaxSpacing),
 		})
 	}
 
