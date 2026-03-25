@@ -2161,6 +2161,20 @@ func TestCanPlaceBridge(t *testing.T) {
 	}
 }
 
+func TestCanPlaceBridge_RejectsOneSidedGround(t *testing.T) {
+	ground := [][]int{
+		{0, 0, 0, 0, 0},
+		{1, 1, 0, 0, 0},
+		{1, 1, 0, 0, 0},
+		{0, 0, 0, 0, 0},
+	}
+	bridgeLayer := createEmptyLayer(5, 4)
+	softEdge := createEmptyLayer(5, 4)
+
+	assert.False(t, canPlaceBridge(2, 1, 2, 2, ground, bridgeLayer, softEdge, 5, 4),
+		"bridge must connect ground on both sides of its connection axis")
+}
+
 func TestBridgeTouchesIsland(t *testing.T) {
 	ground := [][]int{
 		{0, 0, 0, 0, 0},
@@ -2303,6 +2317,36 @@ func TestFindHorizontalGaps(t *testing.T) {
 		assert.Equal(t, 2, gaps[0].startX, "gap should start at x=2")
 		assert.Equal(t, 6, gaps[0].endX, "gap should end at x=6 (exclusive)")
 	}
+}
+
+func TestFillVerticalConcaveGapsWithBridges(t *testing.T) {
+	ground := [][]int{
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 0, 0, 0, 1, 1, 1},
+		{1, 1, 1, 1, 0, 0, 1, 1, 1, 1},
+		{1, 1, 1, 0, 0, 0, 1, 1, 1, 1},
+		{1, 1, 1, 0, 0, 0, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+		{1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
+	}
+
+	width := 10
+	height := 8
+	bridgeLayer := createEmptyLayer(width, height)
+	softEdge := createEmptyLayer(width, height)
+
+	connections := fillConcaveGapsWithBridges(bridgeLayer, ground, softEdge, width, height)
+
+	foundTallBridge := false
+	for _, conn := range connections {
+		if conn.Size == "2x4" {
+			foundTallBridge = true
+			break
+		}
+	}
+
+	assert.True(t, foundTallBridge, "vertical concave gaps should prefer a 2x4 bridge")
 }
 
 func TestIsConcaveGap(t *testing.T) {

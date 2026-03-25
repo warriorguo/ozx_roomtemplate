@@ -129,11 +129,11 @@ func TestBridgeBlockAlwaysHasOneFullEdgeOnGround(t *testing.T) {
 	}
 }
 
-// TestBridgeRoomAlwaysHasBridgeTiles verifies that every bridge room generation
-// produces at least one bridge tile. Bridge rooms without any bridge tiles are
-// indistinguishable from flat ground rooms.
-// Regression test for ORT-29: bridge rooms were producing 0 tiles when stageType omitted.
-func TestBridgeRoomAlwaysHasBridgeTiles(t *testing.T) {
+// TestBridgeRoomBridgeTilesAreStrictlyOriented verifies that any bridge tiles
+// produced by the generator satisfy the strict directional bridge predicate.
+// Bridge rooms may legitimately produce zero bridge tiles when the generated
+// ground layout has no valid directional bridge gap.
+func TestBridgeRoomBridgeTilesAreStrictlyOriented(t *testing.T) {
 	doors := [][]DoorPosition{
 		{DoorTop, DoorBottom},
 		{DoorLeft, DoorRight},
@@ -149,8 +149,6 @@ func TestBridgeRoomAlwaysHasBridgeTiles(t *testing.T) {
 		{15, 15},
 		{20, 20},
 	}
-
-	failures := 0
 
 	for trial := 0; trial < 300; trial++ {
 		doorSet := doors[trial%len(doors)]
@@ -172,19 +170,43 @@ func TestBridgeRoomAlwaysHasBridgeTiles(t *testing.T) {
 			continue
 		}
 
-		bridgeCount := 0
 		for y := 0; y < h; y++ {
 			for x := 0; x < w; x++ {
-				bridgeCount += resp.Payload.Bridge[y][x]
-			}
-		}
+				if resp.Payload.Bridge[y][x] != 1 {
+					continue
+				}
+				if resp.Payload.Ground[y][x] != 0 {
+					t.Fatalf("trial %d (size %dx%d, doors %v, stage %q): bridge overlaps ground at (%d,%d)",
+						trial, w, h, doorSet, stage, x, y)
+				}
 
-		if bridgeCount == 0 {
-			failures++
-			t.Errorf("trial %d (size %dx%d, doors %v, stage %q): bridge room has 0 bridge tiles",
-				trial, w, h, doorSet, stage)
-			if failures > 5 {
-				t.FailNow()
+				valid := false
+				for _, sz := range bridgeSizes {
+					for dy := 0; dy < sz.h; dy++ {
+						for dx := 0; dx < sz.w; dx++ {
+							bx := x - dx
+							by := y - dy
+							if bx < 0 || by < 0 || bx+sz.w > w || by+sz.h > h {
+								continue
+							}
+							if bridgeConnectingDirection(bx, by, sz.w, sz.h, resp.Payload.Ground, w, h) != "" {
+								valid = true
+								break
+							}
+						}
+						if valid {
+							break
+						}
+					}
+					if valid {
+						break
+					}
+				}
+
+				if !valid {
+					t.Fatalf("trial %d (size %dx%d, doors %v, stage %q): bridge tile at (%d,%d) is not part of a strict directional bridge",
+						trial, w, h, doorSet, stage, x, y)
+				}
 			}
 		}
 	}

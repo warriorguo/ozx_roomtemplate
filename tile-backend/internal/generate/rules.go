@@ -922,28 +922,6 @@ func canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer [][]int, x, y, bw, bh, 
 	return canPlaceBridge(x, y, bw, bh, ground, bridgeLayer, softEdgeLayer, width, height)
 }
 
-// canPlaceBridgeFallback is a relaxed variant used only by the last-resort
-// placeAtLeastOneBridge fallback.  It requires that at least one full edge
-// (any of the four) is all-ground (OR logic).  This handles rooms where
-// ensureGroundConnectivity has already merged all islands, leaving no natural
-// directional gap that would satisfy the strict canPlaceBridge rule.
-func canPlaceBridgeFallback(x, y, bw, bh int, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) bool {
-	if x < 0 || x+bw > width || y < 0 || y+bh > height {
-		return false
-	}
-	for dy := 0; dy < bh; dy++ {
-		for dx := 0; dx < bw; dx++ {
-			if ground[y+dy][x+dx] != 0 || bridgeLayer[y+dy][x+dx] != 0 || softEdgeLayer[y+dy][x+dx] != 0 {
-				return false
-			}
-		}
-	}
-	return rowAllGround(ground, y-1, x, bw, width, height) ||
-		rowAllGround(ground, y+bh, x, bw, width, height) ||
-		colAllGround(ground, x-1, y, bh, width, height) ||
-		colAllGround(ground, x+bw, y, bh, width, height)
-}
-
 // bridgeTouchesIsland checks if a bw×bh bridge at (bx, by) touches the island
 // (requires at least 2 adjacent cells).
 func bridgeTouchesIsland(bx, by, bw, bh int, island Island, ground [][]int) bool {
@@ -976,7 +954,7 @@ func bridgeTouchesIsland(bx, by, bw, bh int, island Island, ground [][]int) bool
 }
 
 // bridgeTouchesExistingGround checks if a bw×bh bridge touches ground that's not part of the given island.
-func bridgeTouchesExistingGround(bx, by, bw, bh int, excludeIsland Island, allIslands []Island, connected map[int]bool, ground [][]int, width, height int) (bool, string) {
+func bridgeTouchesExistingGround(bx, by, bw, bh int, excludeIsland Island, allIslands []Island, connected map[int]bool, mainIslandID int, ground [][]int, width, height int) (bool, string) {
 	excludeCells := make(map[Point]bool)
 	for _, c := range excludeIsland.Cells {
 		excludeCells[c] = true
@@ -1006,7 +984,7 @@ func bridgeTouchesExistingGround(bx, by, bw, bh int, excludeIsland Island, allIs
 						if connected[i] {
 							for _, ic := range island.Cells {
 								if ic.X == adj.X && ic.Y == adj.Y {
-									if i == 0 {
+									if i == mainIslandID {
 										targetDesc = "main ground"
 									} else {
 										targetDesc = "island"

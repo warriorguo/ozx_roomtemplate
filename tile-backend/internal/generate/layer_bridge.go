@@ -72,7 +72,7 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer [][]int, wi
 			unconnectedIsland := islands[unconnectedID]
 
 			// Find the nearest connected island/ground
-			bestConnection := findBestBridgeConnection(unconnectedIsland, islands, connected, ground, bridgeLayer, softEdgeLayer, width, height)
+			bestConnection := findBestBridgeConnection(unconnectedIsland, islands, connected, mainIslandID, ground, bridgeLayer, softEdgeLayer, width, height)
 
 			if bestConnection == nil {
 				// Cannot connect this island
@@ -140,7 +140,7 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer [][]int, wi
 					From:     "island-adjacency-fallback",
 					To:       fmt.Sprintf("island (%d,%d)-(%d,%d)", island.MinX, island.MinY, island.MaxX, island.MaxY),
 					Position: fmt.Sprintf("(%d,%d)", placed.X, placed.Y),
-					Size:     fmt.Sprintf("%dx%d", bridgeSize, bridgeSize),
+					Size:     fmt.Sprintf("%dx%d", placed.W, placed.H),
 				})
 			} else {
 				debug.Misses = append(debug.Misses, MissInfo{
@@ -162,7 +162,7 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer [][]int, wi
 				From:     "fallback",
 				To:       "adjacent ground",
 				Position: fmt.Sprintf("(%d,%d)", placed.X, placed.Y),
-				Size:     fmt.Sprintf("%dx%d", bridgeSize, bridgeSize),
+				Size:     fmt.Sprintf("%dx%d", placed.W, placed.H),
 			})
 		} else {
 			debug.Skipped = true
@@ -176,9 +176,16 @@ func generateBridgeLayerWithDebug(bridgeLayer, ground, softEdgeLayer [][]int, wi
 // placeBridgeAdjacentToIsland finds a valid 2x2 bridge position adjacent to the given island
 // and places it. Uses only canPlaceBridge (no cross-island connectivity requirement).
 // Returns the top-left corner of the placed bridge, or nil if no valid position found.
-func placeBridgeAdjacentToIsland(bridgeLayer, ground, softEdgeLayer [][]int, island Island, width, height int) *Point {
+type placedBridge struct {
+	X int
+	Y int
+	W int
+	H int
+}
+
+func placeBridgeAdjacentToIsland(bridgeLayer, ground, softEdgeLayer [][]int, island Island, width, height int) *placedBridge {
 	type candidate struct {
-		pos  Point
+		pos  placedBridge
 		dist int
 	}
 	var candidates []candidate
@@ -186,37 +193,29 @@ func placeBridgeAdjacentToIsland(bridgeLayer, ground, softEdgeLayer [][]int, isl
 	islandCenterX := (island.MinX + island.MaxX) / 2
 	islandCenterY := (island.MinY + island.MaxY) / 2
 
-	// Try all 2x2 positions within a reasonable range of the island
-	margin := bridgeSize + 2
-	for y := island.MinY - margin; y <= island.MaxY+margin-bridgeSize; y++ {
-		for x := island.MinX - margin; x <= island.MaxX+margin-bridgeSize; x++ {
-			if !canPlaceBridge(x, y, bridgeSize, bridgeSize, ground, bridgeLayer, softEdgeLayer, width, height) {
-				continue
-			}
-			// Verify the bridge is actually adjacent to the island
-			touchesIsland := false
-			for dy := 0; dy < bridgeSize && !touchesIsland; dy++ {
-				for dx := 0; dx < bridgeSize && !touchesIsland; dx++ {
-					bc := Point{x + dx, y + dy}
-					neighbors := []Point{
-						{bc.X - 1, bc.Y}, {bc.X + 1, bc.Y},
-						{bc.X, bc.Y - 1}, {bc.X, bc.Y + 1},
-					}
-					for _, nb := range neighbors {
-						if nb.X >= island.MinX && nb.X <= island.MaxX &&
-							nb.Y >= island.MinY && nb.Y <= island.MaxY &&
-							ground[nb.Y][nb.X] == 1 {
-							touchesIsland = true
-							break
-						}
-					}
+	// Try all supported bridge sizes within a reasonable range of the island.
+	maxBridgeDim := bridgeSize
+	for _, sz := range bridgeSizes {
+		if sz.w > maxBridgeDim {
+			maxBridgeDim = sz.w
+		}
+		if sz.h > maxBridgeDim {
+			maxBridgeDim = sz.h
+		}
+	}
+	margin := maxBridgeDim + 2
+	for _, sz := range bridgeSizes {
+		for y := island.MinY - margin; y <= island.MaxY+margin-sz.h; y++ {
+			for x := island.MinX - margin; x <= island.MaxX+margin-sz.w; x++ {
+				if !canPlaceBridge(x, y, sz.w, sz.h, ground, bridgeLayer, softEdgeLayer, width, height) {
+					continue
 				}
+				if !bridgeTouchesIsland(x, y, sz.w, sz.h, island, ground) {
+					continue
+				}
+				dist := abs(x-islandCenterX) + abs(y-islandCenterY)
+				candidates = append(candidates, candidate{placedBridge{X: x, Y: y, W: sz.w, H: sz.h}, dist})
 			}
-			if !touchesIsland {
-				continue
-			}
-			dist := abs(x-islandCenterX) + abs(y-islandCenterY)
-			candidates = append(candidates, candidate{Point{x, y}, dist})
 		}
 	}
 
@@ -232,30 +231,32 @@ func placeBridgeAdjacentToIsland(bridgeLayer, ground, softEdgeLayer [][]int, isl
 		}
 	}
 
-	placeBridge(bridgeLayer, best.pos.X, best.pos.Y, bridgeSize, bridgeSize)
+	placeBridge(bridgeLayer, best.pos.X, best.pos.Y, best.pos.W, best.pos.H)
 	return &best.pos
 }
 
 // placeAtLeastOneBridge scans for any valid 2x2 void area adjacent to ground and places
 // a bridge there. Returns the top-left corner of the placed bridge, or nil if none found.
-func placeAtLeastOneBridge(bridgeLayer, ground, softEdgeLayer [][]int, width, height int) *Point {
+func placeAtLeastOneBridge(bridgeLayer, ground, softEdgeLayer [][]int, width, height int) *placedBridge {
 	// Prefer positions near the vertical center of the room
 	centerY := height / 2
 
 	type candidate struct {
-		pos  Point
+		pos  placedBridge
 		dist int // distance from center row
 	}
 	var candidates []candidate
 
-	for y := 0; y <= height-bridgeSize; y++ {
-		for x := 0; x <= width-bridgeSize; x++ {
-			if canPlaceBridgeFallback(x, y, bridgeSize, bridgeSize, ground, bridgeLayer, softEdgeLayer, width, height) {
-				dist := abs(y - centerY)
-				if dist > height-centerY {
-					dist = height - centerY - dist
+	for _, sz := range bridgeSizes {
+		for y := 0; y <= height-sz.h; y++ {
+			for x := 0; x <= width-sz.w; x++ {
+				if canPlaceBridge(x, y, sz.w, sz.h, ground, bridgeLayer, softEdgeLayer, width, height) {
+					dist := abs(y - centerY)
+					if dist > height-centerY {
+						dist = height - centerY - dist
+					}
+					candidates = append(candidates, candidate{placedBridge{X: x, Y: y, W: sz.w, H: sz.h}, dist})
 				}
-				candidates = append(candidates, candidate{Point{x, y}, dist})
 			}
 		}
 	}
@@ -272,7 +273,7 @@ func placeAtLeastOneBridge(bridgeLayer, ground, softEdgeLayer [][]int, width, he
 		}
 	}
 
-	placeBridge(bridgeLayer, best.pos.X, best.pos.Y, bridgeSize, bridgeSize)
+	placeBridge(bridgeLayer, best.pos.X, best.pos.Y, best.pos.W, best.pos.H)
 	return &best.pos
 }
 
@@ -287,7 +288,7 @@ type bridgeConnectionResult struct {
 
 // findBestBridgeConnection finds the best position to place a bridge connecting an island to existing ground.
 // It tries all supported bridge sizes (2x2, 4x2, 2x4) and picks the closest valid candidate.
-func findBestBridgeConnection(island Island, allIslands []Island, connected map[int]bool, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) *bridgeConnectionResult {
+func findBestBridgeConnection(island Island, allIslands []Island, connected map[int]bool, mainIslandID int, ground, bridgeLayer, softEdgeLayer [][]int, width, height int) *bridgeConnectionResult {
 	type candidate struct {
 		bridgeX, bridgeY int
 		bridgeW, bridgeH int
@@ -341,7 +342,7 @@ func findBestBridgeConnection(island Island, allIslands []Island, connected map[
 				}
 
 				// Check if bridge touches existing ground (not part of this island)
-				touchesGround, targetDesc := bridgeTouchesExistingGround(bx, by, bw, bh, island, allIslands, connected, ground, width, height)
+				touchesGround, targetDesc := bridgeTouchesExistingGround(bx, by, bw, bh, island, allIslands, connected, mainIslandID, ground, width, height)
 				if !touchesGround {
 					continue
 				}
@@ -386,11 +387,8 @@ func placeBridge(bridgeLayer [][]int, x, y, bw, bh int) {
 	}
 }
 
-// fillConcaveGapsWithBridges finds horizontal concave gaps and places bridges to fill them.
-// A concave gap is: ground on both sides of a row, void in middle, and ground exists above the void.
-// The bridge size is chosen based on gap direction:
-//   - horizontal gap (width > 2) → prefer 4x2
-//   - small or square gap         → 2x2
+// fillConcaveGapsWithBridges finds concave gaps and places bridges to fill them.
+// Horizontal gaps prefer 4x2 and vertical gaps prefer 2x4, with 2x2 as fallback.
 func fillConcaveGapsWithBridges(bridgeLayer, ground, softEdgeLayer [][]int, width, height int) []BridgeConnection {
 	var connections []BridgeConnection
 
@@ -450,6 +448,48 @@ func fillConcaveGapsWithBridges(bridgeLayer, ground, softEdgeLayer [][]int, widt
 		}
 	}
 
+	// Scan each column for vertical concave gaps
+	for x := 1; x < width-1; x++ { // Skip first and last column
+		gaps := findVerticalGaps(ground, x, height)
+
+		for _, gap := range gaps {
+			if !isVerticalConcaveGap(ground, x, gap.startY, gap.endY, width, height) {
+				continue
+			}
+
+			gapHeight := gap.endY - gap.startY
+			if gapHeight < minConcaveGapSize {
+				continue
+			}
+
+			sizePriority := []struct{ w, h int }{{2, 4}, {2, 2}}
+			placed := false
+			for _, sz := range sizePriority {
+				if placed {
+					break
+				}
+				for by := gap.startY; by+sz.h <= gap.endY; by++ {
+					bridgeX := x
+					if !canPlaceBridgeAt(bridgeLayer, ground, softEdgeLayer, bridgeX, by, sz.w, sz.h, width, height) {
+						continue
+					}
+					if !bridgeTouchesGroundDirectly(bridgeX, by, sz.w, sz.h, ground, width, height) {
+						continue
+					}
+					placeBridge(bridgeLayer, bridgeX, by, sz.w, sz.h)
+					connections = append(connections, BridgeConnection{
+						From:     fmt.Sprintf("vertical concave gap at x=%d", x),
+						To:       fmt.Sprintf("y=%d to y=%d", gap.startY, gap.endY-1),
+						Position: fmt.Sprintf("(%d,%d)", bridgeX, by),
+						Size:     fmt.Sprintf("%dx%d", sz.w, sz.h),
+					})
+					placed = true
+					break
+				}
+			}
+		}
+	}
+
 	return connections
 }
 
@@ -457,6 +497,11 @@ func fillConcaveGapsWithBridges(bridgeLayer, ground, softEdgeLayer [][]int, widt
 type horizontalGap struct {
 	startX int // First void cell (inclusive)
 	endX   int // Last void cell (exclusive)
+}
+
+type verticalGap struct {
+	startY int // First void cell (inclusive)
+	endY   int // Last void cell (exclusive)
 }
 
 // findHorizontalGaps finds all horizontal gaps (void segments between ground) in a row
@@ -490,6 +535,32 @@ func findHorizontalGaps(ground [][]int, y, width int) []horizontalGap {
 	return gaps
 }
 
+// findVerticalGaps finds all vertical gaps (void segments between ground) in a column.
+func findVerticalGaps(ground [][]int, x, height int) []verticalGap {
+	var gaps []verticalGap
+
+	inGap := false
+	gapStart := 0
+
+	for y := 0; y < height; y++ {
+		if ground[y][x] == 0 {
+			if !inGap {
+				inGap = true
+				gapStart = y
+			}
+		} else {
+			if inGap {
+				if gapStart > 0 {
+					gaps = append(gaps, verticalGap{startY: gapStart, endY: y})
+				}
+				inGap = false
+			}
+		}
+	}
+
+	return gaps
+}
+
 // isConcaveGap checks if a gap has ground above it (making it concave)
 func isConcaveGap(ground [][]int, startX, endX, y, width, height int) bool {
 	if y == 0 {
@@ -508,6 +579,27 @@ func isConcaveGap(ground [][]int, startX, endX, y, width, height int) bool {
 	// Need significant ground coverage above (at least 50% of gap width)
 	gapWidth := endX - startX
 	return groundAboveCount >= gapWidth/2
+}
+
+// isVerticalConcaveGap checks if a vertical gap has ground to its left or right.
+func isVerticalConcaveGap(ground [][]int, x, startY, endY, width, height int) bool {
+	if x <= 0 || x >= width-1 {
+		return false
+	}
+
+	leftGroundCount := 0
+	rightGroundCount := 0
+	for y := startY; y < endY; y++ {
+		if ground[y][x-1] == 1 {
+			leftGroundCount++
+		}
+		if x+2 < width && ground[y][x+2] == 1 {
+			rightGroundCount++
+		}
+	}
+
+	gapHeight := endY - startY
+	return leftGroundCount >= gapHeight/2 && rightGroundCount >= gapHeight/2
 }
 
 // bridgeTouchesGroundDirectly checks if a bw×bh bridge at (bx,by) has at least one
