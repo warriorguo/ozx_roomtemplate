@@ -88,9 +88,11 @@ func TestGenerateFullRoom_ValidInput(t *testing.T) {
 			assert.Equal(t, tt.req.Height, len(resp.Payload.Zoner))
 			assert.Equal(t, tt.req.Height, len(resp.Payload.MobAir))
 
-			// Verify room type
-			require.NotNil(t, resp.Payload.RoomType)
-			assert.Equal(t, "full", *resp.Payload.RoomType)
+			// Verify room shape and category
+			require.NotNil(t, resp.Payload.RoomShape)
+			assert.Equal(t, "all", *resp.Payload.RoomShape)
+			require.NotNil(t, resp.Payload.RoomCategory)
+			assert.Equal(t, "normal", *resp.Payload.RoomCategory)
 
 			// Verify debug info exists
 			require.NotNil(t, resp.DebugInfo)

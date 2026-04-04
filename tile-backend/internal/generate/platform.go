@@ -19,6 +19,7 @@ type PlatformGenerateRequest struct {
 	DPSCount      int            `json:"dpsCount"`      // Suggested number of DPS to place (optional)
 	MobAirCount   int            `json:"mobAirCount"`   // Suggested number of mob air (fly) to place (optional)
 	StageType     string         `json:"stageType"`     // Room stage type (optional)
+	RoomCategory  string         `json:"roomCategory"`  // Room category: normal, basement, test, cave (optional, default: normal)
 }
 
 // PlatformGenerateResponse represents the generated template
@@ -84,6 +85,9 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	}
 	if req.Height < 10 || req.Height > 200 {
 		return nil, fmt.Errorf("height must be between 10 and 200")
+	}
+	if err := ValidateRoomCategory(req.RoomCategory); err != nil {
+		return nil, err
 	}
 	// Check for duplicate doors
 	doorSet := make(map[DoorPosition]bool)
@@ -248,25 +252,30 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	}
 
 	// Create payload
-	roomType := "platform"
+	roomShape := "platform"
+	roomCategory := req.RoomCategory
+	if roomCategory == "" {
+		roomCategory = "normal"
+	}
 	var stageType *string
 	if req.StageType != "" {
 		stageType = &req.StageType
 	}
 	payload := model.TemplatePayload{
-		Ground:    ground,
-		SoftEdge:  softEdgeLayer,
-		Bridge:    bridgeLayer,
-		Rail:      railLayer,
-		Static:    staticLayer,
-		Chaser:    chaserLayer,
-		Zoner:     zonerLayer,
-		DPS:       dpsLayer,
-		MobAir:    mobAirLayer,
-		MainPath:  mainPathLayer,
-		Doors:     doorStates,
-		StageType: stageType,
-		RoomType:  &roomType,
+		Ground:       ground,
+		SoftEdge:     softEdgeLayer,
+		Bridge:       bridgeLayer,
+		Rail:         railLayer,
+		Static:       staticLayer,
+		Chaser:       chaserLayer,
+		Zoner:        zonerLayer,
+		DPS:          dpsLayer,
+		MobAir:       mobAirLayer,
+		MainPath:     mainPathLayer,
+		Doors:        doorStates,
+		StageType:    stageType,
+		RoomShape:    &roomShape,
+		RoomCategory: &roomCategory,
 		Meta: model.TemplateMeta{
 			Name:    fmt.Sprintf("platform-%dx%d", req.Width, req.Height),
 			Version: 1,

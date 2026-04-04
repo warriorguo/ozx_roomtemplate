@@ -10,9 +10,18 @@ func ComputeTemplateStats(template *Template) {
 	walkableRatio := CalculateWalkableRatio(template.Payload.Ground, template.Width, template.Height)
 	template.WalkableRatio = &walkableRatio
 
-	// Set room type if available in payload
-	if template.Payload.RoomType != nil {
-		template.RoomType = template.Payload.RoomType
+	// Set room type from roomShape (map "all" back to "full" for DB storage)
+	if template.Payload.RoomShape != nil {
+		rt := *template.Payload.RoomShape
+		if rt == "all" {
+			rt = "full"
+		}
+		template.RoomType = &rt
+	}
+
+	// Set room category if available in payload
+	if template.Payload.RoomCategory != nil {
+		template.RoomCategory = template.Payload.RoomCategory
 	}
 
 	// Set room attributes if available in payload

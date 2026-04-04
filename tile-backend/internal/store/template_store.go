@@ -80,10 +80,10 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 	query := `
 		INSERT INTO room_templates (
 			id, name, version, width, height, payload, thumbnail,
-			walkable_ratio, room_type, room_attributes, doors_connected,
+			walkable_ratio, room_type, room_category, room_attributes, doors_connected,
 			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
 		RETURNING created_at, updated_at`
 
 	err = s.db.QueryRow(ctx, query,
@@ -96,6 +96,7 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		template.Thumbnail,
 		template.WalkableRatio,
 		template.RoomType,
+		template.RoomCategory,
 		roomAttributesJSON,
 		doorsConnectedJSON,
 		template.StaticCount,
@@ -254,7 +255,7 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTem
 	listQuery := fmt.Sprintf(`
 		SELECT
 			id, name, version, width, height, thumbnail,
-			walkable_ratio, room_type, room_attributes, doors_connected,
+			walkable_ratio, room_type, room_category, room_attributes, doors_connected,
 			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type,
 			created_at, updated_at
 		FROM room_templates %s
@@ -285,6 +286,7 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTem
 			&template.Thumbnail,
 			&template.WalkableRatio,
 			&template.RoomType,
+			&template.RoomCategory,
 			&roomAttributesJSON,
 			&doorsConnectedJSON,
 			&template.StaticCount,
@@ -338,7 +340,7 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 	query := `
 		SELECT
 			id, name, version, width, height, payload, thumbnail,
-			walkable_ratio, room_type, room_attributes, doors_connected,
+			walkable_ratio, room_type, room_category, room_attributes, doors_connected,
 			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type,
 			created_at, updated_at
 		FROM room_templates
@@ -359,6 +361,7 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		&template.Thumbnail,
 		&template.WalkableRatio,
 		&template.RoomType,
+		&template.RoomCategory,
 		&roomAttributesJSON,
 		&doorsConnectedJSON,
 		&template.StaticCount,

@@ -16,6 +16,10 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		return nil, fmt.Errorf("at least 2 doors are required for bridge generation")
 	}
 
+	if err := ValidateRoomCategory(req.RoomCategory); err != nil {
+		return nil, err
+	}
+
 	// Validate doors are unique
 	doorSet := make(map[DoorPosition]bool)
 	for _, door := range req.Doors {
@@ -178,25 +182,30 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	}
 
 	// Build payload
-	roomType := "bridge"
+	roomShape := "bridge"
+	roomCategory := req.RoomCategory
+	if roomCategory == "" {
+		roomCategory = "normal"
+	}
 	var stageType *string
 	if req.StageType != "" {
 		stageType = &req.StageType
 	}
 	payload := model.TemplatePayload{
-		Ground:    ground,
-		SoftEdge:  softEdgeLayer,
-		Bridge:    bridgeLayer,
-		Rail:      railLayer,
-		Static:    staticLayer,
-		Chaser:    chaserLayer,
-		Zoner:     zonerLayer,
-		DPS:       dpsLayer,
-		MobAir:    mobAirLayer,
-		MainPath:  mainPathLayer,
-		Doors:     doorStates,
-		StageType: stageType,
-		RoomType:  &roomType,
+		Ground:       ground,
+		SoftEdge:     softEdgeLayer,
+		Bridge:       bridgeLayer,
+		Rail:         railLayer,
+		Static:       staticLayer,
+		Chaser:       chaserLayer,
+		Zoner:        zonerLayer,
+		DPS:          dpsLayer,
+		MobAir:       mobAirLayer,
+		MainPath:     mainPathLayer,
+		Doors:        doorStates,
+		StageType:    stageType,
+		RoomShape:    &roomShape,
+		RoomCategory: &roomCategory,
 		Meta: model.TemplateMeta{
 			Name:    fmt.Sprintf("bridge-%dx%d", req.Width, req.Height),
 			Version: 1,

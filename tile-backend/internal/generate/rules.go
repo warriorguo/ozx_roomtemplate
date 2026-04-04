@@ -6,6 +6,29 @@ import (
 )
 
 // ============================================================================
+// Room category validation
+// ============================================================================
+
+// ValidRoomCategories lists the allowed roomCategory values
+var ValidRoomCategories = map[string]bool{
+	"normal":   true,
+	"basement": true,
+	"test":     true,
+	"cave":     true,
+}
+
+// ValidateRoomCategory checks if the roomCategory is valid; returns error if not
+func ValidateRoomCategory(category string) error {
+	if category == "" {
+		return nil // will default to "normal"
+	}
+	if !ValidRoomCategories[category] {
+		return fmt.Errorf("invalid roomCategory %q: must be one of normal, basement, test, cave", category)
+	}
+	return nil
+}
+
+// ============================================================================
 // Validation constants
 // ============================================================================
 

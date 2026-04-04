@@ -25,6 +25,7 @@ type BridgeGenerateRequest struct {
 	DPSCount      int            `json:"dpsCount"`      // Suggested number of DPS to place (optional)
 	MobAirCount   int            `json:"mobAirCount"`   // Suggested number of mob air (fly) to place (optional)
 	StageType     string         `json:"stageType"`     // Room stage type (optional)
+	RoomCategory  string         `json:"roomCategory"`  // Room category: normal, basement, test, cave (optional, default: normal)
 }
 
 // BridgeGenerateResponse represents the generated template

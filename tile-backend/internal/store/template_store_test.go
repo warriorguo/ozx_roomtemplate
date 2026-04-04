@@ -43,7 +43,7 @@ func TestPostgreSQLTemplateStore_Create(t *testing.T) {
 
 	now := time.Now()
 
-	// Mock the INSERT query (17 args total)
+	// Mock the INSERT query (18 args total)
 	mock.ExpectQuery(`INSERT INTO room_templates`).
 		WithArgs(
 			template.ID, template.Name, template.Version, template.Width, template.Height,
@@ -51,6 +51,7 @@ func TestPostgreSQLTemplateStore_Create(t *testing.T) {
 			pgxmock.AnyArg(), // thumbnail
 			pgxmock.AnyArg(), // walkable_ratio
 			pgxmock.AnyArg(), // room_type
+			pgxmock.AnyArg(), // room_category
 			pgxmock.AnyArg(), // room_attributes
 			pgxmock.AnyArg(), // doors_connected
 			pgxmock.AnyArg(), // static_count
@@ -93,13 +94,13 @@ func TestPostgreSQLTemplateStore_Create_Error(t *testing.T) {
 		},
 	}
 
-	// Mock a database error - use AnyArg for all params
+	// Mock a database error - use AnyArg for all params (18 args)
 	mock.ExpectQuery(`INSERT INTO room_templates`).
 		WithArgs(
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
-			pgxmock.AnyArg(), pgxmock.AnyArg(),
+			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		).
 		WillReturnError(assert.AnError)
 
@@ -124,7 +125,7 @@ func TestPostgreSQLTemplateStore_Get(t *testing.T) {
 	payloadJSON := `{"ground":[[1,0],[0,1]],"static":[[0,1],[1,0]],"chaser":[[0,0],[0,0]],"zoner":[[0,0],[0,0]],"dps":[[0,0],[0,0]],"mobAir":[[1,0],[0,1]],"meta":{"name":"test-template","version":1,"width":2,"height":2}}`
 	rows := pgxmock.NewRows([]string{
 		"id", "name", "version", "width", "height", "payload", "thumbnail",
-		"walkable_ratio", "room_type", "room_attributes", "doors_connected",
+		"walkable_ratio", "room_type", "room_category", "room_attributes", "doors_connected",
 		"static_count", "chaser_count", "zoner_count", "dps_count", "mobair_count", "stage_type",
 		"created_at", "updated_at",
 	}).AddRow(
@@ -133,6 +134,7 @@ func TestPostgreSQLTemplateStore_Get(t *testing.T) {
 		(*string)(nil),  // thumbnail
 		(*float64)(nil), // walkable_ratio
 		(*string)(nil),  // room_type
+		(*string)(nil),  // room_category
 		[]byte(nil),     // room_attributes
 		[]byte(nil),     // doors_connected
 		(*int)(nil),     // static_count
@@ -181,7 +183,7 @@ func TestPostgreSQLTemplateStore_Get_NotFound(t *testing.T) {
 		WithArgs(pgxmock.AnyArg()).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "name", "version", "width", "height", "payload", "thumbnail",
-			"walkable_ratio", "room_type", "room_attributes", "doors_connected",
+			"walkable_ratio", "room_type", "room_category", "room_attributes", "doors_connected",
 			"static_count", "chaser_count", "zoner_count", "dps_count", "mobair_count", "stage_type",
 			"created_at", "updated_at",
 		}))
@@ -209,7 +211,7 @@ func TestPostgreSQLTemplateStore_List(t *testing.T) {
 	// Mock list query
 	listCols := []string{
 		"id", "name", "version", "width", "height", "thumbnail",
-		"walkable_ratio", "room_type", "room_attributes", "doors_connected",
+		"walkable_ratio", "room_type", "room_category", "room_attributes", "doors_connected",
 		"static_count", "chaser_count", "zoner_count", "dps_count", "mobair_count", "stage_type",
 		"created_at", "updated_at",
 	}
@@ -217,11 +219,11 @@ func TestPostgreSQLTemplateStore_List(t *testing.T) {
 		WithArgs(10, 0).
 		WillReturnRows(pgxmock.NewRows(listCols).
 			AddRow(uuid.New(), "template-1", 1, 10, 8, (*string)(nil),
-				(*float64)(nil), (*string)(nil), []byte(nil), []byte(nil),
+				(*float64)(nil), (*string)(nil), (*string)(nil), []byte(nil), []byte(nil),
 				(*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*string)(nil),
 				now, now).
 			AddRow(uuid.New(), "template-2", 2, 15, 12, (*string)(nil),
-				(*float64)(nil), (*string)(nil), []byte(nil), []byte(nil),
+				(*float64)(nil), (*string)(nil), (*string)(nil), []byte(nil), []byte(nil),
 				(*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*string)(nil),
 				now.Add(-time.Hour), now.Add(-time.Hour)))
 
@@ -254,7 +256,7 @@ func TestPostgreSQLTemplateStore_List_WithNameFilter(t *testing.T) {
 	// Mock list query with name filter
 	listCols := []string{
 		"id", "name", "version", "width", "height", "thumbnail",
-		"walkable_ratio", "room_type", "room_attributes", "doors_connected",
+		"walkable_ratio", "room_type", "room_category", "room_attributes", "doors_connected",
 		"static_count", "chaser_count", "zoner_count", "dps_count", "mobair_count", "stage_type",
 		"created_at", "updated_at",
 	}
@@ -262,7 +264,7 @@ func TestPostgreSQLTemplateStore_List_WithNameFilter(t *testing.T) {
 		WithArgs("%test%", 20, 0).
 		WillReturnRows(pgxmock.NewRows(listCols).
 			AddRow(uuid.New(), "test-template", 1, 10, 8, (*string)(nil),
-				(*float64)(nil), (*string)(nil), []byte(nil), []byte(nil),
+				(*float64)(nil), (*string)(nil), (*string)(nil), []byte(nil), []byte(nil),
 				(*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*string)(nil),
 				now, now))
 
@@ -292,7 +294,7 @@ func TestPostgreSQLTemplateStore_List_EmptyResult(t *testing.T) {
 		WithArgs(20, 0).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "name", "version", "width", "height", "thumbnail",
-			"walkable_ratio", "room_type", "room_attributes", "doors_connected",
+			"walkable_ratio", "room_type", "room_category", "room_attributes", "doors_connected",
 			"static_count", "chaser_count", "zoner_count", "dps_count", "mobair_count", "stage_type",
 			"created_at", "updated_at",
 		}))
@@ -364,13 +366,13 @@ func TestPostgreSQLTemplateStore_Create_JSONMarshalError(t *testing.T) {
 		},
 	}
 
-	// Mock the INSERT query to succeed (JSON marshaling happens before the query)
+	// Mock the INSERT query to succeed (JSON marshaling happens before the query, 18 args)
 	mock.ExpectQuery(`INSERT INTO room_templates`).
 		WithArgs(
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
-			pgxmock.AnyArg(), pgxmock.AnyArg(),
+			pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		).
 		WillReturnRows(pgxmock.NewRows([]string{"created_at", "updated_at"}).
 			AddRow(time.Now(), time.Now()))
@@ -397,13 +399,13 @@ func TestPostgreSQLTemplateStore_Get_JSONUnmarshalError(t *testing.T) {
 		WithArgs(pgxmock.AnyArg()).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"id", "name", "version", "width", "height", "payload", "thumbnail",
-			"walkable_ratio", "room_type", "room_attributes", "doors_connected",
+			"walkable_ratio", "room_type", "room_category", "room_attributes", "doors_connected",
 			"static_count", "chaser_count", "zoner_count", "dps_count", "mobair_count", "stage_type",
 			"created_at", "updated_at",
 		}).AddRow(
 			templateID, "test-template", 1, 10, 8,
 			[]byte(`{"invalid": json}`), // Invalid JSON
-			(*string)(nil), (*float64)(nil), (*string)(nil), []byte(nil), []byte(nil),
+			(*string)(nil), (*float64)(nil), (*string)(nil), (*string)(nil), []byte(nil), []byte(nil),
 			(*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*int)(nil), (*string)(nil),
 			now, now,
 		))

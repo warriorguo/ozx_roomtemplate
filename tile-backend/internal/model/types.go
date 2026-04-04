@@ -85,8 +85,9 @@ type TemplatePayload struct {
 	MainPath      Layer           `json:"mainPath,omitempty"` // Main path through room center
 	Doors         *DoorStates     `json:"doors,omitempty"`
 	Attributes    *RoomAttributes `json:"attributes,omitempty"` // Deprecated
-	StageType     *string         `json:"stageType,omitempty"`  // teaching, building, pressure, peak, release, boss
-	RoomType      *string         `json:"roomType,omitempty"`   // "full", "bridge", or "platform"
+	StageType    *string         `json:"stageType,omitempty"`    // none, teaching, building, pressure, peak, release, boss
+	RoomShape    *string         `json:"roomShape,omitempty"`    // "all", "bridge", or "platform"
+	RoomCategory *string         `json:"roomCategory,omitempty"` // "normal", "basement", "test", "cave"
 	Meta          TemplateMeta    `json:"meta"`
 }
 
@@ -101,6 +102,7 @@ type Template struct {
 	Thumbnail      *string         `json:"thumbnail,omitempty"` // Base64 encoded PNG
 	WalkableRatio  *float64        `json:"walkable_ratio,omitempty"`
 	RoomType       *string         `json:"room_type,omitempty"`
+	RoomCategory   *string         `json:"room_category,omitempty"`
 	RoomAttributes *RoomAttributes `json:"room_attributes,omitempty"`
 	DoorsConnected *DoorsConnected `json:"doors_connected,omitempty"`
 	StaticCount    *int            `json:"static_count,omitempty"`
@@ -123,6 +125,7 @@ type TemplateSummary struct {
 	Thumbnail      *string         `json:"thumbnail,omitempty"` // Base64 encoded PNG
 	WalkableRatio  *float64        `json:"walkable_ratio,omitempty"`
 	RoomType       *string         `json:"room_type,omitempty"`
+	RoomCategory   *string         `json:"room_category,omitempty"`
 	RoomAttributes *RoomAttributes `json:"room_attributes,omitempty"`
 	DoorsConnected *DoorsConnected `json:"doors_connected,omitempty"`
 	StaticCount    *int            `json:"static_count,omitempty"`

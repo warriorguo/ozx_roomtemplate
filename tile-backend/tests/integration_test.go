@@ -463,10 +463,15 @@ func (suite *IntegrationTestSuite) TestGenerateBridge_Success() {
 	require.True(suite.T(), ok)
 	assert.Equal(suite.T(), 15, len(firstRow), "ground should have 15 columns")
 
-	// Verify roomType is bridge
-	roomType, ok := payload["roomType"].(string)
+	// Verify roomShape is bridge
+	roomShape, ok := payload["roomShape"].(string)
 	require.True(suite.T(), ok)
-	assert.Equal(suite.T(), "bridge", roomType)
+	assert.Equal(suite.T(), "bridge", roomShape)
+
+	// Verify roomCategory defaults to normal
+	roomCategory, ok := payload["roomCategory"].(string)
+	require.True(suite.T(), ok)
+	assert.Equal(suite.T(), "normal", roomCategory)
 
 	// Verify doors
 	doors, ok := payload["doors"].(map[string]interface{})

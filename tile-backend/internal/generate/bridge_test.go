@@ -31,9 +31,11 @@ func TestGenerateBridgeRoom_ValidInput(t *testing.T) {
 				assert.Equal(t, 1, resp.Payload.Ground[0][topDoorX], "top door should be walkable")
 				assert.Equal(t, 1, resp.Payload.Ground[9][bottomDoorX], "bottom door should be walkable")
 
-				// Verify room type
-				assert.NotNil(t, resp.Payload.RoomType)
-				assert.Equal(t, "bridge", *resp.Payload.RoomType)
+				// Verify room shape and category
+				assert.NotNil(t, resp.Payload.RoomShape)
+				assert.Equal(t, "bridge", *resp.Payload.RoomShape)
+				assert.NotNil(t, resp.Payload.RoomCategory)
+				assert.Equal(t, "normal", *resp.Payload.RoomCategory)
 
 				// Verify door states
 				assert.NotNil(t, resp.Payload.Doors)
