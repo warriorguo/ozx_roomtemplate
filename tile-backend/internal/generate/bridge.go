@@ -207,6 +207,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		StageType:    stageType,
 		RoomShape:    &roomShape,
 		RoomCategory: &roomCategory,
+		OpenDoors:    model.ComputeOpenDoors(doorStates),
 		Meta: model.TemplateMeta{
 			Name:    fmt.Sprintf("bridge-%dx%d", req.Width, req.Height),
 			Version: 1,

@@ -411,6 +411,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		StageType:    stageType,
 		RoomShape:    &roomShape,
 		RoomCategory: &roomCategory,
+		OpenDoors:    model.ComputeOpenDoors(doorStates),
 		Meta: model.TemplateMeta{
 			Name:    fmt.Sprintf("full-%dx%d", req.Width, req.Height),
 			Version: 1,

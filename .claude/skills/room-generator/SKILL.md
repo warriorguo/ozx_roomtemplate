@@ -159,15 +159,16 @@ TilemapData/
 
 **Auto-naming**: If the user doesn't specify a filename, generate one from the response:
 ```
-{roomShape}_{stageType}_{seq}.json
+{roomShape}_{stageType}_{openDoors}_{seq}.json
 ```
 - `roomShape`: from payload (`"all"`, `"bridge"`, `"platform"`), or `"none"` if null
 - `stageType`: from payload (`"teaching"`, `"building"`, etc.) — always present, defaults to `"default"` when not specified
-- `seq`: two-digit sequence number, auto-incremented by scanning existing files with the same `{roomShape}_{stageType}_` prefix in the target folder
+- `openDoors`: bitmask from payload (Top=1, Right=2, Bottom=4, Left=8). e.g. top+bottom = 5, all doors = 15
+- `seq`: two-digit sequence number, auto-incremented by scanning existing files with the same `{roomShape}_{stageType}_{openDoors}_` prefix in the target folder
 
-Examples: `bridge_teaching_01.json`, `all_default_02.json`, `platform_boss_01.json`
+Examples: `bridge_teaching_5_01.json`, `all_default_15_02.json`, `platform_boss_5_01.json`
 
-**Auto-increment logic**: Use `Glob` to find `{targetDir}/{roomShape}_{stageType}_*.json`, extract the highest sequence number, and increment by 1. Start at `01` if none exist.
+**Auto-increment logic**: Use `Glob` to find `{targetDir}/{roomShape}_{stageType}_{openDoors}_*.json`, extract the highest sequence number, and increment by 1. Start at `01` if none exist.
 
 Save the **payload only** (not debugInfo) to the file — this is what the game client loads.
 Ask the user to confirm the path before writing.

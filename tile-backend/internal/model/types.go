@@ -88,6 +88,7 @@ type TemplatePayload struct {
 	StageType    *string         `json:"stageType,omitempty"`    // none, teaching, building, pressure, peak, release, boss
 	RoomShape    *string         `json:"roomShape,omitempty"`    // "all", "bridge", or "platform"
 	RoomCategory *string         `json:"roomCategory,omitempty"` // "normal", "basement", "test", "cave"
+	OpenDoors    *int            `json:"openDoors,omitempty"`    // Bitmask: Top=1, Right=2, Bottom=4, Left=8
 	Meta          TemplateMeta    `json:"meta"`
 }
 
@@ -206,6 +207,15 @@ type ValidationResult struct {
 	Errors []ValidationError `json:"errors,omitempty"`
 }
 
+// ComputeOpenDoors returns the openDoors bitmask from DoorStates (Top=1, Right=2, Bottom=4, Left=8)
+func ComputeOpenDoors(doors *DoorStates) *int {
+	if doors == nil {
+		return nil
+	}
+	bitmask := doors.Top*1 + doors.Right*2 + doors.Bottom*4 + doors.Left*8
+	return &bitmask
+}
+
 // Custom JSON marshaling for JSONB storage
 func (tp *TemplatePayload) MarshalJSON() ([]byte, error) {
 	type Alias TemplatePayload
@@ -220,8 +230,29 @@ func (tp *TemplatePayload) UnmarshalJSON(data []byte) error {
 	type Alias TemplatePayload
 	aux := &struct {
 		*Alias
+		// Backward compat: old payloads stored "roomType" instead of "roomShape"
+		RoomType *string `json:"roomType,omitempty"`
 	}{
 		Alias: (*Alias)(tp),
 	}
-	return json.Unmarshal(data, aux)
+	if err := json.Unmarshal(data, aux); err != nil {
+		return err
+	}
+
+	// Migrate roomType → roomShape for old payloads
+	if tp.RoomShape == nil && aux.RoomType != nil {
+		shape := *aux.RoomType
+		if shape == "full" {
+			shape = "all"
+		}
+		tp.RoomShape = &shape
+	}
+
+	// Compute openDoors from doors if not already set
+	if tp.OpenDoors == nil && tp.Doors != nil {
+		bitmask := tp.Doors.Top*1 + tp.Doors.Right*2 + tp.Doors.Bottom*4 + tp.Doors.Left*8
+		tp.OpenDoors = &bitmask
+	}
+
+	return nil
 }

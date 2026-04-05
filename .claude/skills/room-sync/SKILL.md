@@ -68,6 +68,7 @@ Extract the `payload` object from the response. This contains:
 - `roomShape`: `"all"`, `"bridge"`, `"platform"`, or null
 - `roomCategory`: `"normal"`, `"basement"`, `"test"`, `"cave"`, or null
 - `stageType`: `"default"`, `"teaching"`, `"building"`, etc., or null
+- `openDoors`: bitmask integer (Top=1, Right=2, Bottom=4, Left=8)
 - All layer data (ground, static, chaser, etc.)
 
 ### Step 4: Save with naming convention
@@ -78,13 +79,14 @@ For each downloaded payload:
    - Use `roomCategory` from the payload, default to `"normal"` if null/empty
    - Create the subfolder if it doesn't exist
 
-2. **Determine filename**: `{roomShape}_{stageType}_{seq}.json`
+2. **Determine filename**: `{roomShape}_{stageType}_{openDoors}_{seq}.json`
    - `roomShape`: from payload, or `"none"` if null
    - `stageType`: from payload, or `"default"` if null/empty
-   - `seq`: two-digit number, auto-incremented per `{roomShape}_{stageType}_` prefix
+   - `openDoors`: from payload bitmask (e.g. `15` for all doors, `5` for top+bottom)
+   - `seq`: two-digit number, auto-incremented per `{roomShape}_{stageType}_{openDoors}_` prefix
 
 3. **Auto-increment logic**:
-   - Use Glob to find `{targetDir}/{roomCategory}/{roomShape}_{stageType}_*.json`
+   - Use Glob to find `{targetDir}/{roomCategory}/{roomShape}_{stageType}_{openDoors}_*.json`
    - Extract the highest existing sequence number
    - Next file gets highest + 1 (or `01` if none exist)
    - Track sequences in memory during the sync to avoid re-scanning
@@ -154,20 +156,21 @@ for tid in all_ids:
         cat = payload.get('roomCategory') or 'normal'
         shape = payload.get('roomShape') or 'none'
         stage = payload.get('stageType') or 'default'
+        doors = payload.get('openDoors', 0)
 
         folder = os.path.join(target, cat)
         os.makedirs(folder, exist_ok=True)
 
         # Auto-increment sequence
-        key = (cat, shape, stage)
+        key = (cat, shape, stage, doors)
         if key not in seq_counters:
-            existing = glob.glob(os.path.join(folder, f'{shape}_{stage}_*.json'))
+            existing = glob.glob(os.path.join(folder, f'{shape}_{stage}_{doors}_*.json'))
             nums = [int(re.search(r'_(\d+)\.json$', f).group(1)) for f in existing if re.search(r'_(\d+)\.json$', f)]
             seq_counters[key] = max(nums) + 1 if nums else 1
 
         seq = seq_counters[key]
         seq_counters[key] = seq + 1
-        filename = f'{shape}_{stage}_{seq:02d}.json'
+        filename = f'{shape}_{stage}_{doors}_{seq:02d}.json'
         filepath = os.path.join(folder, filename)
 
         if not overwrite and os.path.exists(filepath):
