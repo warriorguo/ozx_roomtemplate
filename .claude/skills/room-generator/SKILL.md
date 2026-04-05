@@ -159,11 +159,15 @@ TilemapData/
 
 **Auto-naming**: If the user doesn't specify a filename, generate one from the response:
 ```
-{roomShape}_{stageType}_{openDoorsBitmask}.json
+{roomShape}_{stageType}_{seq}.json
 ```
-Example: `bridge_teaching_5.json` (bridge shape, teaching stage, top+bottom doors = 1+4 = 5)
+- `roomShape`: from payload (`"all"`, `"bridge"`, `"platform"`), or `"none"` if null
+- `stageType`: from payload (`"teaching"`, `"building"`, etc.), or `"default"` if null/empty
+- `seq`: two-digit sequence number, auto-incremented by scanning existing files with the same `{roomShape}_{stageType}_` prefix in the target folder
 
-**Door bitmask**: Top=1, Right=2, Bottom=4, Left=8. Sum the enabled doors.
+Examples: `bridge_teaching_01.json`, `all_default_02.json`, `platform_boss_01.json`
+
+**Auto-increment logic**: Use `Glob` to find `{targetDir}/{roomShape}_{stageType}_*.json`, extract the highest sequence number, and increment by 1. Start at `01` if none exist.
 
 Save the **payload only** (not debugInfo) to the file — this is what the game client loads.
 Ask the user to confirm the path before writing.
