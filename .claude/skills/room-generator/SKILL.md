@@ -18,7 +18,7 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `width` | int | `20` | Room width in tiles (4-200) |
 | `height` | int | `12` | Room height in tiles (4-200) |
 | `doors` | string[] | `["top","right","bottom","left"]` | Doors to connect. At least 2 required. Options: `top`, `right`, `bottom`, `left` |
-| `stageType` | string | `""` | Stage type: `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty for none. Controls enemy count ranges. |
+| `stageType` | string | `""` | Stage type: `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty (defaults to `"default"` in output). Controls enemy count ranges. |
 | `roomCategory` | string | `"normal"` | Room category: `"normal"`, `"basement"`, `"test"`, `"cave"`. Passed through to output. |
 | `softEdgeCount` | int | `3` | Number of soft edge strips to place in void notches |
 | `railEnabled` | bool | `true` | Whether to generate a rail loop on the ground |
@@ -162,7 +162,7 @@ TilemapData/
 {roomShape}_{stageType}_{seq}.json
 ```
 - `roomShape`: from payload (`"all"`, `"bridge"`, `"platform"`), or `"none"` if null
-- `stageType`: from payload (`"teaching"`, `"building"`, etc.), or `"default"` if null/empty
+- `stageType`: from payload (`"teaching"`, `"building"`, etc.) — always present, defaults to `"default"` when not specified
 - `seq`: two-digit sequence number, auto-incremented by scanning existing files with the same `{roomShape}_{stageType}_` prefix in the target folder
 
 Examples: `bridge_teaching_01.json`, `all_default_02.json`, `platform_boss_01.json`
@@ -199,7 +199,7 @@ The API returns this JSON structure:
     },
     "roomShape": "all"|"bridge"|"platform",
     "roomCategory": "normal"|"basement"|"test"|"cave",
-    "stageType": "teaching"|"building"|"pressure"|"peak"|"release"|"boss"|null,
+    "stageType": "default"|"teaching"|"building"|"pressure"|"peak"|"release"|"boss",
     "meta": {
       "name": "full-20x12",
       "version": 1,

@@ -391,10 +391,11 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	if roomCategory == "" {
 		roomCategory = "normal"
 	}
-	var stageType *string
-	if req.StageType != "" {
-		stageType = &req.StageType
+	stageStr := req.StageType
+	if stageStr == "" {
+		stageStr = "default"
 	}
+	stageType := &stageStr
 	payload := model.TemplatePayload{
 		Ground:       ground,
 		SoftEdge:     softEdgeLayer,
