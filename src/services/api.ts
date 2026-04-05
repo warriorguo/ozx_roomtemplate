@@ -104,6 +104,7 @@ export interface TemplateSummary {
   room_type?: 'full' | 'bridge' | 'platform';
   stage_type?: string;
   doors_connected?: DoorsConnected;
+  open_doors?: number; // Bitmask: Top=1, Right=2, Bottom=4, Left=8
   static_count?: number;
   chaser_count?: number;
   zoner_count?: number;

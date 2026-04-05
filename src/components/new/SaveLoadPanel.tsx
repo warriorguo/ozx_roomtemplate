@@ -220,14 +220,22 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
   };
 
   const renderDoorInfo = (item: TemplateSummary) => {
+    // Use open_doors bitmask (Top=1, Right=2, Bottom=4, Left=8) if available,
+    // fall back to doors_connected for backward compat
+    const bitmask = item.open_doors;
     const doors = item.doors_connected;
-    if (!doors) return null;
+    if (bitmask == null && !doors) return null;
 
-    const doorIcons = [
-      { key: 'top', label: 'T', connected: doors.top },
-      { key: 'right', label: 'R', connected: doors.right },
-      { key: 'bottom', label: 'B', connected: doors.bottom },
-      { key: 'left', label: 'L', connected: doors.left },
+    const doorIcons = bitmask != null ? [
+      { key: 'top', label: 'T', connected: (bitmask & 1) !== 0 },
+      { key: 'right', label: 'R', connected: (bitmask & 2) !== 0 },
+      { key: 'bottom', label: 'B', connected: (bitmask & 4) !== 0 },
+      { key: 'left', label: 'L', connected: (bitmask & 8) !== 0 },
+    ] : [
+      { key: 'top', label: 'T', connected: doors!.top },
+      { key: 'right', label: 'R', connected: doors!.right },
+      { key: 'bottom', label: 'B', connected: doors!.bottom },
+      { key: 'left', label: 'L', connected: doors!.left },
     ];
 
     return (

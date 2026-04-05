@@ -29,6 +29,9 @@ func ComputeTemplateStats(template *Template) {
 		template.RoomAttributes = template.Payload.Attributes
 	}
 
+	// Compute open doors bitmask
+	template.OpenDoors = ComputeOpenDoors(template.Payload.Doors)
+
 	// Calculate door connectivity
 	if template.Payload.Doors != nil {
 		doorsConnected := CalculateDoorsConnected(

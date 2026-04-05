@@ -106,6 +106,7 @@ type Template struct {
 	RoomCategory   *string         `json:"room_category,omitempty"`
 	RoomAttributes *RoomAttributes `json:"room_attributes,omitempty"`
 	DoorsConnected *DoorsConnected `json:"doors_connected,omitempty"`
+	OpenDoors      *int            `json:"open_doors,omitempty"` // Bitmask: Top=1, Right=2, Bottom=4, Left=8
 	StaticCount    *int            `json:"static_count,omitempty"`
 	ChaserCount    *int            `json:"chaser_count,omitempty"`
 	ZonerCount     *int            `json:"zoner_count,omitempty"`
@@ -129,6 +130,7 @@ type TemplateSummary struct {
 	RoomCategory   *string         `json:"room_category,omitempty"`
 	RoomAttributes *RoomAttributes `json:"room_attributes,omitempty"`
 	DoorsConnected *DoorsConnected `json:"doors_connected,omitempty"`
+	OpenDoors      *int            `json:"open_doors,omitempty"` // Bitmask: Top=1, Right=2, Bottom=4, Left=8
 	StaticCount    *int            `json:"static_count,omitempty"`
 	ChaserCount    *int            `json:"chaser_count,omitempty"`
 	ZonerCount     *int            `json:"zoner_count,omitempty"`

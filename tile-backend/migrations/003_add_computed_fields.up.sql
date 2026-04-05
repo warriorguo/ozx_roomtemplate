@@ -5,6 +5,7 @@ ADD COLUMN IF NOT EXISTS room_type text,
 ADD COLUMN IF NOT EXISTS room_category text,
 ADD COLUMN IF NOT EXISTS room_attributes jsonb,
 ADD COLUMN IF NOT EXISTS doors_connected jsonb,
+ADD COLUMN IF NOT EXISTS open_doors int,
 ADD COLUMN IF NOT EXISTS static_count int,
 ADD COLUMN IF NOT EXISTS chaser_count int,
 ADD COLUMN IF NOT EXISTS zoner_count int,
@@ -62,6 +63,7 @@ COMMENT ON COLUMN room_templates.room_type IS 'Room shape: full, bridge, or plat
 COMMENT ON COLUMN room_templates.room_category IS 'Room category: normal, basement, test, cave';
 COMMENT ON COLUMN room_templates.room_attributes IS 'Room attributes: {"boss": bool, "elite": bool, "mob": bool, "treasure": bool, "teleport": bool, "story": bool}';
 COMMENT ON COLUMN room_templates.doors_connected IS 'Door connectivity: {"top": bool, "right": bool, "bottom": bool, "left": bool}';
+COMMENT ON COLUMN room_templates.open_doors IS 'Open doors bitmask: Top=1, Right=2, Bottom=4, Left=8';
 COMMENT ON COLUMN room_templates.static_count IS 'Number of static tiles (static layer cells with value 1)';
 COMMENT ON COLUMN room_templates.chaser_count IS 'Number of chaser tiles (chaser layer cells with value 1)';
 COMMENT ON COLUMN room_templates.zoner_count IS 'Number of zoner tiles (zoner layer cells with value 1)';
