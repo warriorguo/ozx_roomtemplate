@@ -145,7 +145,28 @@ Extract and display key debug info from the response:
 
 ### Step 5: Save the result
 
-Ask the user for the output path if not specified. Save the **full JSON response** (payload + debugInfo) to the file. Use `python3 -c` or `Write` tool to save.
+If the user provides an `outputPath`, save there directly. Otherwise, follow the subfolder convention:
+
+**Subfolder convention** (for OZX Unity project):
+When saving to `Assets/StreamingAssets/TilemapData/`, organize by `roomCategory`:
+```
+TilemapData/
+├── normal/      ← roomCategory == "normal" (default)
+├── basement/    ← roomCategory == "basement"
+├── test/        ← roomCategory == "test"
+└── cave/        ← roomCategory == "cave"
+```
+
+**Auto-naming**: If the user doesn't specify a filename, generate one from the response:
+```
+{roomShape}_{stageType}_{openDoorsBitmask}.json
+```
+Example: `bridge_teaching_5.json` (bridge shape, teaching stage, top+bottom doors = 1+4 = 5)
+
+**Door bitmask**: Top=1, Right=2, Bottom=4, Left=8. Sum the enabled doors.
+
+Save the **payload only** (not debugInfo) to the file — this is what the game client loads.
+Ask the user to confirm the path before writing.
 
 Confirm: "Saved to {outputPath}"
 
