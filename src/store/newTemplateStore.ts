@@ -877,8 +877,10 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       // Convert to frontend template format
       const frontendTemplate = backendToFrontendTemplate(backendTemplate);
       
-      // Recalculate doors and tile properties based on current ground layer
-      frontendTemplate.doors = calculateDoorStates(frontendTemplate);
+      // Only recalculate doors if the payload didn't include them
+      if (!payload.doors) {
+        frontendTemplate.doors = calculateDoorStates(frontendTemplate);
+      }
       frontendTemplate.tileProperties = calculateAllTileProperties(frontendTemplate);
       
       const validation = validateTemplate(frontendTemplate);
