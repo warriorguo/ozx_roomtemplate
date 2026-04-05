@@ -331,6 +331,26 @@ make test-integration    # Requires database setup
 - No automated tests currently configured
 - Manual testing through UI during development
 
+## Skill Sync Rule
+
+**IMPORTANT**: When you modify any of the following backend files, you MUST also update the corresponding Claude Code skills in `.claude/skills/` to stay in sync:
+
+| Backend files (trigger) | Skills to update |
+|------------------------|-----------------|
+| `tile-backend/internal/model/types.go` (TemplatePayload, request/response structs) | `room-generator`, `room-test` |
+| `tile-backend/internal/generate/types.go`, `platform.go`, `fullroom.go`, `bridge.go` (request types, generation output) | `room-generator`, `room-test` |
+| `tile-backend/internal/generate/stage_rules.go` (enemy count ranges, stage constraints) | `room-test` (references/validation.md) |
+| `tile-backend/internal/http/router.go`, `handlers.go` (API endpoints) | `room-generator`, `room-test` |
+
+**What to update in skills:**
+- Field names in request/response examples (e.g. JSON keys, parameter tables)
+- Allowed values for enum-like fields (roomCategory, roomShape, stageType)
+- Layer names in ASCII visualization and validation scripts
+- Enemy count ranges in stage rules tables
+- API endpoint URLs
+
+The skills are symlinked from `~/.claude/skills/` → `.claude/skills/` in this project, so edits here propagate to the machine-level skills automatically.
+
 ## Additional Documentation
 
 - `README.md` - Original 3-layer system (deprecated in favor of 5-layer)

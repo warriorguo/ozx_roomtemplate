@@ -5,7 +5,7 @@ description: Generate game room templates (full/bridge/platform) via backend API
 
 # Room Generator
 
-Generate tile-based game room templates by calling the backend generation API. Produces a multi-layer room with ground, softEdge, bridge, rail, static, turret, mobGround, and mobAir layers.
+Generate tile-based game room templates by calling the backend generation API. Produces a multi-layer room with ground, softEdge, bridge, rail, static, chaser, zoner, dps, and mobAir layers.
 
 ## Parameters
 
@@ -13,16 +13,19 @@ All parameters have sensible defaults. Show them to the user and let them modify
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `endpoint` | string | `http://localhost:8090/api/v1` | Backend API base URL |
+| `endpoint` | string | `https://ozx-roomtpl.local.playquota.com/api/v1` | Backend API base URL |
 | `roomType` | string | `"full"` | Room type: `"full"` (ground almost fully filled), `"bridge"` (narrow corridor paths), or `"platform"` (large platform blocks) |
 | `width` | int | `20` | Room width in tiles (4-200) |
 | `height` | int | `12` | Room height in tiles (4-200) |
 | `doors` | string[] | `["top","right","bottom","left"]` | Doors to connect. At least 2 required. Options: `top`, `right`, `bottom`, `left` |
+| `stageType` | string | `""` | Stage type: `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty for none. Controls enemy count ranges. |
+| `roomCategory` | string | `"normal"` | Room category: `"normal"`, `"basement"`, `"test"`, `"cave"`. Passed through to output. |
 | `softEdgeCount` | int | `3` | Number of soft edge strips to place in void notches |
 | `railEnabled` | bool | `true` | Whether to generate a rail loop on the ground |
 | `staticCount` | int | `8` | Number of 2x2 static obstacle blocks |
-| `turretCount` | int | `4` | Number of 1x1 turret placements |
-| `mobGroundCount` | int | `8` | Number of ground mob spawn points |
+| `chaserCount` | int | `4` | Number of chaser placements (melee enemies near main path) |
+| `zonerCount` | int | `2` | Number of zoner placements (area control enemies) |
+| `dpsCount` | int | `4` | Number of DPS placements (ranged damage enemies) |
 | `mobAirCount` | int | `10` | Number of air mob spawn points |
 | `outputPath` | string | *(ask user)* | File path to save the full JSON response. If not provided, ask the user where to save it. |
 
@@ -34,16 +37,19 @@ Display the current parameter values in a table. Ask the user if they want to ch
 
 ```
 Room Generation Parameters:
-  endpoint:       http://localhost:8090/api/v1
+  endpoint:       https://ozx-roomtpl.local.playquota.com/api/v1
   roomType:       full
   width:          20
   height:         12
   doors:          [top, right, bottom, left]
+  stageType:      (none)
+  roomCategory:   normal
   softEdgeCount:  3
   railEnabled:    true
   staticCount:    8
-  turretCount:    4
-  mobGroundCount: 8
+  chaserCount:    4
+  zonerCount:     2
+  dpsCount:       4
   mobAirCount:    10
   outputPath:     (not set - will ask after generation)
 ```
@@ -63,11 +69,14 @@ Request body:
   "width": <width>,
   "height": <height>,
   "doors": <doors>,
+  "stageType": <stageType>,
+  "roomCategory": <roomCategory>,
   "softEdgeCount": <softEdgeCount>,
   "railEnabled": <railEnabled>,
   "staticCount": <staticCount>,
-  "turretCount": <turretCount>,
-  "mobGroundCount": <mobGroundCount>,
+  "chaserCount": <chaserCount>,
+  "zonerCount": <zonerCount>,
+  "dpsCount": <dpsCount>,
   "mobAirCount": <mobAirCount>
 }
 ```
@@ -82,13 +91,14 @@ Render a composite view of the room using these symbols:
 |--------|-------|--------------------------|
 | `R` | rail | 1 |
 | `S` | static | 2 |
-| `T` | turret | 3 |
-| `M` | mobGround | 4 |
-| `A` | mobAir | 5 |
-| `E` | softEdge | 6 |
-| `B` | bridge | 7 |
-| `█` | ground (walkable) | 8 |
-| `·` | void | 9 |
+| `C` | chaser | 3 |
+| `Z` | zoner | 4 |
+| `D` | dps | 5 |
+| `A` | mobAir | 6 |
+| `E` | softEdge | 7 |
+| `B` | bridge | 8 |
+| `█` | ground (walkable) | 9 |
+| `·` | void | 10 |
 
 Use this python snippet to render:
 ```python
@@ -96,15 +106,19 @@ import json, sys
 data = json.load(sys.stdin)
 p = data['payload']
 h, w = len(p['ground']), len(p['ground'][0])
-print(f"Room: {w}x{h} ({data['payload'].get('roomType','unknown')})")
+shape = p.get('roomShape', 'unknown')
+category = p.get('roomCategory', 'unknown')
+stage = p.get('stageType', 'none')
+print(f"Room: {w}x{h} shape={shape} category={category} stage={stage}")
 print()
 for y in range(h):
     line = ''
     for x in range(w):
         if p.get('rail') and p['rail'][y][x]: line += 'R'
         elif p['static'][y][x]: line += 'S'
-        elif p['turret'][y][x]: line += 'T'
-        elif p['mobGround'][y][x]: line += 'M'
+        elif p.get('chaser') and p['chaser'][y][x]: line += 'C'
+        elif p.get('zoner') and p['zoner'][y][x]: line += 'Z'
+        elif p.get('dps') and p['dps'][y][x]: line += 'D'
         elif p['mobAir'][y][x]: line += 'A'
         elif p.get('softEdge') and p['softEdge'][y][x]: line += 'E'
         elif p.get('bridge') and p['bridge'][y][x]: line += 'B'
@@ -124,8 +138,9 @@ Extract and display key debug info from the response:
 **For all room types:**
 - Rail: platforms found, loops placed, perimeter
 - Static: target vs placed count
-- Turret: target vs placed count
-- MobGround: target vs placed count
+- Chaser: target vs placed count
+- Zoner: target vs placed count
+- DPS: target vs placed count
 - MobAir: target vs placed count
 
 ### Step 5: Save the result
@@ -146,16 +161,20 @@ The API returns this JSON structure:
     "bridge": [[0,1,...], ...],      // Connects floating islands
     "rail": [[0,1,...], ...],        // Closed loop track on ground
     "static": [[0,1,...], ...],      // 2x2 obstacle blocks
-    "turret": [[0,1,...], ...],      // 1x1 turret positions
-    "mobGround": [[0,1,...], ...],   // Ground mob spawn points
+    "chaser": [[0,1,...], ...],      // Melee enemy positions (near main path)
+    "zoner": [[0,1,...], ...],       // Area control enemy positions
+    "dps": [[0,1,...], ...],         // Ranged damage enemy positions
     "mobAir": [[0,1,...], ...],      // Air mob spawn points (no ground required)
+    "mainPath": [[0,1,...], ...],    // Main path through room center
     "doors": {
       "top": 0|1,
       "right": 0|1,
       "bottom": 0|1,
       "left": 0|1
     },
-    "roomType": "full"|"bridge"|"platform",
+    "roomShape": "all"|"bridge"|"platform",
+    "roomCategory": "normal"|"basement"|"test"|"cave",
+    "stageType": "teaching"|"building"|"pressure"|"peak"|"release"|"boss"|null,
     "meta": {
       "name": "full-20x12",
       "version": 1,
@@ -173,8 +192,9 @@ The API returns this JSON structure:
     "softEdge": { "skipped": false, "targetCount": 3, "placedCount": 3, ... },
     "bridgeLayer": { ... },
     "static": { "skipped": false, "targetCount": 8, "placedCount": 8, ... },
-    "turret": { "skipped": false, "targetCount": 4, "placedCount": 4, ... },
-    "mobGround": { "skipped": false, "targetCount": 8, "placedCount": 7, ... },
+    "chaser": { "skipped": false, "targetCount": 4, "placedCount": 4, ... },
+    "zoner": { "skipped": false, "targetCount": 2, "placedCount": 2, ... },
+    "dps": { "skipped": false, "targetCount": 4, "placedCount": 4, ... },
     "mobAir": { "skipped": false, "targetCount": 10, "placedCount": 10, ... }
   }
 }
@@ -187,12 +207,24 @@ The API returns this JSON structure:
 - **bridge**: 2x2 blocks in void connecting floating islands. Cannot overlap softEdge.
 - **rail**: Closed loop on ground/bridge. Requires solid area >= 6x6. Cannot overlap other layers.
 - **static**: 2x2 blocks on ground. Min 5x5 forbidden zone around doors. Blocks cannot touch each other. Must preserve door connectivity.
-- **turret**: 1x1 on ground. Min 4 cells from doors. Min 2 cells between turrets.
-- **mobGround**: 2x2 (preferred) or 1x1 on ground. Min 4 cells from doors.
-- **mobAir**: 1x1 anywhere. Min 4 cells from doors. Min 2 cells from room edges.
+- **chaser**: Melee enemies. 0-3 cells from main path, prefer low squishy score. Cannot overlap static/bridge/rail/zoner.
+- **zoner**: Area control enemies. 0-5 cells from main path, prefer high squishy score. Cannot overlap static/bridge/rail/chaser.
+- **dps**: Ranged damage enemies. 0-4 cells from main path, prefers proximity to chaser/static. Cannot overlap bridge/rail/zoner.
+- **mobAir**: Air mobs. No ground requirement. Prefers zoner/chaser dense areas, spacing >= 1. Cannot overlap other entity layers.
+
+### Stage Type Rules
+
+| Stage | DPS | Chaser | Zoner | MobAir | Notes |
+|-------|-----|--------|-------|--------|-------|
+| teaching | 2-3 | 0 | 0 | 0 | DPS only |
+| building | 2-3 | 2-3 | 0 | 0 | DPS + Chaser |
+| pressure | 4-6 | 6-8 | 1 | 2-4 | Not bridge |
+| peak | 6-12 | 6-8 | 2-3 | 2-4 | Full only |
+| release | 0-2 | 0-2 | 0-1 | 0-2 | Minimal |
+| boss | 0 | 0 | 0 | 0 | 6x6 center clear, max 2 doors |
 
 ## Error Handling
 
 If the API returns an error:
 - Show the HTTP status and error message
-- Common issues: backend not running (connection refused), room too small for requested features, fewer than 2 doors
+- Common issues: backend not running (connection refused), room too small for requested features, fewer than 2 doors, invalid roomCategory
