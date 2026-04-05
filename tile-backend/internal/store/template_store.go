@@ -387,6 +387,21 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		return nil, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
+	// Backfill payload fields from DB columns for old templates that lack them
+	if template.Payload.RoomShape == nil && template.RoomType != nil {
+		shape := *template.RoomType
+		if shape == "full" {
+			shape = "all"
+		}
+		template.Payload.RoomShape = &shape
+	}
+	if template.Payload.RoomCategory == nil && template.RoomCategory != nil {
+		template.Payload.RoomCategory = template.RoomCategory
+	}
+	if template.Payload.StageType == nil && template.StageType != nil {
+		template.Payload.StageType = template.StageType
+	}
+
 	// Deserialize room attributes
 	if roomAttributesJSON != nil {
 		attrs, err := model.DeserializeRoomAttributes(roomAttributesJSON)
