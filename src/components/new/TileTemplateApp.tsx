@@ -1008,6 +1008,7 @@ export const TileTemplateApp: React.FC = () => {
                       cursor: 'pointer',
                     }}
                   >
+                    <option value="start">Start (起始期)</option>
                     <option value="teaching">Teaching (引导期)</option>
                     <option value="building">Building (建立期)</option>
                     <option value="pressure">Pressure (压力期)</option>
