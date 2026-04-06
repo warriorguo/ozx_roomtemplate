@@ -42,6 +42,7 @@ type DoorStates struct {
 type StageType = string
 
 const (
+	StageStart    StageType = "start"
 	StageTeaching StageType = "teaching"
 	StageBuilding StageType = "building"
 	StagePressure StageType = "pressure"
@@ -85,7 +86,7 @@ type TemplatePayload struct {
 	MainPath      Layer           `json:"mainPath,omitempty"` // Main path through room center
 	Doors         *DoorStates     `json:"doors,omitempty"`
 	Attributes    *RoomAttributes `json:"attributes,omitempty"` // Deprecated
-	StageType    *string         `json:"stageType,omitempty"`    // none, teaching, building, pressure, peak, release, boss
+	StageType    *string         `json:"stageType,omitempty"`    // none, start, teaching, building, pressure, peak, release, boss
 	RoomShape    *string         `json:"roomShape,omitempty"`    // "all", "bridge", or "platform"
 	RoomCategory *string         `json:"roomCategory,omitempty"` // "normal", "basement", "test", "cave"
 	OpenDoors    *int            `json:"openDoors,omitempty"`    // Bitmask: Top=1, Right=2, Bottom=4, Left=8

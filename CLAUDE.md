@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a **room template editor** for game development, consisting of a React TypeScript frontend and a Go backend service. The editor creates tile-based room templates with a multi-layer system and rule-based validation for game room layouts.
 
 **Layer System**: ground, softEdge, bridge, rail, mainPath, static, chaser, zoner, dps, mobAir
-**Stage Types**: teaching, building, pressure, peak, release, boss
+**Stage Types**: start, teaching, building, pressure, peak, release, boss
 
 ## Common Commands
 
@@ -100,7 +100,7 @@ TEST_INTEGRATION=1 go test -v ./tests/...
 
 **Stage System**:
 - Stage type determines enemy counts and room constraints
-- teaching → building → pressure → peak → release → boss
+- start → teaching → building → pressure → peak → release → boss
 
 **Validation**:
 - Real-time validation in `src/utils/newTemplateUtils.ts`

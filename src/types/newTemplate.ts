@@ -9,7 +9,7 @@ export interface DoorStates {
   left: 0 | 1;
 }
 
-export type StageType = 'teaching' | 'building' | 'pressure' | 'peak' | 'release' | 'boss';
+export type StageType = 'start' | 'teaching' | 'building' | 'pressure' | 'peak' | 'release' | 'boss';
 
 export type RoomType = 'full' | 'bridge' | 'platform';
 

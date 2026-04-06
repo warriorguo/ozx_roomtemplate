@@ -124,6 +124,14 @@ type StageConfigJSON struct {
 }
 
 var stageConfigs = map[string]StageConfig{
+	model.StageStart: {
+		StageType:     model.StageStart,
+		DPSRange:      [2]int{0, 0},
+		ChaserRange:   [2]int{0, 0},
+		ZonerRange:    [2]int{0, 0},
+		MobAirRange:   [2]int{0, 0},
+		PlacementRule: "start",
+	},
 	model.StageTeaching: {
 		StageType:     model.StageTeaching,
 		DPSRange:      [2]int{2, 3},
@@ -336,6 +344,9 @@ func buildPlacementHints(cfg *StageConfig, chaserCount, zonerCount, dpsCount, mo
 
 	case "boss":
 		// No enemies, boss arena only
+
+	case "start":
+		// No enemies, starting room
 	}
 
 	return hints

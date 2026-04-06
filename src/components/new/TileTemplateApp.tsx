@@ -102,6 +102,7 @@ export const TileTemplateApp: React.FC = () => {
 
   // Stage config: recommended counts per stage type
   const stageDefaults: Record<string, { chaser: [number, number]; zoner: [number, number]; dps: [number, number]; mobAir: [number, number] }> = {
+    start:    { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
     teaching: { chaser: [0, 0], zoner: [0, 0], dps: [2, 3], mobAir: [0, 0] },
     building: { chaser: [2, 3], zoner: [0, 0], dps: [2, 3], mobAir: [0, 0] },
     pressure: { chaser: [6, 8], zoner: [1, 1], dps: [4, 6], mobAir: [2, 4] },
