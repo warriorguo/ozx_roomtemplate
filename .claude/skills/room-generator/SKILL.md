@@ -18,7 +18,7 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `width` | int | `20` | Room width in tiles (4-200) |
 | `height` | int | `12` | Room height in tiles (4-200) |
 | `doors` | string[] | `["top","right","bottom","left"]` | Doors to connect. At least 2 required. Options: `top`, `right`, `bottom`, `left` |
-| `stageType` | string | `""` | Stage type: `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty (defaults to `"default"` in output). Controls enemy count ranges. |
+| `stageType` | string | `""` | Stage type: `"start"`, `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty (defaults to `"default"` in output). Controls enemy count ranges. |
 | `roomCategory` | string | `"normal"` | Room category: `"normal"`, `"basement"`, `"test"`, `"cave"`. Passed through to output. |
 | `softEdgeCount` | int | `3` | Number of soft edge strips to place in void notches |
 | `railEnabled` | bool | `true` | Whether to generate a rail loop on the ground |
@@ -170,6 +170,27 @@ Examples: `bridge_teaching_5_01.json`, `all_default_15_02.json`, `platform_boss_
 
 **Auto-increment logic**: Use `Glob` to find `{targetDir}/{roomShape}_{stageType}_{openDoors}_*.json`, extract the highest sequence number, and increment by 1. Start at `01` if none exist.
 
+**Before saving**, remap door directions for OZX Unity coordinate convention (transpose: top↔left, bottom↔right):
+
+```python
+DOOR_REMAP = {'top': 'left', 'right': 'bottom', 'bottom': 'right', 'left': 'top'}
+BITMASK_REMAP = {1: 8, 2: 4, 4: 2, 8: 1}  # Top=1→Left=8, Right=2→Bottom=4, etc.
+
+# Remap doors object
+if 'doors' in payload:
+    old = payload['doors']
+    payload['doors'] = {DOOR_REMAP[k]: v for k, v in old.items() if k in DOOR_REMAP}
+
+# Remap openDoors bitmask
+if 'openDoors' in payload:
+    old_mask = payload['openDoors']
+    new_mask = 0
+    for bit, remapped_bit in BITMASK_REMAP.items():
+        if old_mask & bit:
+            new_mask |= remapped_bit
+    payload['openDoors'] = new_mask
+```
+
 Save the **payload only** (not debugInfo) to the file — this is what the game client loads.
 Ask the user to confirm the path before writing.
 
@@ -200,7 +221,7 @@ The API returns this JSON structure:
     },
     "roomShape": "all"|"bridge"|"platform",
     "roomCategory": "normal"|"basement"|"test"|"cave",
-    "stageType": "default"|"teaching"|"building"|"pressure"|"peak"|"release"|"boss",
+    "stageType": "default"|"start"|"teaching"|"building"|"pressure"|"peak"|"release"|"boss",
     "meta": {
       "name": "full-20x12",
       "version": 1,
@@ -242,6 +263,7 @@ The API returns this JSON structure:
 
 | Stage | DPS | Chaser | Zoner | MobAir | Notes |
 |-------|-----|--------|-------|--------|-------|
+| start | 0 | 0 | 0 | 0 | Right door only |
 | teaching | 2-3 | 0 | 0 | 0 | DPS only |
 | building | 2-3 | 2-3 | 0 | 0 | DPS + Chaser |
 | pressure | 4-6 | 6-8 | 1 | 2-4 | Not bridge |

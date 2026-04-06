@@ -32,6 +32,24 @@ Bulk-download all tilemaps from the backend API and save locally.
 import json, subprocess, os, glob, re
 from collections import Counter
 
+# --- Door remapping for OZX Unity (transpose: top↔left, bottom↔right) ---
+DOOR_REMAP = {'top': 'left', 'right': 'bottom', 'bottom': 'right', 'left': 'top'}
+BITMASK_REMAP = {1: 8, 2: 4, 4: 2, 8: 1}  # Top=1→Left=8, Right=2→Bottom=4, etc.
+
+def remap_doors(payload):
+    """Remap door directions for OZX Unity coordinate convention."""
+    if 'doors' in payload and payload['doors']:
+        old = payload['doors']
+        payload['doors'] = {DOOR_REMAP[k]: v for k, v in old.items() if k in DOOR_REMAP}
+    if 'openDoors' in payload and payload['openDoors'] is not None:
+        old_mask = payload['openDoors']
+        new_mask = 0
+        for bit, remapped_bit in BITMASK_REMAP.items():
+            if old_mask & bit:
+                new_mask |= remapped_bit
+        payload['openDoors'] = new_mask
+    return payload
+
 ENDPOINT = '{endpoint}'
 TARGET = '{targetDir}'
 OVERWRITE = {overwrite}  # True or False
@@ -67,6 +85,8 @@ for tid, tname in all_ids:
             ['curl', '-sL', f'{ENDPOINT}/templates/{tid}'])
         tpl = json.loads(out)
         payload = tpl['payload']
+
+        remap_doors(payload)
 
         cat = payload.get('roomCategory') or 'normal'
         shape = payload.get('roomShape') or 'none'
@@ -120,6 +140,6 @@ for cat, shapes in sorted(by_category.items()):
 
 - `roomCategory`: subfolder — `normal`, `basement`, `test`, `cave` (default: `normal`)
 - `roomShape`: `all`, `bridge`, `platform` (default: `none`)
-- `stageType`: `default`, `teaching`, `building`, `pressure`, `peak`, `release`, `boss`
+- `stageType`: `default`, `start`, `teaching`, `building`, `pressure`, `peak`, `release`, `boss`
 - `openDoors`: bitmask int — Top=1, Right=2, Bottom=4, Left=8 (e.g. 15 = all doors)
 - `seq`: two-digit auto-increment per prefix
