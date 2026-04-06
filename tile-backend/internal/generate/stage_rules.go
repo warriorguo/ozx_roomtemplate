@@ -22,9 +22,10 @@ type StageConfig struct {
 
 // DoorRestriction defines door open constraints for a stage
 type DoorRestriction struct {
-	ForbidCornerPair bool // forbid 2-door diagonal combos (left+top, left+bottom, etc.)
-	OnlyCornerPair   bool // only allow 2-door diagonal combos or 1-door
-	MaxDoors         int  // 0 = no limit
+	ForbidCornerPair bool           // forbid 2-door diagonal combos (left+top, left+bottom, etc.)
+	OnlyCornerPair   bool           // only allow 2-door diagonal combos or 1-door
+	MaxDoors         int            // 0 = no limit
+	AllowedDoors     []DoorPosition // if non-empty, only these doors are allowed
 }
 
 // StagePlacementHints tells generators how to place enemies for a specific stage
@@ -125,12 +126,13 @@ type StageConfigJSON struct {
 
 var stageConfigs = map[string]StageConfig{
 	model.StageStart: {
-		StageType:     model.StageStart,
-		DPSRange:      [2]int{0, 0},
-		ChaserRange:   [2]int{0, 0},
-		ZonerRange:    [2]int{0, 0},
-		MobAirRange:   [2]int{0, 0},
-		PlacementRule: "start",
+		StageType:        model.StageStart,
+		DoorRestrictions: &DoorRestriction{MaxDoors: 1, AllowedDoors: []DoorPosition{DoorRight}},
+		DPSRange:         [2]int{0, 0},
+		ChaserRange:      [2]int{0, 0},
+		ZonerRange:       [2]int{0, 0},
+		MobAirRange:      [2]int{0, 0},
+		PlacementRule:    "start",
 	},
 	model.StageTeaching: {
 		StageType:     model.StageTeaching,
@@ -383,6 +385,18 @@ func validateDoorRestrictions(r *DoorRestriction, doors []DoorPosition) error {
 
 	if r.MaxDoors > 0 && doorCount > r.MaxDoors {
 		return fmt.Errorf("max %d doors allowed, got %d", r.MaxDoors, doorCount)
+	}
+
+	if len(r.AllowedDoors) > 0 {
+		allowed := make(map[DoorPosition]bool, len(r.AllowedDoors))
+		for _, d := range r.AllowedDoors {
+			allowed[d] = true
+		}
+		for _, d := range doors {
+			if !allowed[d] {
+				return fmt.Errorf("door %q is not allowed for this stage (allowed: %v)", d, r.AllowedDoors)
+			}
+		}
 	}
 
 	if doorCount == 2 {
