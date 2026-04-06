@@ -32,9 +32,11 @@ Bulk-download all tilemaps from the backend API and save locally.
 import json, subprocess, os, glob, re
 from collections import Counter
 
-# --- Door remapping for OZX Unity (transpose: top↔left, bottom↔right) ---
-DOOR_REMAP = {'top': 'left', 'right': 'bottom', 'bottom': 'right', 'left': 'top'}
-BITMASK_REMAP = {1: 8, 2: 4, 4: 2, 8: 1}  # Top=1→Left=8, Right=2→Bottom=4, etc.
+# --- Door remapping for OZX Unity (transpose + Y-flip) ---
+# Transpose swaps top↔left, bottom↔right; Unity Y-flip additionally swaps top↔bottom
+# Combined: top→left, bottom→right, left→bottom, right→top
+DOOR_REMAP = {'top': 'left', 'right': 'top', 'bottom': 'right', 'left': 'bottom'}
+BITMASK_REMAP = {1: 8, 2: 1, 4: 2, 8: 4}  # Top=1→Left=8, Right=2→Top=1, Bottom=4→Right=2, Left=8→Bottom=4
 
 def remap_doors(payload):
     """Remap door directions for OZX Unity coordinate convention."""

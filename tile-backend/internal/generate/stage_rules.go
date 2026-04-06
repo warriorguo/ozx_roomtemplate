@@ -127,7 +127,7 @@ type StageConfigJSON struct {
 var stageConfigs = map[string]StageConfig{
 	model.StageStart: {
 		StageType:        model.StageStart,
-		DoorRestrictions: &DoorRestriction{MaxDoors: 1, AllowedDoors: []DoorPosition{DoorLeft}},
+		DoorRestrictions: &DoorRestriction{MaxDoors: 1, AllowedDoors: []DoorPosition{DoorRight}},
 		DPSRange:         [2]int{0, 0},
 		ChaserRange:      [2]int{0, 0},
 		ZonerRange:       [2]int{0, 0},

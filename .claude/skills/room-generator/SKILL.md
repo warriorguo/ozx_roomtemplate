@@ -170,11 +170,12 @@ Examples: `bridge_teaching_5_01.json`, `all_default_15_02.json`, `platform_boss_
 
 **Auto-increment logic**: Use `Glob` to find `{targetDir}/{roomShape}_{stageType}_{openDoors}_*.json`, extract the highest sequence number, and increment by 1. Start at `01` if none exist.
 
-**Before saving**, remap door directions for OZX Unity coordinate convention (transpose: top↔left, bottom↔right):
+**Before saving**, remap door directions for OZX Unity coordinate convention (transpose + Y-flip):
 
 ```python
-DOOR_REMAP = {'top': 'left', 'right': 'bottom', 'bottom': 'right', 'left': 'top'}
-BITMASK_REMAP = {1: 8, 2: 4, 4: 2, 8: 1}  # Top=1→Left=8, Right=2→Bottom=4, etc.
+# Combined: top→left, bottom→right, left→bottom, right→top
+DOOR_REMAP = {'top': 'left', 'right': 'top', 'bottom': 'right', 'left': 'bottom'}
+BITMASK_REMAP = {1: 8, 2: 1, 4: 2, 8: 4}  # Top=1→Left=8, Right=2→Top=1, Bottom=4→Right=2, Left=8→Bottom=4
 
 # Remap doors object
 if 'doors' in payload:
@@ -263,7 +264,7 @@ The API returns this JSON structure:
 
 | Stage | DPS | Chaser | Zoner | MobAir | Notes |
 |-------|-----|--------|-------|--------|-------|
-| start | 0 | 0 | 0 | 0 | Left door only (remaps to OZX Top) |
+| start | 0 | 0 | 0 | 0 | Right door only (remaps to OZX Top) |
 | teaching | 2-3 | 0 | 0 | 0 | DPS only |
 | building | 2-3 | 2-3 | 0 | 0 | DPS + Chaser |
 | pressure | 4-6 | 6-8 | 1 | 2-4 | Not bridge |
