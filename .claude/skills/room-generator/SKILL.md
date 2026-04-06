@@ -263,7 +263,7 @@ The API returns this JSON structure:
 
 | Stage | DPS | Chaser | Zoner | MobAir | Notes |
 |-------|-----|--------|-------|--------|-------|
-| start | 0 | 0 | 0 | 0 | Right door only |
+| start | 0 | 0 | 0 | 0 | Left door only (remaps to OZX Top) |
 | teaching | 2-3 | 0 | 0 | 0 | DPS only |
 | building | 2-3 | 2-3 | 0 | 0 | DPS + Chaser |
 | pressure | 4-6 | 6-8 | 1 | 2-4 | Not bridge |
