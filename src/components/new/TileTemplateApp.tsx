@@ -6,7 +6,7 @@ import { HeatmapLayerEditor } from './HeatmapLayerEditor';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
 import { ROOM_TYPES } from '../../types/newTemplate';
-import { templateApi, type DoorPosition } from '../../services/api';
+import { templateApi, ApiError, type DoorPosition } from '../../services/api';
 
 const layerConfigs: Array<{
   layer: LayerType;
@@ -194,7 +194,12 @@ export const TileTemplateApp: React.FC = () => {
         payload: response.payload,
       });
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to generate room';
+      let errorMessage = 'Failed to generate room';
+      if (error instanceof ApiError) {
+        errorMessage = error.details?.details || error.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       setGenerateError(errorMessage);
     } finally {
       setIsGenerating(false);
