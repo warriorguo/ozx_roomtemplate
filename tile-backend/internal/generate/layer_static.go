@@ -2,6 +2,7 @@ package generate
 
 import (
 	"fmt"
+	"math/rand"
 	"sort"
 )
 
@@ -354,13 +355,17 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 
 // sortPositionsByStrategy sorts positions based on the placement strategy
 func sortPositionsByStrategy(positions []Point, strategy PlacementStrategy, centerX, centerY, width, height int) {
+	// Shuffle first so equal-distance positions get random order
+	rand.Shuffle(len(positions), func(i, j int) {
+		positions[i], positions[j] = positions[j], positions[i]
+	})
 	switch strategy {
 	case StrategyCenterOutward:
-		sort.Slice(positions, func(i, j int) bool {
+		sort.SliceStable(positions, func(i, j int) bool {
 			return distanceFromCenter(positions[i], centerX, centerY) < distanceFromCenter(positions[j], centerX, centerY)
 		})
 	case StrategyEdgeInward:
-		sort.Slice(positions, func(i, j int) bool {
+		sort.SliceStable(positions, func(i, j int) bool {
 			return distanceFromEdge(positions[i], width, height) < distanceFromEdge(positions[j], width, height)
 		})
 	}
