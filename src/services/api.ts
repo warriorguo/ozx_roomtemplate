@@ -2,6 +2,11 @@
  * API service for communicating with the tile template backend
  */
 
+import type { Project, ProjectSummary, CreateProjectRequest, ProjectListResponse, ProjectStats, AutoFillResult } from '../types/project';
+
+// Re-export project types for consumers
+export type { Project, ProjectSummary, CreateProjectRequest, ProjectListResponse, ProjectStats, AutoFillResult };
+
 // Types matching the backend API
 export interface BackendTemplate {
   id: string;
@@ -335,6 +340,47 @@ export class TemplateApiService {
       method: 'POST',
       body: JSON.stringify(request),
     });
+  }
+
+  // Project endpoints
+
+  async listProjects(params?: { limit?: number; offset?: number; name_like?: string }): Promise<ProjectListResponse> {
+    const query = new URLSearchParams();
+    if (params?.limit) query.set('limit', String(params.limit));
+    if (params?.offset) query.set('offset', String(params.offset));
+    if (params?.name_like) query.set('name_like', params.name_like);
+    const qs = query.toString();
+    return this.makeRequest<ProjectListResponse>(`/projects${qs ? `?${qs}` : ''}`);
+  }
+
+  async getProject(id: string): Promise<Project> {
+    return this.makeRequest<Project>(`/projects/${id}`);
+  }
+
+  async createProject(request: CreateProjectRequest): Promise<Project> {
+    return this.makeRequest<Project>('/projects', {
+      method: 'POST',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async updateProject(id: string, request: CreateProjectRequest): Promise<Project> {
+    return this.makeRequest<Project>(`/projects/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    });
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    await this.makeRequest<void>(`/projects/${id}`, { method: 'DELETE' });
+  }
+
+  async getProjectStats(id: string): Promise<ProjectStats> {
+    return this.makeRequest<ProjectStats>(`/projects/${id}/stats`);
+  }
+
+  async autoFillProject(id: string): Promise<AutoFillResult> {
+    return this.makeRequest<AutoFillResult>(`/projects/${id}/autofill`, { method: 'POST' });
   }
 }
 
