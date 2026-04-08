@@ -54,9 +54,10 @@ func (suite *IntegrationTestSuite) SetupSuite() {
 
 	// Initialize stores
 	templateStore := store.NewPostgreSQLTemplateStore(suite.db)
+	projectStore := store.NewPostgreSQLProjectStore(suite.db)
 
 	// Setup HTTP server
-	router := httpHandler.SetupRouter(templateStore, suite.logger, []string{})
+	router := httpHandler.SetupRouter(templateStore, projectStore, suite.logger, []string{})
 	suite.server = httptest.NewServer(router)
 }
 

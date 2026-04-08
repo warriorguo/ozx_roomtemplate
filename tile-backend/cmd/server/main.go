@@ -42,9 +42,10 @@ func main() {
 
 	// Initialize stores
 	templateStore := store.NewPostgreSQLTemplateStore(db)
+	projectStore := store.NewPostgreSQLProjectStore(db)
 
 	// Setup router
-	router := httpHandler.SetupRouter(templateStore, logger, config.CORSAllowedOrigins)
+	router := httpHandler.SetupRouter(templateStore, projectStore, logger, config.CORSAllowedOrigins)
 
 	// Setup HTTP server
 	server := &http.Server{

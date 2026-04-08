@@ -35,7 +35,7 @@ func (h *TemplateHandler) CreateTemplate(w http.ResponseWriter, r *http.Request)
 
 	// Parse request body
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondError(w, http.StatusBadRequest, "Invalid JSON", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid JSON", err.Error())
 		return
 	}
 
@@ -67,7 +67,7 @@ func (h *TemplateHandler) CreateTemplate(w http.ResponseWriter, r *http.Request)
 	savedTemplate, err := h.store.Create(r.Context(), template)
 	if err != nil {
 		h.logger.Error("Failed to create template", zap.Error(err))
-		h.respondError(w, http.StatusInternalServerError, "Failed to create template", err.Error())
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to create template", err.Error())
 		return
 	}
 
@@ -79,7 +79,7 @@ func (h *TemplateHandler) CreateTemplate(w http.ResponseWriter, r *http.Request)
 		UpdatedAt: savedTemplate.UpdatedAt,
 	}
 
-	h.respondJSON(w, http.StatusCreated, response)
+	respondJSON(w, h.logger, http.StatusCreated, response)
 }
 
 // ListTemplates handles GET /api/v1/templates
@@ -203,7 +203,7 @@ func (h *TemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) 
 	templates, total, err := h.store.List(r.Context(), params)
 	if err != nil {
 		h.logger.Error("Failed to list templates", zap.Error(err))
-		h.respondError(w, http.StatusInternalServerError, "Failed to list templates", err.Error())
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to list templates", err.Error())
 		return
 	}
 
@@ -213,7 +213,7 @@ func (h *TemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) 
 		Items: templates,
 	}
 
-	h.respondJSON(w, http.StatusOK, response)
+	respondJSON(w, h.logger, http.StatusOK, response)
 }
 
 // GetTemplate handles GET /api/v1/templates/{id}
@@ -222,7 +222,7 @@ func (h *TemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
 
 	// Validate UUID format
 	if _, err := uuid.Parse(id); err != nil {
-		h.respondError(w, http.StatusBadRequest, "Invalid UUID format", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid UUID format", err.Error())
 		return
 	}
 
@@ -230,15 +230,15 @@ func (h *TemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
 	template, err := h.store.Get(r.Context(), id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			h.respondError(w, http.StatusNotFound, "Template not found", "")
+			respondError(w, h.logger, http.StatusNotFound, "Template not found", "")
 			return
 		}
 		h.logger.Error("Failed to get template", zap.String("id", id), zap.Error(err))
-		h.respondError(w, http.StatusInternalServerError, "Failed to get template", err.Error())
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to get template", err.Error())
 		return
 	}
 
-	h.respondJSON(w, http.StatusOK, template)
+	respondJSON(w, h.logger, http.StatusOK, template)
 }
 
 // DeleteTemplate handles DELETE /api/v1/templates/{id}
@@ -247,7 +247,7 @@ func (h *TemplateHandler) DeleteTemplate(w http.ResponseWriter, r *http.Request)
 
 	// Validate UUID format
 	if _, err := uuid.Parse(id); err != nil {
-		h.respondError(w, http.StatusBadRequest, "Invalid UUID format", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid UUID format", err.Error())
 		return
 	}
 
@@ -255,11 +255,11 @@ func (h *TemplateHandler) DeleteTemplate(w http.ResponseWriter, r *http.Request)
 	err := h.store.Delete(r.Context(), id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
-			h.respondError(w, http.StatusNotFound, "Template not found", "")
+			respondError(w, h.logger, http.StatusNotFound, "Template not found", "")
 			return
 		}
 		h.logger.Error("Failed to delete template", zap.String("id", id), zap.Error(err))
-		h.respondError(w, http.StatusInternalServerError, "Failed to delete template", err.Error())
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to delete template", err.Error())
 		return
 	}
 
@@ -273,7 +273,7 @@ func (h *TemplateHandler) ValidateTemplate(w http.ResponseWriter, r *http.Reques
 
 	// Parse request body
 	if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-		h.respondError(w, http.StatusBadRequest, "Invalid JSON", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid JSON", err.Error())
 		return
 	}
 
@@ -283,7 +283,7 @@ func (h *TemplateHandler) ValidateTemplate(w http.ResponseWriter, r *http.Reques
 	// Validate template
 	validationResult := validate.ValidateTemplate(&payload, strict)
 
-	h.respondJSON(w, http.StatusOK, validationResult)
+	respondJSON(w, h.logger, http.StatusOK, validationResult)
 }
 
 // HealthCheck handles GET /health
@@ -291,38 +291,14 @@ func (h *TemplateHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	// Check database connection
 	if err := h.store.HealthCheck(r.Context()); err != nil {
 		h.logger.Error("Health check failed", zap.Error(err))
-		h.respondError(w, http.StatusServiceUnavailable, "Database connection failed", err.Error())
+		respondError(w, h.logger, http.StatusServiceUnavailable, "Database connection failed", err.Error())
 		return
 	}
 
 	response := map[string]string{
 		"status": "healthy",
 	}
-	h.respondJSON(w, http.StatusOK, response)
-}
-
-// respondJSON sends a JSON response
-func (h *TemplateHandler) respondJSON(w http.ResponseWriter, status int, data interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-
-	if err := json.NewEncoder(w).Encode(data); err != nil {
-		h.logger.Error("Failed to encode JSON response", zap.Error(err))
-	}
-}
-
-// respondError sends an error response
-func (h *TemplateHandler) respondError(w http.ResponseWriter, status int, message, details string) {
-	response := model.ErrorResponse{
-		Error:   http.StatusText(status),
-		Message: message,
-	}
-
-	if details != "" {
-		response.Details = map[string]string{"details": details}
-	}
-
-	h.respondJSON(w, status, response)
+	respondJSON(w, h.logger, http.StatusOK, response)
 }
 
 // respondValidationError sends a validation error response
@@ -343,7 +319,7 @@ func (h *TemplateHandler) respondValidationError(w http.ResponseWriter, result *
 		response.Details[key] = err.Reason
 	}
 
-	h.respondJSON(w, http.StatusBadRequest, response)
+	respondJSON(w, h.logger, http.StatusBadRequest, response)
 }
 
 // GenerateBridge handles POST /api/v1/generate/bridge
@@ -352,24 +328,24 @@ func (h *TemplateHandler) GenerateBridge(w http.ResponseWriter, r *http.Request)
 
 	// Parse request body
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondError(w, http.StatusBadRequest, "Invalid JSON", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid JSON", err.Error())
 		return
 	}
 
 	// Validate doors
 	if len(req.Doors) < 2 {
-		h.respondError(w, http.StatusBadRequest, "Invalid request", "at least 2 doors are required")
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid request", "at least 2 doors are required")
 		return
 	}
 
 	// Generate bridge room
 	result, err := generate.GenerateBridgeRoom(req)
 	if err != nil {
-		h.respondError(w, http.StatusBadRequest, "Generation failed", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Generation failed", err.Error())
 		return
 	}
 
-	h.respondJSON(w, http.StatusOK, result)
+	respondJSON(w, h.logger, http.StatusOK, result)
 }
 
 // GeneratePlatform handles POST /api/v1/generate/platform
@@ -378,18 +354,18 @@ func (h *TemplateHandler) GeneratePlatform(w http.ResponseWriter, r *http.Reques
 
 	// Parse request body
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondError(w, http.StatusBadRequest, "Invalid JSON", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid JSON", err.Error())
 		return
 	}
 
 	// Generate platform room
 	result, err := generate.GeneratePlatformRoom(req)
 	if err != nil {
-		h.respondError(w, http.StatusBadRequest, "Generation failed", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Generation failed", err.Error())
 		return
 	}
 
-	h.respondJSON(w, http.StatusOK, result)
+	respondJSON(w, h.logger, http.StatusOK, result)
 }
 
 // GenerateFullRoom handles POST /api/v1/generate/fullroom
@@ -398,22 +374,22 @@ func (h *TemplateHandler) GenerateFullRoom(w http.ResponseWriter, r *http.Reques
 
 	// Parse request body
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.respondError(w, http.StatusBadRequest, "Invalid JSON", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid JSON", err.Error())
 		return
 	}
 
 	// Generate full room
 	result, err := generate.GenerateFullRoom(req)
 	if err != nil {
-		h.respondError(w, http.StatusBadRequest, "Generation failed", err.Error())
+		respondError(w, h.logger, http.StatusBadRequest, "Generation failed", err.Error())
 		return
 	}
 
-	h.respondJSON(w, http.StatusOK, result)
+	respondJSON(w, h.logger, http.StatusOK, result)
 }
 
 // GetStageConfigs returns all stage type configurations for frontend use
 func (h *TemplateHandler) GetStageConfigs(w http.ResponseWriter, r *http.Request) {
 	configs := generate.GetAllStageConfigs()
-	h.respondJSON(w, http.StatusOK, configs)
+	respondJSON(w, h.logger, http.StatusOK, configs)
 }

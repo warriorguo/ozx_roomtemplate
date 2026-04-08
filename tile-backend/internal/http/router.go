@@ -10,7 +10,7 @@ import (
 )
 
 // SetupRouter creates and configures the HTTP router
-func SetupRouter(templateStore store.TemplateStore, logger *zap.Logger, corsOrigins []string) *chi.Mux {
+func SetupRouter(templateStore store.TemplateStore, projectStore store.ProjectStore, logger *zap.Logger, corsOrigins []string) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Add middleware
@@ -32,6 +32,7 @@ func SetupRouter(templateStore store.TemplateStore, logger *zap.Logger, corsOrig
 
 	// Create handlers
 	templateHandler := NewTemplateHandler(templateStore, logger)
+	projectHandler := NewProjectHandler(projectStore, logger)
 
 	// Health check endpoint
 	r.Get("/health", templateHandler.HealthCheck)
@@ -44,6 +45,15 @@ func SetupRouter(templateStore store.TemplateStore, logger *zap.Logger, corsOrig
 			r.Get("/{id}", templateHandler.GetTemplate)
 			r.Delete("/{id}", templateHandler.DeleteTemplate)
 			r.Post("/validate", templateHandler.ValidateTemplate)
+		})
+
+		// Project endpoints
+		r.Route("/projects", func(r chi.Router) {
+			r.Post("/", projectHandler.CreateProject)
+			r.Get("/", projectHandler.ListProjects)
+			r.Get("/{id}", projectHandler.GetProject)
+			r.Put("/{id}", projectHandler.UpdateProject)
+			r.Delete("/{id}", projectHandler.DeleteProject)
 		})
 
 		// Generation endpoints
