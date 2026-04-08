@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"tile-backend/internal/generate"
 	"tile-backend/internal/model"
 	"tile-backend/internal/store"
 
@@ -15,15 +16,17 @@ import (
 
 // ProjectHandler handles HTTP requests for projects
 type ProjectHandler struct {
-	store  store.ProjectStore
-	logger *zap.Logger
+	store         store.ProjectStore
+	templateStore store.TemplateStore
+	logger        *zap.Logger
 }
 
 // NewProjectHandler creates a new project handler
-func NewProjectHandler(store store.ProjectStore, logger *zap.Logger) *ProjectHandler {
+func NewProjectHandler(store store.ProjectStore, templateStore store.TemplateStore, logger *zap.Logger) *ProjectHandler {
 	return &ProjectHandler{
-		store:  store,
-		logger: logger,
+		store:         store,
+		templateStore: templateStore,
+		logger:        logger,
 	}
 }
 
@@ -233,4 +236,44 @@ func (h *ProjectHandler) GetProjectStats(w http.ResponseWriter, r *http.Request)
 	}
 
 	respondJSON(w, h.logger, http.StatusOK, stats)
+}
+
+// AutoFillProject handles POST /api/v1/projects/{id}/autofill
+func (h *ProjectHandler) AutoFillProject(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if _, err := uuid.Parse(id); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid UUID format", err.Error())
+		return
+	}
+
+	// Get project
+	project, err := h.store.Get(r.Context(), id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			respondError(w, h.logger, http.StatusNotFound, "Project not found", "")
+			return
+		}
+		h.logger.Error("Failed to get project", zap.String("id", id), zap.Error(err))
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to get project", err.Error())
+		return
+	}
+
+	// Get current stats
+	stats, err := h.store.Stats(r.Context(), id)
+	if err != nil {
+		h.logger.Error("Failed to get project stats", zap.String("id", id), zap.Error(err))
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to get project stats", err.Error())
+		return
+	}
+
+	// Run auto-fill
+	result, err := generate.AutoFill(r.Context(), project, stats, h.templateStore)
+	if err != nil {
+		h.logger.Error("Auto-fill failed", zap.String("id", id), zap.Error(err))
+		respondError(w, h.logger, http.StatusInternalServerError, "Auto-fill failed", err.Error())
+		return
+	}
+
+	respondJSON(w, h.logger, http.StatusOK, result)
 }

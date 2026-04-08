@@ -114,6 +114,7 @@ type Template struct {
 	DPSCount       *int            `json:"dps_count,omitempty"`
 	MobAirCount    *int            `json:"mobair_count,omitempty"`
 	StageType      *string         `json:"stage_type,omitempty"`
+	ProjectID      *uuid.UUID      `json:"project_id,omitempty"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
 }

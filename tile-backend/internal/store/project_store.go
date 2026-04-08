@@ -316,7 +316,7 @@ func (s *PostgreSQLProjectStore) Stats(ctx context.Context, id string) (*model.P
 
 	// Compute required counts from percentages
 	shapeRequired := map[string]int{
-		"all":      project.TotalRooms * project.ShapePctFull / 100,
+		"full":     project.TotalRooms * project.ShapePctFull / 100,
 		"bridge":   project.TotalRooms * project.ShapePctBridge / 100,
 		"platform": project.TotalRooms * project.ShapePctPlatform / 100,
 	}

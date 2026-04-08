@@ -101,6 +101,22 @@ type ProjectStats struct {
 	Stage         map[string]DimensionStat   `json:"stage"`          // stage type names
 }
 
+// AutoFillResult represents the result of an auto-fill operation
+type AutoFillResult struct {
+	TotalGenerated int            `json:"total_generated"`
+	TotalFailed    int            `json:"total_failed"`
+	Items          []AutoFillItem `json:"items"`
+}
+
+// AutoFillItem represents one generated (or failed) room in an auto-fill batch
+type AutoFillItem struct {
+	Shape      string     `json:"shape"`
+	DoorMask   int        `json:"door_mask"`
+	StageType  string     `json:"stage_type"`
+	TemplateID *uuid.UUID `json:"template_id,omitempty"`
+	Error      string     `json:"error,omitempty"`
+}
+
 // ValidateProjectRequest validates a CreateProjectRequest and returns a map of field->error.
 // An empty map means the request is valid.
 func ValidateProjectRequest(req *CreateProjectRequest) map[string]string {

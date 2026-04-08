@@ -32,7 +32,7 @@ func SetupRouter(templateStore store.TemplateStore, projectStore store.ProjectSt
 
 	// Create handlers
 	templateHandler := NewTemplateHandler(templateStore, logger)
-	projectHandler := NewProjectHandler(projectStore, logger)
+	projectHandler := NewProjectHandler(projectStore, templateStore, logger)
 
 	// Health check endpoint
 	r.Get("/health", templateHandler.HealthCheck)
@@ -53,6 +53,7 @@ func SetupRouter(templateStore store.TemplateStore, projectStore store.ProjectSt
 			r.Get("/", projectHandler.ListProjects)
 			r.Get("/{id}", projectHandler.GetProject)
 			r.Get("/{id}/stats", projectHandler.GetProjectStats)
+			r.Post("/{id}/autofill", projectHandler.AutoFillProject)
 			r.Put("/{id}", projectHandler.UpdateProject)
 			r.Delete("/{id}", projectHandler.DeleteProject)
 		})

@@ -81,9 +81,9 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		INSERT INTO room_templates (
 			id, name, version, width, height, payload, thumbnail,
 			walkable_ratio, room_type, room_category, room_attributes, doors_connected, open_doors,
-			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type
+			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type, project_id
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
 		RETURNING created_at, updated_at`
 
 	err = s.db.QueryRow(ctx, query,
@@ -106,6 +106,7 @@ func (s *PostgreSQLTemplateStore) Create(ctx context.Context, template model.Tem
 		template.DPSCount,
 		template.MobAirCount,
 		template.StageType,
+		template.ProjectID,
 	).Scan(&template.CreatedAt, &template.UpdatedAt)
 
 	if err != nil {
