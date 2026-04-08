@@ -85,6 +85,22 @@ type ListProjectsResponse struct {
 	Items []ProjectSummary `json:"items"`
 }
 
+// DimensionStat represents required vs current counts for a single category
+type DimensionStat struct {
+	Required int `json:"required"`
+	Current  int `json:"current"`
+	Deficit  int `json:"deficit"`
+}
+
+// ProjectStats contains statistics for all three distribution dimensions
+type ProjectStats struct {
+	TotalRooms    int                        `json:"total_rooms"`
+	TemplateCount int                        `json:"template_count"`
+	Shape         map[string]DimensionStat   `json:"shape"`          // "full", "bridge", "platform"
+	Door          map[string]DimensionStat   `json:"door"`           // bitmask keys "0"-"15"
+	Stage         map[string]DimensionStat   `json:"stage"`          // stage type names
+}
+
 // ValidateProjectRequest validates a CreateProjectRequest and returns a map of field->error.
 // An empty map means the request is valid.
 func ValidateProjectRequest(req *CreateProjectRequest) map[string]string {

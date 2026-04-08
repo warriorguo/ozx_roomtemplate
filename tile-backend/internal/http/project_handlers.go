@@ -211,3 +211,26 @@ func (h *ProjectHandler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// GetProjectStats handles GET /api/v1/projects/{id}/stats
+func (h *ProjectHandler) GetProjectStats(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if _, err := uuid.Parse(id); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid UUID format", err.Error())
+		return
+	}
+
+	stats, err := h.store.Stats(r.Context(), id)
+	if err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			respondError(w, h.logger, http.StatusNotFound, "Project not found", "")
+			return
+		}
+		h.logger.Error("Failed to get project stats", zap.String("id", id), zap.Error(err))
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to get project stats", err.Error())
+		return
+	}
+
+	respondJSON(w, h.logger, http.StatusOK, stats)
+}

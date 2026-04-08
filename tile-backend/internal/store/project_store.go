@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"tile-backend/internal/model"
 
 	"github.com/google/uuid"
@@ -18,6 +19,7 @@ type ProjectStore interface {
 	Get(ctx context.Context, id string) (*model.Project, error)
 	Update(ctx context.Context, id string, project model.Project) (*model.Project, error)
 	Delete(ctx context.Context, id string) error
+	Stats(ctx context.Context, id string) (*model.ProjectStats, error)
 }
 
 // PostgreSQLProjectStore implements ProjectStore using PostgreSQL
@@ -293,4 +295,136 @@ func (s *PostgreSQLProjectStore) Delete(ctx context.Context, id string) error {
 	}
 
 	return nil
+}
+
+// Stats computes distribution statistics for a project by aggregating its templates
+func (s *PostgreSQLProjectStore) Stats(ctx context.Context, id string) (*model.ProjectStats, error) {
+	// First get the project config
+	project, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	projectID, _ := uuid.Parse(id)
+
+	stats := &model.ProjectStats{
+		TotalRooms: project.TotalRooms,
+		Shape:      make(map[string]model.DimensionStat),
+		Door:       make(map[string]model.DimensionStat),
+		Stage:      make(map[string]model.DimensionStat),
+	}
+
+	// Compute required counts from percentages
+	shapeRequired := map[string]int{
+		"all":      project.TotalRooms * project.ShapePctFull / 100,
+		"bridge":   project.TotalRooms * project.ShapePctBridge / 100,
+		"platform": project.TotalRooms * project.ShapePctPlatform / 100,
+	}
+	stageRequired := map[string]int{
+		"start":    project.TotalRooms * project.StagePctStart / 100,
+		"teaching": project.TotalRooms * project.StagePctTeaching / 100,
+		"building": project.TotalRooms * project.StagePctBuilding / 100,
+		"pressure": project.TotalRooms * project.StagePctPressure / 100,
+		"peak":     project.TotalRooms * project.StagePctPeak / 100,
+		"release":  project.TotalRooms * project.StagePctRelease / 100,
+		"boss":     project.TotalRooms * project.StagePctBoss / 100,
+	}
+
+	// Query shape (room_type) counts
+	shapeRows, err := s.db.Query(ctx,
+		"SELECT COALESCE(room_type, 'unknown'), COUNT(*) FROM room_templates WHERE project_id = $1 GROUP BY room_type",
+		projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query shape stats: %w", err)
+	}
+	defer shapeRows.Close()
+
+	shapeCurrent := make(map[string]int)
+	totalTemplates := 0
+	for shapeRows.Next() {
+		var roomType string
+		var count int
+		if err := shapeRows.Scan(&roomType, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan shape row: %w", err)
+		}
+		shapeCurrent[roomType] = count
+		totalTemplates += count
+	}
+	if err := shapeRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating shape rows: %w", err)
+	}
+
+	stats.TemplateCount = totalTemplates
+	for key, req := range shapeRequired {
+		cur := shapeCurrent[key]
+		deficit := req - cur
+		if deficit < 0 {
+			deficit = 0
+		}
+		stats.Shape[key] = model.DimensionStat{Required: req, Current: cur, Deficit: deficit}
+	}
+
+	// Query door (open_doors bitmask) counts
+	doorRows, err := s.db.Query(ctx,
+		"SELECT COALESCE(open_doors, 0), COUNT(*) FROM room_templates WHERE project_id = $1 GROUP BY open_doors",
+		projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query door stats: %w", err)
+	}
+	defer doorRows.Close()
+
+	doorCurrent := make(map[string]int)
+	for doorRows.Next() {
+		var bitmask int
+		var count int
+		if err := doorRows.Scan(&bitmask, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan door row: %w", err)
+		}
+		doorCurrent[strconv.Itoa(bitmask)] = count
+	}
+	if err := doorRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating door rows: %w", err)
+	}
+
+	for key, req := range project.DoorDistribution {
+		cur := doorCurrent[key]
+		deficit := req - cur
+		if deficit < 0 {
+			deficit = 0
+		}
+		stats.Door[key] = model.DimensionStat{Required: req, Current: cur, Deficit: deficit}
+	}
+
+	// Query stage type counts
+	stageRows, err := s.db.Query(ctx,
+		"SELECT COALESCE(stage_type, 'unknown'), COUNT(*) FROM room_templates WHERE project_id = $1 GROUP BY stage_type",
+		projectID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query stage stats: %w", err)
+	}
+	defer stageRows.Close()
+
+	stageCurrent := make(map[string]int)
+	for stageRows.Next() {
+		var stageType string
+		var count int
+		if err := stageRows.Scan(&stageType, &count); err != nil {
+			return nil, fmt.Errorf("failed to scan stage row: %w", err)
+		}
+		stageCurrent[stageType] = count
+	}
+	if err := stageRows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating stage rows: %w", err)
+	}
+
+	for key, req := range stageRequired {
+		cur := stageCurrent[key]
+		deficit := req - cur
+		if deficit < 0 {
+			deficit = 0
+		}
+		stats.Stage[key] = model.DimensionStat{Required: req, Current: cur, Deficit: deficit}
+	}
+
+	return stats, nil
 }
