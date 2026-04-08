@@ -265,7 +265,7 @@ func generateRoom(item workItem) (*model.TemplatePayload, error) {
 	}
 
 	// Default dimensions
-	width, height := 16, 16
+	width, height := 20, 12
 
 	switch item.shape {
 	case "full":

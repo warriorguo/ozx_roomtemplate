@@ -11,18 +11,23 @@ const ALL_DOOR_MASKS = Array.from({ length: 15 }, (_, i) => i + 1);
 
 const emptyForm = (): CreateProjectRequest => ({
   name: '',
-  total_rooms: 10,
-  shape_pct_full: 34,
-  shape_pct_bridge: 33,
-  shape_pct_platform: 33,
-  door_distribution: {},
-  stage_pct_start: 15,
-  stage_pct_teaching: 15,
-  stage_pct_building: 14,
-  stage_pct_pressure: 14,
-  stage_pct_peak: 14,
-  stage_pct_release: 14,
-  stage_pct_boss: 0,
+  total_rooms: 100,
+  shape_pct_full: 65,
+  shape_pct_bridge: 10,
+  shape_pct_platform: 25,
+  door_distribution: {
+    '3': 3, '5': 10, '6': 3, '7': 3,
+    '9': 3, '10': 22, '11': 3,
+    '12': 3, '13': 3, '14': 3,
+    '15': 44,
+  },
+  stage_pct_start: 0,
+  stage_pct_teaching: 10,
+  stage_pct_building: 20,
+  stage_pct_pressure: 33,
+  stage_pct_peak: 13,
+  stage_pct_release: 17,
+  stage_pct_boss: 7,
 });
 
 const projectToForm = (p: ProjectSummary): CreateProjectRequest => ({
