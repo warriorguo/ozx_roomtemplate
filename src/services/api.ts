@@ -16,6 +16,7 @@ export interface BackendTemplate {
   height: number;
   payload: BackendTemplatePayload;
   thumbnail?: string; // Base64 encoded PNG
+  project_id?: string;
   created_at: string;
   updated_at: string;
 }
@@ -82,6 +83,7 @@ export interface BackendCreateRequest {
   name: string;
   payload: BackendTemplatePayload;
   thumbnail?: string; // Base64 encoded PNG
+  project_id?: string;
 }
 
 export interface BackendCreateResponse {

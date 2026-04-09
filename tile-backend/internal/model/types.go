@@ -174,6 +174,7 @@ type CreateTemplateRequest struct {
 	Name      string          `json:"name"`
 	Payload   TemplatePayload `json:"payload"`
 	Thumbnail *string         `json:"thumbnail,omitempty"` // Base64 encoded PNG
+	ProjectID *string         `json:"project_id,omitempty"`
 }
 
 // CreateTemplateResponse represents the response after creating a template

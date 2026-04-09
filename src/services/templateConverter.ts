@@ -18,7 +18,8 @@ import { extractLineSegments, hasAnyCells } from '../utils/lineExtractor';
 export function frontendToBackendCreateRequest(
   template: FrontendTemplate,
   name: string,
-  thumbnail?: string
+  thumbnail?: string,
+  projectId?: string
 ): BackendCreateRequest {
   // Extract line segments for pipeline and rail
   const pipelineLines = hasAnyCells(template.pipeline)
@@ -56,6 +57,7 @@ export function frontendToBackendCreateRequest(
       },
     },
     thumbnail,
+    ...(projectId ? { project_id: projectId } : {}),
   };
 }
 

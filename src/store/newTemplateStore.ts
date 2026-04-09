@@ -34,6 +34,7 @@ export interface ApiState {
     name: string;
     savedAt: string;
     thumbnail?: string; // Base64 encoded PNG
+    projectId?: string;
   };
 }
 
@@ -413,9 +414,10 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
       // Generate thumbnail
       const thumbnail = await generateDetailedThumbnail(template, 120);
       
-      const request = frontendToBackendCreateRequest(template, name, thumbnail);
+      const projectId = get().apiState.lastSaved?.projectId;
+      const request = frontendToBackendCreateRequest(template, name, thumbnail, projectId);
       const response = await templateApi.createTemplate(request);
-      
+
       set((state) => ({
         apiState: {
           ...state.apiState,
@@ -425,6 +427,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             name: response.name,
             savedAt: response.created_at,
             thumbnail: thumbnail,
+            projectId: projectId,
           },
         },
       }));
@@ -471,6 +474,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             name: backendTemplate.name,
             savedAt: backendTemplate.updated_at,
             thumbnail: backendTemplate.thumbnail,
+            projectId: backendTemplate.project_id,
           },
         },
       });

@@ -63,6 +63,14 @@ func (h *TemplateHandler) CreateTemplate(w http.ResponseWriter, r *http.Request)
 		Thumbnail: req.Thumbnail,
 	}
 
+	// Set project_id if provided
+	if req.ProjectID != nil && *req.ProjectID != "" {
+		pid, err := uuid.Parse(*req.ProjectID)
+		if err == nil {
+			template.ProjectID = &pid
+		}
+	}
+
 	// Save to database
 	savedTemplate, err := h.store.Create(r.Context(), template)
 	if err != nil {
