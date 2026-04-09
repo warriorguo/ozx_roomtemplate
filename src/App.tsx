@@ -1,14 +1,28 @@
 import { useState } from 'react';
 import { TileTemplateApp } from './components/new/TileTemplateApp';
 import { ProjectsPage } from './components/new/ProjectsPage';
+import { useNewTemplateStore } from './store/newTemplateStore';
+import { useProjectStore } from './store/projectStore';
 
 type Page = 'editor' | 'projects';
 
 function App() {
   const [page, setPage] = useState<Page>('editor');
 
+  const handleEditTemplate = (templateId: string) => {
+    // Close gallery, switch to editor, load the template
+    useProjectStore.getState().closeGallery();
+    setPage('editor');
+    useNewTemplateStore.getState().loadTemplateFromBackend(templateId);
+  };
+
   if (page === 'projects') {
-    return <ProjectsPage onBack={() => setPage('editor')} />;
+    return (
+      <ProjectsPage
+        onBack={() => setPage('editor')}
+        onEditTemplate={handleEditTemplate}
+      />
+    );
   }
 
   return (

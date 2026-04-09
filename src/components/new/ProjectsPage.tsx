@@ -49,9 +49,10 @@ const projectToForm = (p: ProjectSummary): CreateProjectRequest => ({
 
 interface Props {
   onBack: () => void;
+  onEditTemplate?: (templateId: string) => void;
 }
 
-export const ProjectsPage: React.FC<Props> = ({ onBack }) => {
+export const ProjectsPage: React.FC<Props> = ({ onBack, onEditTemplate }) => {
   const store = useProjectStore();
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -197,7 +198,7 @@ export const ProjectsPage: React.FC<Props> = ({ onBack }) => {
       )}
 
       {/* Gallery Mode Overlay */}
-      {store.galleryActive && <GalleryMode />}
+      {store.galleryActive && <GalleryMode onEdit={onEditTemplate} />}
     </div>
   );
 };

@@ -94,7 +94,7 @@ const EnemyBadge: React.FC<{ label: string; count: number; color: string }> = ({
   </div>
 );
 
-export const GalleryMode: React.FC = () => {
+export const GalleryMode: React.FC<{ onEdit?: (templateId: string) => void }> = ({ onEdit }) => {
   const {
     galleryTemplates, galleryIndex, galleryTotal,
     galleryLoading, galleryNext, galleryDelete, closeGallery,
@@ -196,6 +196,11 @@ export const GalleryMode: React.FC = () => {
           >
             Delete
           </button>
+          {onEdit && (
+            <button onClick={() => onEdit(current.id)} style={actionBtn('#0d6efd')}>
+              Edit
+            </button>
+          )}
           <button onClick={galleryNext} style={{
             ...actionBtn('#7c3aed'),
             minWidth: 140,
