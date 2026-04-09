@@ -115,6 +115,7 @@ type Template struct {
 	MobAirCount    *int            `json:"mobair_count,omitempty"`
 	StageType      *string         `json:"stage_type,omitempty"`
 	ProjectID      *uuid.UUID      `json:"project_id,omitempty"`
+	ViewCount      int             `json:"view_count"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
 }
@@ -139,6 +140,7 @@ type TemplateSummary struct {
 	DPSCount       *int            `json:"dps_count,omitempty"`
 	MobAirCount    *int            `json:"mobair_count,omitempty"`
 	StageType      *string         `json:"stage_type,omitempty"`
+	ViewCount      int             `json:"view_count"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
 }

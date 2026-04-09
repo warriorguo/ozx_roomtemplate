@@ -17,6 +17,16 @@ export interface BackendTemplate {
   payload: BackendTemplatePayload;
   thumbnail?: string; // Base64 encoded PNG
   project_id?: string;
+  view_count?: number;
+  room_type?: string;
+  room_category?: string;
+  open_doors?: number;
+  static_count?: number;
+  chaser_count?: number;
+  zoner_count?: number;
+  dps_count?: number;
+  mobair_count?: number;
+  stage_type?: string;
   created_at: string;
   updated_at: string;
 }
@@ -383,6 +393,16 @@ export class TemplateApiService {
 
   async autoFillProject(id: string): Promise<AutoFillResult> {
     return this.makeRequest<AutoFillResult>(`/projects/${id}/autofill`, { method: 'POST' });
+  }
+
+  async listProjectTemplates(projectId: string, limit = 500, offset = 0): Promise<{ total: number; items: BackendTemplate[] }> {
+    return this.makeRequest<{ total: number; items: BackendTemplate[] }>(
+      `/projects/${projectId}/templates?limit=${limit}&offset=${offset}`
+    );
+  }
+
+  async incrementViewCount(id: string): Promise<void> {
+    await this.makeRequest<void>(`/templates/${id}/view`, { method: 'PATCH' });
   }
 }
 

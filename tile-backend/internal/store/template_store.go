@@ -20,6 +20,8 @@ type TemplateStore interface {
 	Get(ctx context.Context, id string) (*model.Template, error)
 	Delete(ctx context.Context, id string) error
 	HealthCheck(ctx context.Context) error
+	IncrementViewCount(ctx context.Context, id string) error
+	ListByProject(ctx context.Context, projectID string, limit, offset int) ([]model.Template, int, error)
 }
 
 // DBExecutor defines the interface for database operations we need
@@ -259,7 +261,7 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTem
 			id, name, version, width, height, thumbnail,
 			walkable_ratio, room_type, room_category, room_attributes, doors_connected, open_doors,
 			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type,
-			created_at, updated_at
+			view_count, created_at, updated_at
 		FROM room_templates %s
 		ORDER BY created_at DESC
 		LIMIT $%d OFFSET $%d`,
@@ -298,6 +300,7 @@ func (s *PostgreSQLTemplateStore) List(ctx context.Context, params model.ListTem
 			&template.DPSCount,
 			&template.MobAirCount,
 			&template.StageType,
+			&template.ViewCount,
 			&template.CreatedAt,
 			&template.UpdatedAt,
 		)
@@ -345,7 +348,7 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 			id, name, version, width, height, payload, thumbnail,
 			walkable_ratio, room_type, room_category, room_attributes, doors_connected, open_doors,
 			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type,
-			created_at, updated_at
+			view_count, created_at, updated_at
 		FROM room_templates
 		WHERE id = $1`
 
@@ -374,6 +377,7 @@ func (s *PostgreSQLTemplateStore) Get(ctx context.Context, id string) (*model.Te
 		&template.DPSCount,
 		&template.MobAirCount,
 		&template.StageType,
+		&template.ViewCount,
 		&template.CreatedAt,
 		&template.UpdatedAt,
 	)
@@ -453,6 +457,97 @@ func (s *PostgreSQLTemplateStore) Delete(ctx context.Context, id string) error {
 // HealthCheck verifies the database connection
 func (s *PostgreSQLTemplateStore) HealthCheck(ctx context.Context) error {
 	return s.db.Ping(ctx)
+}
+
+// IncrementViewCount increments the view_count of a template by 1
+func (s *PostgreSQLTemplateStore) IncrementViewCount(ctx context.Context, id string) error {
+	templateID, err := uuid.Parse(id)
+	if err != nil {
+		return fmt.Errorf("invalid UUID format: %w", err)
+	}
+
+	result, err := s.db.Exec(ctx, "UPDATE room_templates SET view_count = view_count + 1 WHERE id = $1", templateID)
+	if err != nil {
+		return fmt.Errorf("failed to increment view count: %w", err)
+	}
+	if result.RowsAffected() == 0 {
+		return fmt.Errorf("template not found")
+	}
+	return nil
+}
+
+// ListByProject retrieves full templates for a project, ordered by view_count ASC
+func (s *PostgreSQLTemplateStore) ListByProject(ctx context.Context, projectID string, limit, offset int) ([]model.Template, int, error) {
+	pid, err := uuid.Parse(projectID)
+	if err != nil {
+		return nil, 0, fmt.Errorf("invalid UUID format: %w", err)
+	}
+
+	// Count
+	var total int
+	err = s.db.QueryRow(ctx, "SELECT COUNT(*) FROM room_templates WHERE project_id = $1", pid).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count: %w", err)
+	}
+
+	query := `
+		SELECT
+			id, name, version, width, height, payload, thumbnail,
+			walkable_ratio, room_type, room_category, room_attributes, doors_connected, open_doors,
+			static_count, chaser_count, zoner_count, dps_count, mobair_count, stage_type,
+			view_count, created_at, updated_at
+		FROM room_templates
+		WHERE project_id = $1
+		ORDER BY view_count ASC, created_at ASC
+		LIMIT $2 OFFSET $3`
+
+	rows, err := s.db.Query(ctx, query, pid, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query: %w", err)
+	}
+	defer rows.Close()
+
+	var templates []model.Template
+	for rows.Next() {
+		var t model.Template
+		var payloadJSON []byte
+		var roomAttributesJSON []byte
+		var doorsConnectedJSON []byte
+
+		err := rows.Scan(
+			&t.ID, &t.Name, &t.Version, &t.Width, &t.Height,
+			&payloadJSON, &t.Thumbnail,
+			&t.WalkableRatio, &t.RoomType, &t.RoomCategory,
+			&roomAttributesJSON, &doorsConnectedJSON, &t.OpenDoors,
+			&t.StaticCount, &t.ChaserCount, &t.ZonerCount, &t.DPSCount, &t.MobAirCount,
+			&t.StageType, &t.ViewCount, &t.CreatedAt, &t.UpdatedAt,
+		)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan: %w", err)
+		}
+
+		if payloadJSON != nil {
+			if err := json.Unmarshal(payloadJSON, &t.Payload); err != nil {
+				return nil, 0, fmt.Errorf("failed to unmarshal payload: %w", err)
+			}
+		}
+		if roomAttributesJSON != nil {
+			attrs, _ := model.DeserializeRoomAttributes(roomAttributesJSON)
+			t.RoomAttributes = attrs
+		}
+		if doorsConnectedJSON != nil {
+			doors, _ := model.DeserializeDoorsConnected(doorsConnectedJSON)
+			t.DoorsConnected = doors
+		}
+
+		templates = append(templates, t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating rows: %w", err)
+	}
+
+	return templates, total, nil
 }
 
 // parseTimestamp is a helper function to parse timestamp strings

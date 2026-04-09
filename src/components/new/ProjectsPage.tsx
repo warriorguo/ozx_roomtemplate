@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useProjectStore } from '../../store/projectStore';
+import { GalleryMode } from './GalleryMode';
 import type { CreateProjectRequest, ProjectSummary, DimensionStat } from '../../types/project';
 import { DOOR_BITMASK_LABELS } from '../../types/project';
 
@@ -172,6 +173,7 @@ export const ProjectsPage: React.FC<Props> = ({ onBack }) => {
               autoFillLoading={store.autoFillLoading}
               autoFillResult={store.autoFillResult}
               onAutoFill={() => store.autoFill(selectedProject.id)}
+              onGallery={() => store.openGallery(selectedProject.id)}
             />
           )}
           {store.selectedProjectId && store.statsLoading && (
@@ -193,6 +195,9 @@ export const ProjectsPage: React.FC<Props> = ({ onBack }) => {
           onClose={() => { setShowForm(false); setEditingId(null); }}
         />
       )}
+
+      {/* Gallery Mode Overlay */}
+      {store.galleryActive && <GalleryMode />}
     </div>
   );
 };
@@ -251,7 +256,8 @@ const StatsPanel: React.FC<{
   autoFillLoading: boolean;
   autoFillResult: import('../../types/project').AutoFillResult | null;
   onAutoFill: () => void;
-}> = ({ project, stats, statsLoading, autoFillLoading, autoFillResult, onAutoFill }) => {
+  onGallery: () => void;
+}> = ({ project, stats, statsLoading, autoFillLoading, autoFillResult, onAutoFill, onGallery }) => {
   const totalDeficit = Object.values(stats.stage).reduce((sum, s) => sum + s.deficit, 0);
 
   return (
@@ -279,6 +285,15 @@ const StatsPanel: React.FC<{
               }}
             >
               {autoFillLoading ? 'Generating...' : `Auto-Fill (${totalDeficit} rooms needed)`}
+            </button>
+          )}
+
+          {stats.template_count > 0 && (
+            <button
+              onClick={onGallery}
+              style={{ ...btnStyle('#6f42c1'), width: '100%', marginTop: 8 }}
+            >
+              Gallery ({stats.template_count} maps)
             </button>
           )}
 

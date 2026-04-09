@@ -275,6 +275,27 @@ func (h *TemplateHandler) DeleteTemplate(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// IncrementViewCount handles PATCH /api/v1/templates/{id}/view
+func (h *TemplateHandler) IncrementViewCount(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(id); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid UUID format", err.Error())
+		return
+	}
+
+	if err := h.store.IncrementViewCount(r.Context(), id); err != nil {
+		if strings.Contains(err.Error(), "not found") {
+			respondError(w, h.logger, http.StatusNotFound, "Template not found", "")
+			return
+		}
+		h.logger.Error("Failed to increment view count", zap.String("id", id), zap.Error(err))
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to increment view count", err.Error())
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // ValidateTemplate handles POST /api/v1/templates/validate
 func (h *TemplateHandler) ValidateTemplate(w http.ResponseWriter, r *http.Request) {
 	var payload model.TemplatePayload

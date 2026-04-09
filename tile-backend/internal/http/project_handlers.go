@@ -277,3 +277,37 @@ func (h *ProjectHandler) AutoFillProject(w http.ResponseWriter, r *http.Request)
 
 	respondJSON(w, h.logger, http.StatusOK, result)
 }
+
+// ListProjectTemplates handles GET /api/v1/projects/{id}/templates
+func (h *ProjectHandler) ListProjectTemplates(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	if _, err := uuid.Parse(id); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid UUID format", err.Error())
+		return
+	}
+
+	limit := 100
+	offset := 0
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 500 {
+			limit = v
+		}
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	templates, total, err := h.templateStore.ListByProject(r.Context(), id, limit, offset)
+	if err != nil {
+		h.logger.Error("Failed to list project templates", zap.String("id", id), zap.Error(err))
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to list templates", err.Error())
+		return
+	}
+
+	respondJSON(w, h.logger, http.StatusOK, map[string]interface{}{
+		"total": total,
+		"items": templates,
+	})
+}

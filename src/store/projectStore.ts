@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { templateApi } from '../services/api';
+import type { BackendTemplate } from '../services/api';
 import type { ProjectSummary, CreateProjectRequest, ProjectStats, AutoFillResult } from '../types/project';
 
 interface ProjectStore {
@@ -14,6 +15,13 @@ interface ProjectStore {
   autoFillResult: AutoFillResult | null;
   autoFillLoading: boolean;
 
+  // Gallery state
+  galleryTemplates: BackendTemplate[];
+  galleryIndex: number;
+  galleryTotal: number;
+  galleryLoading: boolean;
+  galleryActive: boolean;
+
   // Actions
   fetchProjects: () => Promise<void>;
   createProject: (req: CreateProjectRequest) => Promise<void>;
@@ -23,6 +31,12 @@ interface ProjectStore {
   fetchStats: (id: string) => Promise<void>;
   autoFill: (id: string) => Promise<void>;
   clearError: () => void;
+
+  // Gallery actions
+  openGallery: (projectId: string) => Promise<void>;
+  closeGallery: () => void;
+  galleryNext: () => Promise<void>;
+  galleryDelete: () => Promise<void>;
 }
 
 export const useProjectStore = create<ProjectStore>((set, get) => ({
@@ -35,6 +49,12 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   statsLoading: false,
   autoFillResult: null,
   autoFillLoading: false,
+
+  galleryTemplates: [],
+  galleryIndex: 0,
+  galleryTotal: 0,
+  galleryLoading: false,
+  galleryActive: false,
 
   fetchProjects: async () => {
     set({ loading: true, error: null });
@@ -104,7 +124,6 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
     try {
       const result = await templateApi.autoFillProject(id);
       set({ autoFillResult: result, autoFillLoading: false });
-      // Refresh stats and project list after auto-fill
       await get().fetchStats(id);
       await get().fetchProjects();
     } catch (e: unknown) {
@@ -113,4 +132,71 @@ export const useProjectStore = create<ProjectStore>((set, get) => ({
   },
 
   clearError: () => set({ error: null }),
+
+  // Gallery actions
+  openGallery: async (projectId) => {
+    set({ galleryLoading: true, galleryActive: true, galleryIndex: 0, error: null });
+    try {
+      const resp = await templateApi.listProjectTemplates(projectId, 500);
+      set({
+        galleryTemplates: resp.items || [],
+        galleryTotal: resp.total,
+        galleryIndex: 0,
+        galleryLoading: false,
+      });
+    } catch (e: unknown) {
+      set({ galleryLoading: false, galleryActive: false, error: e instanceof Error ? e.message : 'Failed to load gallery' });
+    }
+  },
+
+  closeGallery: () => {
+    set({ galleryActive: false, galleryTemplates: [], galleryIndex: 0 });
+    // Refresh stats after gallery session
+    const pid = get().selectedProjectId;
+    if (pid) {
+      get().fetchStats(pid);
+      get().fetchProjects();
+    }
+  },
+
+  galleryNext: async () => {
+    const { galleryTemplates, galleryIndex } = get();
+    const current = galleryTemplates[galleryIndex];
+    if (!current) return;
+
+    // Increment view count
+    try {
+      await templateApi.incrementViewCount(current.id);
+    } catch {
+      // non-critical, continue
+    }
+
+    if (galleryIndex + 1 >= galleryTemplates.length) {
+      // End of gallery
+      get().closeGallery();
+    } else {
+      set({ galleryIndex: galleryIndex + 1 });
+    }
+  },
+
+  galleryDelete: async () => {
+    const { galleryTemplates, galleryIndex } = get();
+    const current = galleryTemplates[galleryIndex];
+    if (!current) return;
+
+    try {
+      await templateApi.deleteTemplate(current.id);
+      const newTemplates = [...galleryTemplates];
+      newTemplates.splice(galleryIndex, 1);
+
+      if (newTemplates.length === 0) {
+        get().closeGallery();
+      } else {
+        const newIndex = galleryIndex >= newTemplates.length ? newTemplates.length - 1 : galleryIndex;
+        set({ galleryTemplates: newTemplates, galleryIndex: newIndex, galleryTotal: get().galleryTotal - 1 });
+      }
+    } catch (e: unknown) {
+      set({ error: e instanceof Error ? e.message : 'Failed to delete template' });
+    }
+  },
 }));

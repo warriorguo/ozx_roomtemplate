@@ -44,6 +44,7 @@ func SetupRouter(templateStore store.TemplateStore, projectStore store.ProjectSt
 			r.Get("/", templateHandler.ListTemplates)
 			r.Get("/{id}", templateHandler.GetTemplate)
 			r.Delete("/{id}", templateHandler.DeleteTemplate)
+			r.Patch("/{id}/view", templateHandler.IncrementViewCount)
 			r.Post("/validate", templateHandler.ValidateTemplate)
 		})
 
@@ -54,6 +55,7 @@ func SetupRouter(templateStore store.TemplateStore, projectStore store.ProjectSt
 			r.Get("/{id}", projectHandler.GetProject)
 			r.Get("/{id}/stats", projectHandler.GetProjectStats)
 			r.Post("/{id}/autofill", projectHandler.AutoFillProject)
+			r.Get("/{id}/templates", projectHandler.ListProjectTemplates)
 			r.Put("/{id}", projectHandler.UpdateProject)
 			r.Delete("/{id}", projectHandler.DeleteProject)
 		})
