@@ -13,6 +13,15 @@ export type StageType = 'start' | 'teaching' | 'building' | 'pressure' | 'peak' 
 
 export type RoomType = 'full' | 'bridge' | 'platform';
 
+export type RoomCategory = 'normal' | 'basement' | 'test' | 'cave';
+
+export const ROOM_CATEGORIES: { value: RoomCategory; label: string }[] = [
+  { value: 'normal', label: 'Normal (普通)' },
+  { value: 'basement', label: 'Basement (地下室)' },
+  { value: 'test', label: 'Test (测试)' },
+  { value: 'cave', label: 'Cave (洞穴)' },
+];
+
 export interface RoomTypeInfo {
   type: RoomType;
   label: string;
@@ -59,6 +68,7 @@ export interface Template {
   doors: DoorStates;
   stageType: StageType;
   roomType: RoomType;
+  roomCategory: RoomCategory;
   tileProperties: Grid<TileProperties | null>; // null if cell is not set (value=0)
 }
 

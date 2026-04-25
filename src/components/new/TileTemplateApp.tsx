@@ -5,7 +5,7 @@ import { CompositeLayerEditor } from './CompositeLayerEditor';
 import { HeatmapLayerEditor } from './HeatmapLayerEditor';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
-import { ROOM_TYPES } from '../../types/newTemplate';
+import { ROOM_TYPES, ROOM_CATEGORIES } from '../../types/newTemplate';
 import { templateApi, ApiError, type DoorPosition } from '../../services/api';
 
 const layerConfigs: Array<{
@@ -83,7 +83,7 @@ const layerConfigs: Array<{
 ];
 
 export const TileTemplateApp: React.FC = () => {
-  const { uiState, template, apiState, setStageType, setRoomType, loadTemplateFromJSON } = useNewTemplateStore();
+  const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, loadTemplateFromJSON } = useNewTemplateStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [selectedDoors, setSelectedDoors] = useState<{ top: boolean; right: boolean; bottom: boolean; left: boolean }>({
@@ -181,6 +181,7 @@ export const TileTemplateApp: React.FC = () => {
         dpsCount,
         mobAirCount,
         stageType: template.stageType,
+        roomCategory: template.roomCategory,
       };
 
       const response = template.roomType === 'platform'
@@ -1024,6 +1025,39 @@ export const TileTemplateApp: React.FC = () => {
                       MobAir: {stageDefaults[template.stageType].mobAir[0]}-{stageDefaults[template.stageType].mobAir[1]}
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Room Category */}
+              <div style={{ marginBottom: '15px' }}>
+                <strong>🗂️ Room Category:</strong>
+                <div style={{
+                  marginTop: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '13px'
+                }}>
+                  <select
+                    value={template.roomCategory}
+                    onChange={(e) => setRoomCategory(e.target.value as any)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {ROOM_CATEGORIES.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
+                    Used by OZX to bucket tilemaps (e.g. <code>basement</code> for basement rooms).
+                  </div>
                 </div>
               </div>
 

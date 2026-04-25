@@ -48,6 +48,7 @@ export function frontendToBackendCreateRequest(
       doors: template.doors,
       stageType: template.stageType,
       roomType: template.roomType,
+      roomCategory: template.roomCategory,
       tileProperties: template.tileProperties,
       meta: {
         name,
@@ -93,6 +94,10 @@ export function backendToFrontendTemplate(
     doors: backendTemplate.payload.doors || { top: 0, right: 0, bottom: 0, left: 0 },
     stageType: (backendTemplate.payload.stageType as any) || 'teaching',
     roomType: backendTemplate.payload.roomType || 'full',
+    roomCategory:
+      backendTemplate.payload.roomCategory ||
+      (backendTemplate.room_category as any) ||
+      'normal',
     tileProperties: backendTemplate.payload.tileProperties ||
       Array(backendTemplate.height).fill(null).map(() =>
         Array(backendTemplate.width).fill(null)
@@ -144,6 +149,7 @@ export function frontendToBackendPayload(
     doors: template.doors,
     stageType: template.stageType,
     roomType: template.roomType,
+    roomCategory: template.roomCategory,
     tileProperties: template.tileProperties,
     meta: {
       name,

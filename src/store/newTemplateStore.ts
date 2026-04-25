@@ -4,7 +4,8 @@ import type {
   LayerType,
   UIState,
   StageType,
-  RoomType
+  RoomType,
+  RoomCategory
 } from '../types/newTemplate';
 import {
   createEmptyTemplate,
@@ -64,6 +65,7 @@ interface NewTemplateStore {
   // Room attributes
   setStageType: (stageType: StageType) => void;
   setRoomType: (roomType: RoomType) => void;
+  setRoomCategory: (roomCategory: RoomCategory) => void;
 
   // Drag operations
   startDrag: (layer: LayerType, x: number, y: number) => void;
@@ -773,6 +775,17 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     });
   },
 
+  setRoomCategory: (roomCategory: RoomCategory) => {
+    const { template } = get();
+
+    const newTemplate = { ...template };
+    newTemplate.roomCategory = roomCategory;
+
+    set({
+      template: newTemplate,
+    });
+  },
+
   // Load template from JSON data (for paste functionality)
   loadTemplateFromJSON: async (jsonData: any): Promise<void> => {
     try {
@@ -809,6 +822,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             doors: payload.doors,
             stageType: payload.stageType,
             roomType: payload.roomType,
+            roomCategory: payload.roomCategory,
             tileProperties: payload.tileProperties,
           },
           created_at: new Date().toISOString(),

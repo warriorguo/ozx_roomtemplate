@@ -75,6 +75,7 @@ export function createEmptyTemplate(width: number, height: number): Template {
     doors: { top: 0, right: 0, bottom: 0, left: 0 },
     stageType: 'teaching',
     roomType: 'full',
+    roomCategory: 'normal',
     tileProperties: Array(height).fill(null).map(() => Array(width).fill(null)),
   };
 

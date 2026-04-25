@@ -80,6 +80,7 @@ export interface BackendTemplatePayload {
   };
   stageType?: string;
   roomType?: 'full' | 'bridge' | 'platform';
+  roomCategory?: 'normal' | 'basement' | 'test' | 'cave';
   tileProperties?: (BackendTileProperties | null)[][];
   meta: {
     name: string;
@@ -421,6 +422,7 @@ export interface BridgeGenerateRequest {
   dpsCount?: number;
   mobAirCount?: number;
   stageType?: string;
+  roomCategory?: 'normal' | 'basement' | 'test' | 'cave';
 }
 
 // Debug info types for bridge generation
@@ -563,6 +565,7 @@ export interface PlatformGenerateRequest {
   dpsCount?: number;
   mobAirCount?: number;
   stageType?: string;
+  roomCategory?: 'normal' | 'basement' | 'test' | 'cave';
 }
 
 export interface PlatformPlaceInfo {
@@ -616,6 +619,7 @@ export interface FullRoomGenerateRequest {
   dpsCount?: number;
   mobAirCount?: number;
   stageType?: string;
+  roomCategory?: 'normal' | 'basement' | 'test' | 'cave';
 }
 
 export interface CornerEraseInfo {
