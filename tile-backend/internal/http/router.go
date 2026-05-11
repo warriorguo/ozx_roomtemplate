@@ -9,8 +9,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// SetupRouter creates and configures the HTTP router
-func SetupRouter(templateStore store.Store, logger *zap.Logger, corsOrigins []string) *chi.Mux {
+// SetupRouter creates and configures the HTTP router. cfgHandler may be nil in
+// tests that don't exercise GET /api/v1/config.
+func SetupRouter(templateStore store.Store, cfgHandler *ConfigHandler, logger *zap.Logger, corsOrigins []string) *chi.Mux {
 	r := chi.NewRouter()
 
 	// Add middleware
@@ -55,6 +56,11 @@ func SetupRouter(templateStore store.Store, logger *zap.Logger, corsOrigins []st
 
 		// Stage config endpoint
 		r.Get("/stage-configs", templateHandler.GetStageConfigs)
+
+		// Local-mode runtime config (ORT-67). Optional in tests.
+		if cfgHandler != nil {
+			r.Get("/config", cfgHandler.GetConfig)
+		}
 	})
 
 	return r

@@ -23,7 +23,7 @@ func TestFsStoreRoundTrip(t *testing.T) {
 		t.Fatalf("fsstore.New: %v", err)
 	}
 	logger := zap.NewNop()
-	router := SetupRouter(fs, logger, nil)
+	router := SetupRouter(fs, nil, logger, nil)
 	srv := httptest.NewServer(router)
 	t.Cleanup(srv.Close)
 

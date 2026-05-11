@@ -2,16 +2,16 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
-	"path/filepath"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"tile-backend/internal/config"
 	httpHandler "tile-backend/internal/http"
 	"tile-backend/internal/store"
 	"tile-backend/internal/store/fsstore"
@@ -19,28 +19,48 @@ import (
 	"go.uber.org/zap"
 )
 
-type Config struct {
-	Port               int
+// runtimeOpts collects everything not derived from the on-disk config file.
+type runtimeOpts struct {
 	LogLevel           string
 	CORSAllowedOrigins []string
-	TemplatesDir       string
 }
 
 func main() {
-	// Load configuration
-	config := loadConfig()
+	// --- CLI flags ------------------------------------------------------
+	configFlag := flag.String("config", "", "path to config.json (default: ~/.config/ozx-roomeditor/config.json)")
+	flag.Parse()
 
-	// Initialize logger
-	logger := initLogger(config.LogLevel)
+	opts := loadRuntimeOpts()
+	logger := initLogger(opts.LogLevel)
 	defer logger.Sync()
 
-	// Wire the filesystem-backed store. The proper config-driven path arrives
-	// in ORT-67; for now the path falls back to a per-user default if
-	// TEMPLATES_DIR is not set.
+	// --- Load on-disk config -------------------------------------------
+	cfg, configPath, wroteDefault, err := config.Load(*configFlag)
+	if err != nil {
+		logger.Fatal("Failed to load config", zap.String("path", *configFlag), zap.Error(err))
+	}
+	if wroteDefault {
+		logger.Info("Wrote default config — edit it to point at your OZX project",
+			zap.String("path", configPath))
+	} else {
+		logger.Info("Loaded config", zap.String("path", configPath))
+	}
+
+	templatesDir, err := cfg.TemplatesDir()
+	if err != nil {
+		logger.Fatal("Invalid templates directory in config", zap.Error(err))
+	}
+	if cfg.UsesFallback() {
+		logger.Warn("No OZX project configured — using per-user fallback templates directory",
+			zap.String("templates_dir", templatesDir),
+			zap.String("hint", "edit config.json and set project_root"))
+	}
+
+	// --- Wire stores ---------------------------------------------------
 	var templateStore store.Store
-	if fs, err := fsstore.New(config.TemplatesDir); err != nil {
+	if fs, err := fsstore.New(templatesDir); err != nil {
 		logger.Warn("Falling back to stub store",
-			zap.String("templates_dir", config.TemplatesDir),
+			zap.String("templates_dir", templatesDir),
 			zap.Error(err))
 		templateStore = store.NewStubStore()
 	} else {
@@ -48,33 +68,31 @@ func main() {
 		templateStore = fs
 	}
 
-	// Setup router
-	router := httpHandler.SetupRouter(templateStore, logger, config.CORSAllowedOrigins)
+	// --- HTTP ----------------------------------------------------------
+	cfgHandler := httpHandler.NewConfigHandler(cfg, configPath, templatesDir, logger)
+	router := httpHandler.SetupRouter(templateStore, cfgHandler, logger, opts.CORSAllowedOrigins)
 
-	// Setup HTTP server
 	server := &http.Server{
-		Addr:         fmt.Sprintf(":%d", config.Port),
+		Addr:         fmt.Sprintf(":%d", cfg.Port),
 		Handler:      router,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,
 	}
 
-	// Start server in a goroutine
 	go func() {
-		logger.Info("Starting server", zap.Int("port", config.Port))
+		logger.Info("Starting server", zap.Int("port", cfg.Port))
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			logger.Fatal("Failed to start server", zap.Error(err))
 		}
 	}()
 
-	// Wait for interrupt signal to gracefully shutdown the server
+	// --- Graceful shutdown ---------------------------------------------
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 	logger.Info("Shutting down server...")
 
-	// Graceful shutdown with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -85,33 +103,21 @@ func main() {
 	logger.Info("Server exited")
 }
 
-// loadConfig loads configuration from environment variables
-func loadConfig() *Config {
-	config := &Config{
-		Port:         getEnvInt("PORT", 8090),
-		LogLevel:     getEnv("LOG_LEVEL", "info"),
-		TemplatesDir: getEnv("TEMPLATES_DIR", defaultTemplatesDir()),
+// loadRuntimeOpts pulls process-runtime options (logging, CORS) from env vars.
+// These deliberately stay separate from the on-disk config file because they
+// are deployment-environment knobs, not editor settings the user would tweak.
+func loadRuntimeOpts() *runtimeOpts {
+	opts := &runtimeOpts{
+		LogLevel: getEnv("LOG_LEVEL", "info"),
 	}
-
-	// Parse CORS origins
 	corsOrigins := getEnv("CORS_ALLOWED_ORIGINS", "")
 	if corsOrigins != "" {
-		config.CORSAllowedOrigins = strings.Split(corsOrigins, ",")
-		for i, origin := range config.CORSAllowedOrigins {
-			config.CORSAllowedOrigins[i] = strings.TrimSpace(origin)
+		opts.CORSAllowedOrigins = strings.Split(corsOrigins, ",")
+		for i, origin := range opts.CORSAllowedOrigins {
+			opts.CORSAllowedOrigins[i] = strings.TrimSpace(origin)
 		}
 	}
-
-	return config
-}
-
-// defaultTemplatesDir picks a sensible per-user location until ORT-67 lands a
-// proper config file that points at an OZX project folder.
-func defaultTemplatesDir() string {
-	if home, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(home, ".local", "share", "ozx-roomeditor", "templates")
-	}
-	return "./templates"
+	return opts
 }
 
 // initLogger initializes the zap logger
@@ -130,32 +136,20 @@ func initLogger(level string) *zap.Logger {
 		zapLevel = zap.NewAtomicLevelAt(zap.InfoLevel)
 	}
 
-	config := zap.NewProductionConfig()
-	config.Level = zapLevel
-	config.DisableStacktrace = true
+	cfg := zap.NewProductionConfig()
+	cfg.Level = zapLevel
+	cfg.DisableStacktrace = true
 
-	logger, err := config.Build()
+	logger, err := cfg.Build()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to initialize logger: %v", err))
 	}
-
 	return logger
 }
 
-// getEnv gets an environment variable with a default value
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
 		return value
-	}
-	return defaultValue
-}
-
-// getEnvInt gets an integer environment variable with a default value
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
 	}
 	return defaultValue
 }

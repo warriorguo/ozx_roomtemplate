@@ -1,10 +1,10 @@
 # Tile Template Backend (local-client branch)
 
 > **Status:** local-client variant of the room template editor. The PostgreSQL
-> backend has been removed. As of **ORT-66** template CRUD is backed by an
-> on-disk store (`fsstore`) that writes one JSON file per template under a
-> configurable directory. Config-driven OZX project paths land in **ORT-67**
-> and the standalone binary with browser auto-launch in **ORT-68**.
+> backend has been removed. Template CRUD is backed by an on-disk store
+> (`fsstore`, **ORT-66**) and driven by a user JSON config file pointing at an
+> OZX project folder (**ORT-67**). The standalone binary with browser
+> auto-launch lands in **ORT-68**.
 
 A Go HTTP service that powers the room template editor: validation, room
 generation (full/bridge/platform), and template CRUD. Storage is pluggable
@@ -34,14 +34,31 @@ go build -o bin/server cmd/server/main.go && ./bin/server
 
 ### Configuration
 
-Environment variables (see `.env.example`):
+The editor reads two layers of configuration:
+
+**User config** (`~/.config/ozx-roomeditor/config.json` on macOS/Linux,
+`%APPDATA%/ozx-roomeditor/config.json` on Windows). Created on first run:
+
+```json
+{
+  "project_root": "",
+  "template_subdir": "Assets/Resources/TilemapData",
+  "port": 8090,
+  "auto_open_browser": true
+}
+```
+
+Point `project_root` at an OZX project (e.g. an `ozx_base` checkout) and the
+editor will save templates under `project_root/template_subdir`. Leave it
+empty to use `~/.local/share/ozx-roomeditor/templates` as a fallback. Pass
+`--config <path>` to use a different file.
+
+**Runtime env** (deployment knobs only; see `.env.example`):
 
 | Variable | Default | Purpose |
 |---|---|---|
-| `PORT` | `8090` | HTTP listen port |
 | `LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
 | `CORS_ALLOWED_ORIGINS` | _(empty → `*`)_ | Comma-separated allowed origins |
-| `TEMPLATES_DIR` | `~/.local/share/ozx-roomeditor/templates` | Filesystem store root |
 
 ## API
 
@@ -58,13 +75,15 @@ Base URL: `http://localhost:8090/api/v1`
 | `POST` | `/generate/bridge` | Generate bridge room |
 | `POST` | `/generate/platform` | Generate platform room |
 | `GET` | `/stage-configs` | All stage type configurations |
+| `GET` | `/config` | Resolved user config (project_root, templates_dir, ...) |
 | `GET` | `/health` | Stats the templates dir and returns 200 if reachable |
 
 ## Architecture
 
 ```
-cmd/server/                Entry point + config + logger
+cmd/server/                Entry point + flag parsing + logger
 internal/
+  ├── config/             User config file load/save (ORT-67)
   ├── http/               chi router, handlers, middleware
   ├── store/              Store interface, StubStore, fsstore (filesystem impl)
   ├── model/              Template, request/response types

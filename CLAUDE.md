@@ -5,9 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > **Branch:** `local-client`. This branch removes the PostgreSQL backend in
 > preparation for a standalone, filesystem-backed desktop variant of the editor
 > (epic ORT-65..ORT-69). The PostgreSQL/cloud variant lives on `main`. As of
-> ORT-66 template CRUD is backed by `fsstore` (per-template JSON files under a
-> configurable directory). Config-driven OZX project paths land in ORT-67 and
-> the bundled binary with browser auto-launch in ORT-68.
+> ORT-67 the backend is driven by a JSON config file pointing at an OZX project
+> folder (`project_root` + `template_subdir`); templates are persisted by
+> `fsstore` (ORT-66). The bundled binary with browser auto-launch lands in
+> ORT-68.
 
 ## Project Overview
 
@@ -126,16 +127,18 @@ internal/
 - `POST /templates/validate?strict` - Validate payload
 - `POST /generate/{fullroom|bridge|platform}` - Generate a room
 - `GET /stage-configs` - Stage type configurations
+- `GET /config` - Resolved user config (project_root, template_subdir, templates_dir, ...)
 - `GET /health` - Health check
 
 **Storage**:
 - `store.Store` is the single storage interface (Create/Get/Update/Delete/List/HealthCheck).
-- `store.fsstore.Store` persists each template as `<uuid>.json` under a
-  configured root directory. Writes are atomic (`<file>.tmp` + rename) and a
-  single `RWMutex` guards concurrent access. Wired by default in
-  `cmd/server/main.go`; the root path is `$TEMPLATES_DIR` or
-  `~/.local/share/ozx-roomeditor/templates` until ORT-67 introduces a proper
-  config file pointing at an OZX project.
+- `store.fsstore.Store` persists each template as `<uuid>.json` under the
+  resolved templates directory. Writes are atomic (`<file>.tmp` + rename) and
+  a single `RWMutex` guards concurrent access.
+- `internal/config` loads/saves `~/.config/ozx-roomeditor/config.json`
+  (overridable with `--config`). The templates directory is computed as
+  `project_root + template_subdir`, or a per-user fallback when
+  `project_root` is empty.
 - `store.StubStore` still exists as a fallback for when the configured
   directory cannot be created.
 
@@ -231,13 +234,28 @@ VITE_API_BASE_URL=http://localhost:8090/api/v1
 VITE_NODE_ENV=development
 ```
 
-**Backend** (`tile-backend/.env`):
+**Backend runtime env** (`tile-backend/.env`):
 ```
-PORT=8090
 LOG_LEVEL=info
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
-TEMPLATES_DIR=        # optional; defaults to ~/.local/share/ozx-roomeditor/templates
 ```
+
+**Backend user config** (`~/.config/ozx-roomeditor/config.json`, written on first run):
+```json
+{
+  "project_root": "",
+  "template_subdir": "Assets/Resources/TilemapData",
+  "port": 8090,
+  "auto_open_browser": true
+}
+```
+
+`project_root` is the absolute path to an OZX project (e.g. an `ozx_base`
+checkout); leave it empty to use a per-user fallback templates directory. Pass
+`--config <path>` to the binary to use a different config file. `GET
+/api/v1/config` returns the resolved config (with computed `templates_dir`,
+`config_path`, and `uses_fallback`) so the frontend can display the current
+project folder.
 
 **Note**: Make sure frontend `VITE_API_BASE_URL` matches the backend `PORT`.
 
