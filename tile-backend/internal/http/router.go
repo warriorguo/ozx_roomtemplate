@@ -57,9 +57,10 @@ func SetupRouter(templateStore store.Store, cfgHandler *ConfigHandler, logger *z
 		// Stage config endpoint
 		r.Get("/stage-configs", templateHandler.GetStageConfigs)
 
-		// Local-mode runtime config (ORT-67). Optional in tests.
+		// Local-mode runtime config (ORT-67/ORT-69). Optional in tests.
 		if cfgHandler != nil {
 			r.Get("/config", cfgHandler.GetConfig)
+			r.Put("/config", cfgHandler.UpdateConfig)
 		}
 	})
 

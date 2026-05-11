@@ -77,19 +77,20 @@ func Run(opts Options) error {
 			zap.String("hint", "edit config.json and set project_root"))
 	}
 
-	var templateStore store.Store
+	var initialStore store.Store
 	if fs, err := fsstore.New(templatesDir); err != nil {
 		logger.Warn("Falling back to stub store",
 			zap.String("templates_dir", templatesDir),
 			zap.Error(err))
-		templateStore = store.NewStubStore()
+		initialStore = store.NewStubStore()
 	} else {
 		logger.Info("Filesystem store ready", zap.String("templates_dir", fs.RootDir()))
-		templateStore = fs
+		initialStore = fs
 	}
+	swappable := store.NewSwappableStore(initialStore)
 
-	cfgHandler := httpHandler.NewConfigHandler(cfg, configPath, templatesDir, logger)
-	router := httpHandler.SetupRouter(templateStore, cfgHandler, logger, opts.CORSAllowedOrigins)
+	cfgHandler := httpHandler.NewConfigHandler(cfg, configPath, templatesDir, swappable, logger)
+	router := httpHandler.SetupRouter(swappable, cfgHandler, logger, opts.CORSAllowedOrigins)
 
 	if opts.FrontendFS != nil {
 		if err := httpHandler.MountFrontend(router, opts.FrontendFS, logger); err != nil {

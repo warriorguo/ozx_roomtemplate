@@ -3,11 +3,11 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > **Branch:** `local-client`. Standalone, filesystem-backed desktop variant
-> of the editor; the PostgreSQL/cloud variant lives on `main`. As of ORT-68
-> the bundled binary `ozx-roomeditor` ships the React SPA via `go:embed`
-> and auto-opens the user's default browser. Build with
-> `cd tile-backend && make build-local`. Frontend local-mode UX changes
-> (ORT-69) come last.
+> of the editor; the PostgreSQL/cloud variant lives on `main`. The bundled
+> binary `ozx-roomeditor` ships the React SPA via `go:embed`, auto-opens
+> the user's default browser, and lets the user switch projects in-place
+> via the toolbar (PUT `/api/v1/config` hot-swaps the filesystem store).
+> Build with `cd tile-backend && make build-local`.
 
 ## Project Overview
 
@@ -135,6 +135,7 @@ internal/
 - `POST /generate/{fullroom|bridge|platform}` - Generate a room
 - `GET /stage-configs` - Stage type configurations
 - `GET /config` - Resolved user config (project_root, template_subdir, templates_dir, ...)
+- `PUT /config` - Update config; hot-swaps the filesystem store to a new project folder
 - `GET /health` - Health check
 
 **Storage**:

@@ -166,6 +166,30 @@ export interface BackendErrorResponse {
   details?: Record<string, string>;
 }
 
+/**
+ * Local-mode runtime config returned by GET /api/v1/config.
+ * Only present when the backend is running as the local-client variant
+ * (ozx-roomeditor binary on the local-client branch). The cloud backend
+ * on main does not register this endpoint.
+ */
+export interface LocalConfig {
+  project_root: string;
+  template_subdir: string;
+  port: number;
+  auto_open_browser: boolean;
+  templates_dir: string;
+  config_path: string;
+  uses_fallback: boolean;
+}
+
+/** Partial-update shape for PUT /api/v1/config. */
+export interface UpdateLocalConfigRequest {
+  project_root?: string;
+  template_subdir?: string;
+  port?: number;
+  auto_open_browser?: boolean;
+}
+
 // API Configuration
 // Use relative path by default for nginx proxy, can override with env var for local dev
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
@@ -404,6 +428,33 @@ export class TemplateApiService {
 
   async incrementViewCount(id: string): Promise<void> {
     await this.makeRequest<void>(`/templates/${id}/view`, { method: 'PATCH' });
+  }
+
+  /**
+   * Fetch the active local-mode config. Returns null if the backend doesn't
+   * expose /config (i.e. we're talking to the cloud backend on main).
+   */
+  async getLocalConfig(): Promise<LocalConfig | null> {
+    try {
+      return await this.makeRequest<LocalConfig>('/config');
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  /**
+   * Update the local-mode config. The backend persists the change to disk and
+   * hot-swaps the filesystem store; subsequent /templates calls hit the new
+   * project folder.
+   */
+  async updateLocalConfig(req: UpdateLocalConfigRequest): Promise<LocalConfig> {
+    return this.makeRequest<LocalConfig>('/config', {
+      method: 'PUT',
+      body: JSON.stringify(req),
+    });
   }
 }
 

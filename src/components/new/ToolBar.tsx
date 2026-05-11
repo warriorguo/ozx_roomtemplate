@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import { SaveLoadPanel } from './SaveLoadPanel';
+import { ProjectBanner } from './ProjectBanner';
 import { frontendToBackendPayload } from '../../services/templateConverter';
 
 interface NewTemplateDialogProps {
@@ -262,6 +263,8 @@ export const ToolBar: React.FC = () => {
       boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
       marginBottom: '20px'
     }}>
+      {/* Local-mode project folder banner; renders nothing on the cloud backend. */}
+      <ProjectBanner />
       <div style={{
         display: 'flex',
         alignItems: 'center',

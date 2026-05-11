@@ -95,6 +95,7 @@ Base URL: `http://localhost:8090/api/v1`
 | `POST` | `/generate/platform` | Generate platform room |
 | `GET` | `/stage-configs` | All stage type configurations |
 | `GET` | `/config` | Resolved user config (project_root, templates_dir, ...) |
+| `PUT` | `/config` | Update config; hot-swaps the filesystem store |
 | `GET` | `/health` | Stats the templates dir and returns 200 if reachable |
 
 ## Architecture
