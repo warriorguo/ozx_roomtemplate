@@ -31,7 +31,12 @@ let gridLineWidth: CGFloat = 2
 
 let wordmarkColor = CGColor(red: 1, green: 1, blue: 1, alpha: 1)
 let wordmark = "OZX"
-let wordmarkFontSize: CGFloat = 360 // tuned to fit ~76% of the canvas width
+let wordmarkFontSize: CGFloat = 320 // tuned so the OZX+subtitle stack fits centred
+
+let subtitle = "room-tpl"
+let subtitleFontSize: CGFloat = 130
+let subtitleColor = CGColor(red: 1, green: 1, blue: 1, alpha: 0.78) // softer than the main wordmark
+let stackGap: CGFloat = 24 // visual gap between OZX baseline and subtitle cap-height
 
 // MARK: - Argument parsing
 
@@ -99,23 +104,41 @@ while y < size {
 }
 ctx.strokePath()
 
-// 3. "OZX" wordmark, white, centered. CoreText handles the heavy lifting:
-//    we ask for a heavy/black weight from the system UI font.
-let font = NSFont.systemFont(ofSize: wordmarkFontSize, weight: .heavy)
-let attrs: [NSAttributedString.Key: Any] = [
-    .font: font,
-    .foregroundColor: NSColor(cgColor: wordmarkColor)!,
-    .kern: -6 // tighten the OZX tracking so the letters feel like a wordmark
-]
-let attributed = NSAttributedString(string: wordmark, attributes: attrs)
-let line = CTLineCreateWithAttributedString(attributed)
-let bounds = CTLineGetBoundsWithOptions(line, .useOpticalBounds)
+// 3. OZX wordmark + "room-tpl" subtitle, stacked and centred. We measure
+//    both first so we can centre the combined block vertically — measuring
+//    keeps the visual centre aligned even when the relative font sizes
+//    change later.
+func makeLine(_ text: String, size px: CGFloat, weight: NSFont.Weight, color: CGColor, kern: CGFloat) -> (CTLine, CGRect) {
+    let f = NSFont.systemFont(ofSize: px, weight: weight)
+    let a: [NSAttributedString.Key: Any] = [
+        .font: f,
+        .foregroundColor: NSColor(cgColor: color)!,
+        .kern: kern
+    ]
+    let line = CTLineCreateWithAttributedString(NSAttributedString(string: text, attributes: a))
+    return (line, CTLineGetBoundsWithOptions(line, .useOpticalBounds))
+}
 
-// Center the optical bounding box of the wordmark in the canvas.
-let textX = (size - bounds.width) / 2 - bounds.origin.x
-let textY = (size - bounds.height) / 2 - bounds.origin.y
-ctx.textPosition = CGPoint(x: textX, y: textY)
-CTLineDraw(line, ctx)
+let (wordLine, wordBounds) = makeLine(wordmark, size: wordmarkFontSize, weight: .heavy, color: wordmarkColor, kern: -6)
+let (subLine,  subBounds)  = makeLine(subtitle, size: subtitleFontSize, weight: .semibold, color: subtitleColor, kern: -1)
+
+// Total stack height = OZX height + gap + subtitle height. We compose in
+// Core Graphics (origin bottom-left), so the subtitle baseline ends up
+// below the OZX baseline.
+let stackHeight = wordBounds.height + stackGap + subBounds.height
+let stackBottom = (size - stackHeight) / 2
+
+// Subtitle below.
+let subX = (size - subBounds.width) / 2 - subBounds.origin.x
+let subY = stackBottom - subBounds.origin.y
+ctx.textPosition = CGPoint(x: subX, y: subY)
+CTLineDraw(subLine, ctx)
+
+// OZX above the subtitle (offset by subtitle height + gap).
+let wordX = (size - wordBounds.width) / 2 - wordBounds.origin.x
+let wordY = stackBottom + subBounds.height + stackGap - wordBounds.origin.y
+ctx.textPosition = CGPoint(x: wordX, y: wordY)
+CTLineDraw(wordLine, ctx)
 
 // MARK: - Write PNG
 
