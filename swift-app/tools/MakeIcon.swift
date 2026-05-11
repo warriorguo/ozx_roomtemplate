@@ -34,9 +34,9 @@ let wordmark = "OZX"
 let wordmarkFontSize: CGFloat = 320 // tuned so the OZX+subtitle stack fits centred
 
 let subtitle = "room-tpl"
-let subtitleFontSize: CGFloat = 130
-let subtitleColor = CGColor(red: 1, green: 1, blue: 1, alpha: 0.78) // softer than the main wordmark
-let stackGap: CGFloat = 24 // visual gap between OZX baseline and subtitle cap-height
+let subtitleFontSize: CGFloat = 170
+let subtitleColor = CGColor(red: 1, green: 1, blue: 1, alpha: 0.85) // softer than the main wordmark
+let stackGap: CGFloat = 28 // visual gap between OZX baseline and subtitle cap-height
 
 // MARK: - Argument parsing
 
