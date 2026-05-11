@@ -228,13 +228,11 @@ func (h *TemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) 
 func (h *TemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	// Validate UUID format
-	if _, err := uuid.Parse(id); err != nil {
-		respondError(w, h.logger, http.StatusBadRequest, "Invalid UUID format", err.Error())
+	if !isValidTemplateID(id) {
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid template id", "expected a UUID or '<category>__<basename>'")
 		return
 	}
 
-	// Query database
 	template, err := h.store.Get(r.Context(), id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -253,13 +251,11 @@ func (h *TemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
 func (h *TemplateHandler) DeleteTemplate(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	// Validate UUID format
-	if _, err := uuid.Parse(id); err != nil {
-		respondError(w, h.logger, http.StatusBadRequest, "Invalid UUID format", err.Error())
+	if !isValidTemplateID(id) {
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid template id", "expected a UUID or '<category>__<basename>'")
 		return
 	}
 
-	// Delete from database
 	err := h.store.Delete(r.Context(), id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
@@ -307,6 +303,26 @@ func (h *TemplateHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 		"status": "healthy",
 	}
 	respondJSON(w, h.logger, http.StatusOK, response)
+}
+
+// isValidTemplateID accepts either a UUID (the canonical synthesised id
+// returned in TemplateSummary) or the path-derived form `<category>__<basename>`
+// used directly by the OZX filesystem store.
+func isValidTemplateID(id string) bool {
+	if id == "" {
+		return false
+	}
+	if _, err := uuid.Parse(id); err == nil {
+		return true
+	}
+	cat, base, ok := strings.Cut(id, "__")
+	if !ok || cat == "" || base == "" {
+		return false
+	}
+	if strings.ContainsAny(cat, "/\\") || strings.ContainsAny(base, "/\\") {
+		return false
+	}
+	return true
 }
 
 // respondValidationError sends a validation error response

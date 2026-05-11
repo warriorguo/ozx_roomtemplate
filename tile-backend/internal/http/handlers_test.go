@@ -334,7 +334,7 @@ func TestTemplateHandler_GetTemplate_InvalidUUID(t *testing.T) {
 	err := json.NewDecoder(w.Body).Decode(&response)
 	assert.NoError(t, err)
 	assert.Equal(t, "Bad Request", response.Error)
-	assert.Equal(t, "Invalid UUID format", response.Message)
+	assert.Equal(t, "Invalid template id", response.Message)
 }
 
 func TestTemplateHandler_GetTemplate_NotFound(t *testing.T) {

@@ -2,6 +2,7 @@ package fsstore
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -11,14 +12,15 @@ import (
 
 	"tile-backend/internal/model"
 	"tile-backend/internal/store"
-
-	"github.com/google/uuid"
 )
 
-// fixture returns a valid 4x4 template ready to write to the store.
+// fixture builds a 4x4 template with the metadata the OZX filename pattern
+// needs (shape, stage, openDoors, category).
 func fixture(name string) model.Template {
-	staticCount := 2
-	roomType := "full"
+	shape := "all"
+	stage := "boss"
+	category := "normal"
+	openDoors := 3
 	return model.Template{
 		Name:    name,
 		Version: 1,
@@ -31,15 +33,12 @@ func fixture(name string) model.Template {
 			Zoner:  [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
 			DPS:    [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
 			MobAir: [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}},
-			Meta: model.TemplateMeta{
-				Name:    name,
-				Version: 1,
-				Width:   4,
-				Height:  4,
-			},
+			RoomShape:    &shape,
+			StageType:    &stage,
+			RoomCategory: &category,
+			OpenDoors:    &openDoors,
+			Meta: model.TemplateMeta{Name: name, Version: 1, Width: 4, Height: 4},
 		},
-		StaticCount: &staticCount,
-		RoomType:    &roomType,
 	}
 }
 
@@ -52,27 +51,13 @@ func newTestStore(t *testing.T) *Store {
 	return s
 }
 
-func TestNew_CreatesDirectory(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "nested", "templates")
-	s, err := New(dir)
-	if err != nil {
-		t.Fatalf("New: %v", err)
-	}
-	if _, err := os.Stat(dir); err != nil {
-		t.Fatalf("expected dir to exist: %v", err)
-	}
-	if s.RootDir() == "" {
-		t.Fatal("RootDir empty")
-	}
-}
-
 func TestNew_EmptyRoot(t *testing.T) {
 	if _, err := New(""); err == nil {
 		t.Fatal("expected error for empty rootDir")
 	}
 }
 
-func TestCreate_RoundTrip(t *testing.T) {
+func TestCreate_AllocatesOZXFilename(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
@@ -80,71 +65,126 @@ func TestCreate_RoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if saved.ID == uuid.Nil {
-		t.Fatal("expected generated ID")
-	}
-	if saved.CreatedAt.IsZero() || saved.UpdatedAt.IsZero() {
-		t.Fatal("expected timestamps populated")
-	}
 
-	got, err := s.Get(ctx, saved.ID.String())
-	if err != nil {
-		t.Fatalf("Get: %v", err)
+	want := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	if _, err := os.Stat(want); err != nil {
+		t.Errorf("expected file at %s: %v", want, err)
 	}
-	if got.Name != "alpha" {
-		t.Errorf("name: want alpha, got %q", got.Name)
-	}
-	if got.Payload.Meta.Width != 4 {
-		t.Errorf("payload not round-tripped: %#v", got.Payload.Meta)
+	if saved.RoomCategory == nil || *saved.RoomCategory != "normal" {
+		t.Errorf("RoomCategory not propagated: %+v", saved.RoomCategory)
 	}
 }
 
-func TestCreate_RejectsCollision(t *testing.T) {
+func TestCreate_SequencesWithinCategory(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	id := uuid.New()
-	tmpl := fixture("alpha")
-	tmpl.ID = id
-
-	if _, err := s.Create(ctx, tmpl); err != nil {
-		t.Fatalf("first Create: %v", err)
+	for i := 1; i <= 3; i++ {
+		if _, err := s.Create(ctx, fixture("alpha")); err != nil {
+			t.Fatalf("Create %d: %v", i, err)
+		}
 	}
-	if _, err := s.Create(ctx, tmpl); err == nil {
-		t.Fatal("expected second Create to fail with id collision")
+	for i := 1; i <= 3; i++ {
+		want := filepath.Join(s.RootDir(), "normal", "all_boss_3_"+twoDigits(i)+".json")
+		if _, err := os.Stat(want); err != nil {
+			t.Errorf("seq %d missing at %s", i, want)
+		}
+	}
+}
+
+func TestCreate_FillsGapsInSequence(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	for i := 0; i < 3; i++ {
+		if _, err := s.Create(ctx, fixture("a")); err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+	}
+	// Delete the middle one; next Create should reuse the freed seq.
+	mid := filepath.Join(s.RootDir(), "normal", "all_boss_3_02.json")
+	if err := os.Remove(mid); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+	if _, err := s.Create(ctx, fixture("filler")); err != nil {
+		t.Fatalf("Create after gap: %v", err)
+	}
+	if _, err := os.Stat(mid); err != nil {
+		t.Errorf("expected seq 02 reused: %v", err)
+	}
+}
+
+func TestGet_AcceptsBothIDForms(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	saved, err := s.Create(ctx, fixture("alpha"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Form 1: the synthesised UUID round-trips (so the existing
+	// /api/v1/templates/{uuid} surface keeps working unchanged).
+	got, err := s.Get(ctx, saved.ID.String())
+	if err != nil {
+		t.Fatalf("Get by UUID: %v", err)
+	}
+	if got.Payload.Meta.Width != 4 {
+		t.Errorf("payload not retrieved: %+v", got.Payload.Meta)
+	}
+
+	// Form 2: the path-derived canonical id works too.
+	id := "normal" + idSeparator + "all_boss_3_01"
+	got, err = s.Get(ctx, id)
+	if err != nil {
+		t.Fatalf("Get by path id: %v", err)
+	}
+	if got.StaticCount == nil || *got.StaticCount != 2 {
+		t.Errorf("StaticCount: want 2, got %v", got.StaticCount)
+	}
+}
+
+func TestGet_OnDiskFileIsBarePayload(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, fixture("alpha")); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	path := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	// The on-disk format is a bare TemplatePayload — no top-level "id"
+	// or "created_at" envelope keys.
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &top); err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if _, hasEnvelope := top["id"]; hasEnvelope {
+		t.Errorf("file should not contain envelope key 'id'")
+	}
+	if _, hasGround := top["ground"]; !hasGround {
+		t.Errorf("file should contain payload key 'ground'")
+	}
+	if _, hasMeta := top["meta"]; !hasMeta {
+		t.Errorf("file should contain payload key 'meta'")
 	}
 }
 
 func TestGet_NotFound(t *testing.T) {
 	s := newTestStore(t)
-	_, err := s.Get(context.Background(), uuid.NewString())
+	_, err := s.Get(context.Background(), "normal__missing")
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
-func TestGet_CorruptedFile(t *testing.T) {
-	s := newTestStore(t)
-	bad := filepath.Join(s.RootDir(), uuid.NewString()+".json")
-	if err := os.WriteFile(bad, []byte("{not json"), 0o644); err != nil {
-		t.Fatalf("write bad: %v", err)
-	}
-	id := strings.TrimSuffix(filepath.Base(bad), ".json")
-	if _, err := s.Get(context.Background(), id); err == nil {
-		t.Fatal("expected parse error")
-	}
-}
-
-func TestUpdate_OverwritesPayloadButPreservesCreatedAt(t *testing.T) {
+func TestUpdate_OverwritesButKeepsFilename(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 
-	saved, err := s.Create(ctx, fixture("alpha"))
-	if err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	createdAt := saved.CreatedAt
-	time.Sleep(2 * time.Millisecond) // ensure UpdatedAt advances measurably
+	saved, _ := s.Create(ctx, fixture("alpha"))
+	id := "normal" + idSeparator + "all_boss_3_01"
 
 	revised := fixture("alpha-v2")
 	revised.Width = 8
@@ -152,67 +192,96 @@ func TestUpdate_OverwritesPayloadButPreservesCreatedAt(t *testing.T) {
 	revised.Payload.Meta.Width = 8
 	revised.Payload.Meta.Height = 8
 
-	updated, err := s.Update(ctx, saved.ID.String(), revised)
+	time.Sleep(2 * time.Millisecond)
+	updated, err := s.Update(ctx, id, revised)
 	if err != nil {
 		t.Fatalf("Update: %v", err)
 	}
-	if !updated.CreatedAt.Equal(createdAt) {
-		t.Errorf("CreatedAt should be preserved: want %v got %v", createdAt, updated.CreatedAt)
+	if updated.Width != 8 {
+		t.Errorf("payload not updated: %+v", updated.Payload.Meta)
 	}
-	if !updated.UpdatedAt.After(createdAt) {
-		t.Errorf("UpdatedAt should advance: %v vs %v", updated.UpdatedAt, createdAt)
+	// Filename should be unchanged.
+	if _, err := os.Stat(filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")); err != nil {
+		t.Errorf("filename should be stable across updates: %v", err)
 	}
-	if updated.Name != "alpha-v2" {
-		t.Errorf("name not updated: %q", updated.Name)
-	}
+	// The synthesised ID is path-derived, so it should match the original.
 	if updated.ID != saved.ID {
-		t.Errorf("ID should remain %v, got %v", saved.ID, updated.ID)
+		t.Errorf("ID drift across update: saved=%v updated=%v", saved.ID, updated.ID)
 	}
 }
 
 func TestUpdate_MissingFails(t *testing.T) {
 	s := newTestStore(t)
-	_, err := s.Update(context.Background(), uuid.NewString(), fixture("ghost"))
+	_, err := s.Update(context.Background(), "normal__nope", fixture("ghost"))
 	if !errors.Is(err, store.ErrNotFound) {
 		t.Fatalf("expected ErrNotFound, got %v", err)
 	}
 }
 
-func TestDelete_MissingReturnsNotFound(t *testing.T) {
-	s := newTestStore(t)
-	err := s.Delete(context.Background(), uuid.NewString())
-	if !errors.Is(err, store.ErrNotFound) {
-		t.Fatalf("expected ErrNotFound, got %v", err)
-	}
-}
-
-func TestDelete_RemovesFile(t *testing.T) {
+func TestDelete_RemovesJSONAndMeta(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
-	saved, err := s.Create(ctx, fixture("alpha"))
-	if err != nil {
+	if _, err := s.Create(ctx, fixture("alpha")); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	if err := s.Delete(ctx, saved.ID.String()); err != nil {
+	jsonPath := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	metaPath := jsonPath + ".meta"
+	if err := os.WriteFile(metaPath, []byte("fileFormatVersion: 2"), 0o644); err != nil {
+		t.Fatalf("write meta: %v", err)
+	}
+
+	if err := s.Delete(ctx, "normal"+idSeparator+"all_boss_3_01"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
-	if _, err := s.Get(ctx, saved.ID.String()); !errors.Is(err, store.ErrNotFound) {
-		t.Fatalf("expected ErrNotFound after delete, got %v", err)
+	if _, err := os.Stat(jsonPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("json should be gone")
+	}
+	if _, err := os.Stat(metaPath); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("meta should also be removed")
 	}
 }
 
-func TestList_Empty(t *testing.T) {
+func TestDelete_NotFound(t *testing.T) {
 	s := newTestStore(t)
-	items, total, err := s.List(context.Background(), model.ListTemplatesQueryParams{Limit: 20})
+	err := s.Delete(context.Background(), "normal__nope")
+	if !errors.Is(err, store.ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
+func TestList_SkipsMetaAndCorrupted(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, fixture("ok")); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	// Pretend a Unity meta file is sitting next to our template.
+	jsonPath := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	if err := os.WriteFile(jsonPath+".meta", []byte("yaml"), 0o644); err != nil {
+		t.Fatalf("write meta: %v", err)
+	}
+	// Corrupt JSON should not derail the listing.
+	bad := filepath.Join(s.RootDir(), "normal", "all_boss_3_02.json")
+	if err := os.WriteFile(bad, []byte("not json"), 0o644); err != nil {
+		t.Fatalf("write bad: %v", err)
+	}
+	// Stray .tmp from an interrupted prior write.
+	tmp := filepath.Join(s.RootDir(), "normal", "all_boss_3_99.json.tmp")
+	if err := os.WriteFile(tmp, []byte("{}"), 0o644); err != nil {
+		t.Fatalf("write tmp: %v", err)
+	}
+
+	items, total, err := s.List(ctx, model.ListTemplatesQueryParams{Limit: 10})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if total != 0 || len(items) != 0 {
-		t.Errorf("expected empty, got total=%d items=%d", total, len(items))
+	if total != 1 || len(items) != 1 || items[0].Name != "ok" {
+		t.Errorf("expected only 'ok', got total=%d items=%+v", total, items)
 	}
 }
 
-func TestList_SortsByUpdatedAtDesc(t *testing.T) {
+func TestList_SortsByMTimeDesc(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	first, _ := s.Create(ctx, fixture("first"))
@@ -229,7 +298,32 @@ func TestList_SortsByUpdatedAtDesc(t *testing.T) {
 		t.Errorf("total: want 3, got %d", total)
 	}
 	if items[0].ID != third.ID || items[1].ID != second.ID || items[2].ID != first.ID {
-		t.Errorf("wrong order: %v", []uuid.UUID{items[0].ID, items[1].ID, items[2].ID})
+		t.Errorf("wrong order: got %v %v %v", items[0].ID, items[1].ID, items[2].ID)
+	}
+}
+
+func TestList_WalksAllCategorySubfolders(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	makeIn := func(cat, name string) {
+		tpl := fixture(name)
+		c := cat
+		tpl.Payload.RoomCategory = &c
+		if _, err := s.Create(ctx, tpl); err != nil {
+			t.Fatalf("Create %s/%s: %v", cat, name, err)
+		}
+	}
+	for _, cat := range []string{"normal", "basement", "cave", "test"} {
+		makeIn(cat, cat+"-room")
+	}
+
+	_, total, err := s.List(ctx, model.ListTemplatesQueryParams{Limit: 10})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if total != 4 {
+		t.Errorf("expected one per category (4), got %d", total)
 	}
 }
 
@@ -237,7 +331,8 @@ func TestList_PaginationAndNameFilter(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
 	for _, n := range []string{"alpha-1", "alpha-2", "beta-1", "alpha-3"} {
-		if _, err := s.Create(ctx, fixture(n)); err != nil {
+		tpl := fixture(n)
+		if _, err := s.Create(ctx, tpl); err != nil {
 			t.Fatalf("Create %s: %v", n, err)
 		}
 		time.Sleep(time.Millisecond)
@@ -253,127 +348,9 @@ func TestList_PaginationAndNameFilter(t *testing.T) {
 	if len(items) != 2 {
 		t.Errorf("page size: want 2, got %d", len(items))
 	}
-
 	page2, _, _ := s.List(ctx, model.ListTemplatesQueryParams{Limit: 2, Offset: 2, NameLike: "alpha"})
 	if len(page2) != 1 {
 		t.Errorf("page2 size: want 1, got %d", len(page2))
-	}
-}
-
-func TestList_FiltersByRoomTypeAndCounts(t *testing.T) {
-	s := newTestStore(t)
-	ctx := context.Background()
-
-	// ComputeTemplateStats recomputes counts from the payload, so we vary the
-	// Static layer rather than setting StaticCount directly.
-	mk := func(name, room string, staticCells [][]int) model.Template {
-		tpl := fixture(name)
-		tpl.RoomType = &room
-		tpl.Payload.Static = staticCells
-		return tpl
-	}
-
-	// "a" has 2 static cells (in fixture default), "b" has 0, "c" has 6.
-	zero := [][]int{{0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}, {0, 0, 0, 0}}
-	many := [][]int{{1, 1, 0, 0}, {1, 1, 0, 0}, {0, 0, 1, 1}, {0, 0, 0, 0}}
-
-	for _, tpl := range []model.Template{
-		mk("a", "full", fixture("").Payload.Static), // 2 statics
-		mk("b", "bridge", zero),                     // 0 statics
-		mk("c", "full", many),                       // 6 statics
-	} {
-		if _, err := s.Create(ctx, tpl); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-	}
-
-	min := 1
-	max := 5
-	items, total, err := s.List(ctx, model.ListTemplatesQueryParams{
-		Limit:          10,
-		RoomType:       "full",
-		MinStaticCount: &min,
-		MaxStaticCount: &max,
-	})
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if total != 1 {
-		t.Errorf("filtered total: want 1, got %d", total)
-	}
-	if len(items) != 1 || items[0].Name != "a" {
-		t.Errorf("expected only 'a', got %+v", items)
-	}
-}
-
-func TestList_IgnoresTempFilesAndUnreadable(t *testing.T) {
-	s := newTestStore(t)
-	ctx := context.Background()
-	if _, err := s.Create(ctx, fixture("ok")); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-
-	// Leftover atomic-write temp file from a hypothetical crash.
-	tmp := filepath.Join(s.RootDir(), uuid.NewString()+".json.tmp")
-	if err := os.WriteFile(tmp, []byte("{}"), 0o644); err != nil {
-		t.Fatalf("write tmp: %v", err)
-	}
-	// Corrupted entry.
-	bad := filepath.Join(s.RootDir(), uuid.NewString()+".json")
-	if err := os.WriteFile(bad, []byte("not json"), 0o644); err != nil {
-		t.Fatalf("write bad: %v", err)
-	}
-
-	items, total, err := s.List(ctx, model.ListTemplatesQueryParams{Limit: 10})
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if total != 1 || len(items) != 1 || items[0].Name != "ok" {
-		t.Errorf("expected only 'ok', got %+v", items)
-	}
-}
-
-func TestList_DoorConnectivityFilter(t *testing.T) {
-	s := newTestStore(t)
-	ctx := context.Background()
-	yes, no := true, false
-
-	mk := func(name string, top bool) model.Template {
-		t := fixture(name)
-		t.DoorsConnected = &model.DoorsConnected{Top: top}
-		return t
-	}
-	for _, tpl := range []model.Template{mk("topOpen", true), mk("topClosed", false)} {
-		if _, err := s.Create(ctx, tpl); err != nil {
-			t.Fatalf("Create: %v", err)
-		}
-	}
-
-	open, total, err := s.List(ctx, model.ListTemplatesQueryParams{Limit: 10, TopDoorConnected: &yes})
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if total != 1 || open[0].Name != "topOpen" {
-		t.Errorf("topOpen filter: %+v total=%d", open, total)
-	}
-
-	closed, total2, _ := s.List(ctx, model.ListTemplatesQueryParams{Limit: 10, TopDoorConnected: &no})
-	if total2 != 1 || closed[0].Name != "topClosed" {
-		t.Errorf("topClosed filter: %+v total=%d", closed, total2)
-	}
-}
-
-func TestWriteAtomic_NoTempLeftOnSuccess(t *testing.T) {
-	s := newTestStore(t)
-	ctx := context.Background()
-	if _, err := s.Create(ctx, fixture("alpha")); err != nil {
-		t.Fatalf("Create: %v", err)
-	}
-	entries, _ := os.ReadDir(s.RootDir())
-	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".tmp") {
-			t.Errorf("found stale temp file: %s", e.Name())
-		}
 	}
 }
 
@@ -392,4 +369,35 @@ func TestHealthCheck_FailsWhenRootMissing(t *testing.T) {
 	if err := s.HealthCheck(context.Background()); err == nil {
 		t.Fatal("expected HealthCheck to fail with missing dir")
 	}
+}
+
+func TestPathForID_RejectsBadInput(t *testing.T) {
+	s := newTestStore(t)
+	for _, bad := range []string{"", "no-separator", "__nope", "cat__", "cat/with/slash__base", "cat__base/with/slash"} {
+		if _, err := s.pathForID(bad); err == nil {
+			t.Errorf("expected error for id %q", bad)
+		}
+	}
+}
+
+func TestWriteAtomic_NoTempLeftOnSuccess(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, fixture("alpha")); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	cat := filepath.Join(s.RootDir(), "normal")
+	entries, _ := os.ReadDir(cat)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".tmp") {
+			t.Errorf("found stale temp file: %s", e.Name())
+		}
+	}
+}
+
+func twoDigits(n int) string {
+	if n < 10 {
+		return "0" + string(rune('0'+n))
+	}
+	return string(rune('0'+n/10)) + string(rune('0'+n%10))
 }

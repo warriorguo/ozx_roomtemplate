@@ -42,14 +42,24 @@ type Config struct {
 	AutoOpenBrowser bool `json:"auto_open_browser"`
 }
 
-// Default returns the config written on first run.
+// Default returns the config written on first run. The TemplateSubdir matches
+// the OZX project's convention (Assets/StreamingAssets/TilemapData). If a
+// conventional OZX checkout exists at ~/Codes/github.com/warriorguo/ozx_base
+// we pre-fill ProjectRoot to it so the editor "just works" on first launch.
 func Default() Config {
-	return Config{
+	cfg := Config{
 		ProjectRoot:     "",
-		TemplateSubdir:  "Assets/Resources/TilemapData",
+		TemplateSubdir:  "Assets/StreamingAssets/TilemapData",
 		Port:            8090,
 		AutoOpenBrowser: true,
 	}
+	if home, err := os.UserHomeDir(); err == nil {
+		guess := filepath.Join(home, "Codes", "github.com", "warriorguo", "ozx_base")
+		if info, err := os.Stat(guess); err == nil && info.IsDir() {
+			cfg.ProjectRoot = guess
+		}
+	}
+	return cfg
 }
 
 // DefaultPath returns the platform-appropriate location of the config file.
