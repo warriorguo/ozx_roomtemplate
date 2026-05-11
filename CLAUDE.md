@@ -2,6 +2,13 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Branch:** `local-client`. This branch removes the PostgreSQL backend in
+> preparation for a standalone, filesystem-backed desktop variant of the editor
+> (epic ORT-65..ORT-69). The PostgreSQL/cloud variant lives on `main`. While
+> this branch is in transition, the backend uses a `StubStore` and template CRUD
+> endpoints return 500 — the filesystem store lands in ORT-66 and the bundled
+> binary in ORT-68.
+
 ## Project Overview
 
 This is a **room template editor** for game development, consisting of a React TypeScript frontend and a Go backend service. The editor creates tile-based room templates with a multi-layer system and rule-based validation for game room layouts.
@@ -51,24 +58,15 @@ make lint               # Run golangci-lint (requires golangci-lint)
 # Run tests
 make test              # All tests
 make test-unit         # Unit tests only
-make test-integration  # Integration tests (requires database)
 
 # Run with coverage report
 make test-coverage
-
-# Database operations
-createdb tile_templates
-psql -d tile_templates -f migrations/001_create_room_templates.up.sql
-psql -d tile_templates -f migrations/002_add_thumbnail.up.sql
 ```
 
 ### Testing
 ```bash
 # Backend unit tests
 go test -v -race ./internal/...
-
-# Backend integration tests (set TEST_INTEGRATION=1)
-TEST_INTEGRATION=1 go test -v ./tests/...
 
 # No frontend tests currently configured
 ```
@@ -107,31 +105,34 @@ TEST_INTEGRATION=1 go test -v ./tests/...
 - Backend validation via API endpoint with strict mode
 - Visual error feedback (red borders on invalid cells)
 
-### Backend Architecture (Go + PostgreSQL)
+### Backend Architecture (Go, storage pluggable)
 
-**Clean Architecture Layers**:
+**Layers**:
 ```
 cmd/server/           - Entry point and configuration
 internal/
   ├── http/          - HTTP handlers, routing, middleware (chi router)
-  ├── store/         - Database layer (PostgreSQL with pgx)
+  ├── store/         - Store interface + StubStore (filesystem impl in ORT-66)
   ├── model/         - Data models and domain types
-  └── validate/      - Validation logic (structure + logical constraints)
+  ├── generate/     - Room generators (full, bridge, platform), stage rules
+  └── validate/     - Validation logic (structure + logical constraints)
 ```
 
 **API Endpoints** (Base: `/api/v1`):
-- `POST /templates` - Create template
-- `GET /templates?limit&offset&name_like` - List with pagination/search
-- `GET /templates/{id}` - Get specific template
-- `POST /templates/validate?strict` - Validate without saving
+- `POST /templates` - Create template (stub → 500 until ORT-66)
+- `GET /templates?limit&offset&name_like` - List with pagination/search (stub)
+- `GET /templates/{id}` - Get specific template (stub)
+- `DELETE /templates/{id}` - Delete template (stub)
+- `POST /templates/validate?strict` - Validate payload (works today)
+- `POST /generate/{fullroom|bridge|platform}` - Generate a room (works today)
+- `GET /stage-configs` - Stage type configurations (works today)
 - `GET /health` - Health check
 
-**Database**:
-- PostgreSQL with `room_templates` table
-- JSONB payload column for flexible template storage
-- Thumbnail column (TEXT) for base64-encoded preview images
-- Indexes on created_at, name, GIN index on payload, and conditional index on thumbnail
-- Connection pooling with pgx (MaxConns: 25, MinConns: 5)
+**Storage**:
+- `store.Store` is the single storage interface (Create/Get/Update/Delete/List/HealthCheck).
+- `store.StubStore` reports `ErrNotImplemented` for data ops and is the default
+  wired in `cmd/server/main.go`. The filesystem-backed implementation arrives
+  in ORT-66.
 
 **Key Features**:
 - CORS middleware for frontend integration
@@ -179,13 +180,17 @@ internal/
 
 **Save Operation**:
 ```
-Frontend Template → templateConverter → API Request → Go Handler → PostgreSQL
+Frontend Template → templateConverter → API Request → Go Handler → store.Store
 ```
 
 **Load Operation**:
 ```
-PostgreSQL → Go Handler → API Response → templateConverter → Frontend Template
+store.Store → Go Handler → API Response → templateConverter → Frontend Template
 ```
+
+The concrete `store.Store` is `StubStore` on this branch; the filesystem-backed
+implementation (per-template JSON files under a configured OZX project folder)
+lands in ORT-66.
 
 ## Key Implementation Details
 
@@ -223,15 +228,12 @@ VITE_NODE_ENV=development
 
 **Backend** (`tile-backend/.env`):
 ```
-DATABASE_URL=postgres://user:password@localhost:5432/tile_templates?sslmode=disable
 PORT=8090
 LOG_LEVEL=info
 CORS_ALLOWED_ORIGINS=http://localhost:5173,http://localhost:5174
-TEST_DATABASE_URL=postgres://user:password@localhost:5432/tile_templates_test?sslmode=disable
-TEST_INTEGRATION=0  # Set to 1 to run integration tests
 ```
 
-**Note**: The .env.example file shows PORT=8080, but the actual configuration uses 8090. Make sure frontend VITE_API_BASE_URL matches the backend PORT.
+**Note**: Make sure frontend `VITE_API_BASE_URL` matches the backend `PORT`.
 
 ## Common Development Workflows
 
@@ -251,18 +253,15 @@ npm run dev
 npm install
 cd tile-backend && go mod tidy && cd ..
 
-# 2. Setup database
-createdb tile_templates
-psql -d tile_templates -f tile-backend/migrations/001_create_room_templates.up.sql
-psql -d tile_templates -f tile-backend/migrations/002_add_thumbnail.up.sql
-
-# 3. Configure environment
+# 2. Configure environment
 cp .env.example .env
 cp tile-backend/.env.example tile-backend/.env
-# Edit both .env files with your database settings
 
-# 4. Start services (see "Running Full Stack Locally" above)
+# 3. Start services (see "Running Full Stack Locally" above)
 ```
+
+No database setup is needed on this branch — the backend uses the in-process
+`StubStore` until ORT-66 lands the filesystem-backed implementation.
 
 ### Running Tests Before Committing
 ```bash
@@ -273,14 +272,14 @@ npm run build  # Verify build works
 cd tile-backend
 make fmt && make vet     # Format and check code
 make test-unit           # Fast unit tests
-make test-integration    # Requires database setup
 ```
 
 ## Development Notes
 
 ### When Working with Templates
 - Template format is consistent across frontend/backend with converter layer
-- Backend stores complete payload in JSONB column
+- Backend persists the full payload through `store.Store` (currently `StubStore`;
+  filesystem-backed JSON files land in ORT-66)
 - Frontend maintains separate layers for UI editing
 - Version field is always `1` in current implementation
 
@@ -306,25 +305,12 @@ make test-integration    # Requires database setup
 - Documents in `tile-backend/documents/` describe generation rules
 - When updating generation logic, keep the documentation in sync with the implementation
 
-### Database Migrations
-- Migration files in `tile-backend/migrations/`
-- Apply all migrations in order:
-  ```bash
-  psql -d tile_templates -f migrations/001_create_room_templates.up.sql
-  psql -d tile_templates -f migrations/002_add_thumbnail.up.sql
-  ```
-- Rollback migrations in reverse order:
-  ```bash
-  psql -d tile_templates -f migrations/002_add_thumbnail.down.sql
-  psql -d tile_templates -f migrations/001_create_room_templates.down.sql
-  ```
-
 ## Testing Strategy
 
 **Backend Tests**:
-- Unit tests use mocks (pgxmock) for database operations
-- Integration tests require real PostgreSQL database
-- Run integration tests with `TEST_INTEGRATION=1` environment variable
+- Unit tests use a `testify/mock`-based `MockStore` implementing `store.Store`
+  (see `internal/http/handlers_test.go`)
+- No integration tests on this branch — there is no database
 - Coverage reports generated with `make test-coverage`
 
 **Frontend Testing**:

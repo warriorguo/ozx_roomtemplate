@@ -14,12 +14,10 @@ import (
 	httpHandler "tile-backend/internal/http"
 	"tile-backend/internal/store"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/zap"
 )
 
 type Config struct {
-	DatabaseURL        string
 	Port               int
 	LogLevel           string
 	CORSAllowedOrigins []string
@@ -33,19 +31,14 @@ func main() {
 	logger := initLogger(config.LogLevel)
 	defer logger.Sync()
 
-	// Initialize database
-	db, err := initDatabase(config.DatabaseURL, logger)
-	if err != nil {
-		logger.Fatal("Failed to initialize database", zap.Error(err))
-	}
-	defer db.Close()
-
-	// Initialize stores
-	templateStore := store.NewPostgreSQLTemplateStore(db)
-	projectStore := store.NewPostgreSQLProjectStore(db)
+	// Wire a placeholder store. The real filesystem-backed store lands in ORT-66;
+	// until then every data endpoint reports ErrNotImplemented while /health still
+	// returns 200 so the binary is observably alive.
+	templateStore := store.NewStubStore()
+	logger.Warn("Using stub store — data endpoints will return ErrNotImplemented until the filesystem store (ORT-66) is wired up")
 
 	// Setup router
-	router := httpHandler.SetupRouter(templateStore, projectStore, logger, config.CORSAllowedOrigins)
+	router := httpHandler.SetupRouter(templateStore, logger, config.CORSAllowedOrigins)
 
 	// Setup HTTP server
 	server := &http.Server{
@@ -84,9 +77,8 @@ func main() {
 // loadConfig loads configuration from environment variables
 func loadConfig() *Config {
 	config := &Config{
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://liuli@192.168.0.151:5432/postgres?sslmode=disable"),
-		Port:        getEnvInt("PORT", 8090),
-		LogLevel:    getEnv("LOG_LEVEL", "info"),
+		Port:     getEnvInt("PORT", 8090),
+		LogLevel: getEnv("LOG_LEVEL", "info"),
 	}
 
 	// Parse CORS origins
@@ -127,36 +119,6 @@ func initLogger(level string) *zap.Logger {
 	}
 
 	return logger
-}
-
-// initDatabase initializes the PostgreSQL connection pool
-func initDatabase(databaseURL string, logger *zap.Logger) (*pgxpool.Pool, error) {
-	config, err := pgxpool.ParseConfig(databaseURL)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse database URL: %w", err)
-	}
-
-	// Set connection pool settings
-	config.MaxConns = 25
-	config.MinConns = 5
-	config.MaxConnLifetime = time.Hour
-	config.MaxConnIdleTime = time.Minute * 30
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	db, err := pgxpool.NewWithConfig(ctx, config)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create connection pool: %w", err)
-	}
-
-	// Test the connection
-	if err := db.Ping(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
-
-	logger.Info("Database connection established")
-	return db, nil
 }
 
 // getEnv gets an environment variable with a default value

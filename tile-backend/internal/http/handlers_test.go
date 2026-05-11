@@ -18,45 +18,50 @@ import (
 	"go.uber.org/zap"
 )
 
-// MockTemplateStore is a mock implementation of TemplateStore
-type MockTemplateStore struct {
+// MockStore is a mock implementation of store.Store
+type MockStore struct {
 	mock.Mock
 }
 
-func (m *MockTemplateStore) Create(ctx context.Context, template model.Template) (*model.Template, error) {
+func (m *MockStore) Create(ctx context.Context, template model.Template) (*model.Template, error) {
 	args := m.Called(ctx, template)
 	return args.Get(0).(*model.Template), args.Error(1)
 }
 
-func (m *MockTemplateStore) Get(ctx context.Context, id string) (*model.Template, error) {
+func (m *MockStore) Get(ctx context.Context, id string) (*model.Template, error) {
 	args := m.Called(ctx, id)
 	return args.Get(0).(*model.Template), args.Error(1)
 }
 
-func (m *MockTemplateStore) List(ctx context.Context, params model.ListTemplatesQueryParams) ([]model.TemplateSummary, int, error) {
+func (m *MockStore) Update(ctx context.Context, id string, template model.Template) (*model.Template, error) {
+	args := m.Called(ctx, id, template)
+	return args.Get(0).(*model.Template), args.Error(1)
+}
+
+func (m *MockStore) List(ctx context.Context, params model.ListTemplatesQueryParams) ([]model.TemplateSummary, int, error) {
 	args := m.Called(ctx, params)
 	return args.Get(0).([]model.TemplateSummary), args.Get(1).(int), args.Error(2)
 }
 
-func (m *MockTemplateStore) Delete(ctx context.Context, id string) error {
+func (m *MockStore) Delete(ctx context.Context, id string) error {
 	args := m.Called(ctx, id)
 	return args.Error(0)
 }
 
-func (m *MockTemplateStore) HealthCheck(ctx context.Context) error {
+func (m *MockStore) HealthCheck(ctx context.Context) error {
 	args := m.Called(ctx)
 	return args.Error(0)
 }
 
 func createTestHandler() *TemplateHandler {
 	logger := zap.NewNop() // No-op logger for testing
-	mockStore := &MockTemplateStore{}
+	mockStore := &MockStore{}
 	return NewTemplateHandler(mockStore, logger)
 }
 
 func TestTemplateHandler_CreateTemplate_Success(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	// Create test request
 	req := model.CreateTemplateRequest{
@@ -209,7 +214,7 @@ func TestTemplateHandler_CreateTemplate_ValidationFailed(t *testing.T) {
 
 func TestTemplateHandler_CreateTemplate_StoreError(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	// Create valid test request
 	req := model.CreateTemplateRequest{
@@ -256,7 +261,7 @@ func TestTemplateHandler_CreateTemplate_StoreError(t *testing.T) {
 
 func TestTemplateHandler_GetTemplate_Success(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	templateID := uuid.New()
 	now := time.Now()
@@ -334,7 +339,7 @@ func TestTemplateHandler_GetTemplate_InvalidUUID(t *testing.T) {
 
 func TestTemplateHandler_GetTemplate_NotFound(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	templateID := uuid.New()
 
@@ -367,7 +372,7 @@ func TestTemplateHandler_GetTemplate_NotFound(t *testing.T) {
 
 func TestTemplateHandler_ListTemplates_Success(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	now := time.Now()
 	expectedItems := []model.TemplateSummary{
@@ -417,7 +422,7 @@ func TestTemplateHandler_ListTemplates_Success(t *testing.T) {
 
 func TestTemplateHandler_ListTemplates_WithQueryParams(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	// Mock store response
 	mockStore.On("List", mock.Anything, mock.Anything).Return([]model.TemplateSummary{}, 0, nil)
@@ -437,7 +442,7 @@ func TestTemplateHandler_ListTemplates_WithQueryParams(t *testing.T) {
 
 func TestTemplateHandler_ListTemplates_InvalidParams(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	// Mock store response with default values
 	mockStore.On("List", mock.Anything, mock.Anything).Return([]model.TemplateSummary{}, 0, nil)
@@ -554,7 +559,7 @@ func TestTemplateHandler_ValidateTemplate_InvalidJSON(t *testing.T) {
 
 func TestTemplateHandler_HealthCheck_Success(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	// Mock successful health check
 	mockStore.On("HealthCheck", mock.Anything).Return(nil)
@@ -579,7 +584,7 @@ func TestTemplateHandler_HealthCheck_Success(t *testing.T) {
 
 func TestTemplateHandler_HealthCheck_DatabaseError(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	// Mock health check error
 	mockStore.On("HealthCheck", mock.Anything).Return(fmt.Errorf("database connection failed"))
@@ -605,7 +610,7 @@ func TestTemplateHandler_HealthCheck_DatabaseError(t *testing.T) {
 
 func TestTemplateHandler_CreateTemplate_NameFromMeta(t *testing.T) {
 	handler := createTestHandler()
-	mockStore := handler.store.(*MockTemplateStore)
+	mockStore := handler.store.(*MockStore)
 
 	// Create test request without name in root, but with name in meta
 	req := model.CreateTemplateRequest{
