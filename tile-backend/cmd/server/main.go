@@ -15,6 +15,7 @@ import (
 
 func main() {
 	configFlag := flag.String("config", "", "path to config.json (default: ~/.config/ozx-roomeditor/config.json)")
+	portFlag := flag.Int("port", 0, "override the port from config.json (0 = use config value)")
 	flag.Parse()
 
 	logger := newLogger(getEnv("LOG_LEVEL", "info"))
@@ -22,6 +23,7 @@ func main() {
 
 	opts := serve.Options{
 		ConfigPath:         *configFlag,
+		PortOverride:       *portFlag,
 		CORSAllowedOrigins: serve.CORSOriginsFromEnv(os.Getenv("CORS_ALLOWED_ORIGINS")),
 		Logger:             logger,
 	}

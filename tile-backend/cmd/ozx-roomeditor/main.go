@@ -22,6 +22,8 @@ import (
 
 func main() {
 	configFlag := flag.String("config", "", "path to config.json (default: ~/.config/ozx-roomeditor/config.json)")
+	portFlag := flag.Int("port", 0, "override the port from config.json (0 = use config value)")
+	noBrowser := flag.Bool("no-browser", false, "do not launch the default browser even if auto_open_browser is true")
 	flag.Parse()
 
 	logger := newLogger(getEnv("LOG_LEVEL", "info"))
@@ -34,6 +36,7 @@ func main() {
 
 	opts := serve.Options{
 		ConfigPath:         *configFlag,
+		PortOverride:       *portFlag,
 		FrontendFS:         assets,
 		CORSAllowedOrigins: serve.CORSOriginsFromEnv(os.Getenv("CORS_ALLOWED_ORIGINS")),
 		Logger:             logger,
@@ -45,7 +48,7 @@ func main() {
 			fmt.Println("  └──────────────────────────────────────────────────────┘")
 			fmt.Println()
 
-			if !cfg.AutoOpenBrowser {
+			if *noBrowser || !cfg.AutoOpenBrowser {
 				return
 			}
 			if err := browser.Open(url); err != nil {

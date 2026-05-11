@@ -10,6 +10,11 @@ lerna-debug.log*
 tile-backend/bin
 tile-backend/vendor
 
+# Swift app build output
+swift-app/.build/
+swift-app/build/
+swift-app/Package.resolved
+
 node_modules
 dist
 dist-ssr

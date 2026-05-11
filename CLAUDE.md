@@ -7,7 +7,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > binary `ozx-roomeditor` ships the React SPA via `go:embed`, auto-opens
 > the user's default browser, and lets the user switch projects in-place
 > via the toolbar (PUT `/api/v1/config` hot-swaps the filesystem store).
-> Build with `cd tile-backend && make build-local`.
+> A native macOS wrapper lives in `swift-app/` (AppKit + WKWebView).
+> Build either with `cd tile-backend && make build-local` (Go binary →
+> opens a browser tab) or `cd swift-app && make build` (.app bundle →
+> opens in a native window).
 
 ## Project Overview
 

@@ -29,6 +29,11 @@ type Options struct {
 	// from a CLI --config flag.
 	ConfigPath string
 
+	// PortOverride, if >0, replaces the port read from config.json. Used by
+	// the Swift macOS wrapper to pick a free port at launch instead of
+	// fighting whatever the user has set in their config.
+	PortOverride int
+
 	// FrontendFS, if non-nil, is registered as a catch-all at "/" so the
 	// embedded SPA can be served alongside /api/v1. cmd/server (API-only)
 	// passes nil; cmd/ozx-roomeditor passes the go:embed dist/*.
@@ -65,6 +70,10 @@ func Run(opts Options) error {
 			zap.String("path", configPath))
 	} else {
 		logger.Info("Loaded config", zap.String("path", configPath))
+	}
+
+	if opts.PortOverride > 0 {
+		cfg.Port = opts.PortOverride
 	}
 
 	templatesDir, err := cfg.TemplatesDir()
