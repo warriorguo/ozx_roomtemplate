@@ -18,14 +18,25 @@ final class MainWindowController: NSWindowController {
         webView.allowsBackForwardNavigationGestures = false
         self.webView = webView
 
+        // Size the window to fill ~90% of the current screen on first launch.
+        // setFrameAutosaveName persists user resizes, so this initial sizing
+        // only applies until the user moves or resizes the window once.
+        let visibleFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1600, height: 1000)
+        let width = max(1280, visibleFrame.width * 0.9)
+        let height = max(800, visibleFrame.height * 0.9)
+
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1280, height: 800),
+            contentRect: NSRect(x: 0, y: 0, width: width, height: height),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false)
         window.title = "OZX Room Editor"
+        window.minSize = NSSize(width: 1024, height: 700)
         window.center()
-        window.setFrameAutosaveName("MainWindow")
+        // Bumping the autosave-name suffix discards any saved frame from a
+        // previous version so this enlarged default actually applies on the
+        // next launch; user-initiated resizes from here on persist normally.
+        window.setFrameAutosaveName("MainWindow.v2")
         window.contentView = webView
 
         super.init(window: window)
