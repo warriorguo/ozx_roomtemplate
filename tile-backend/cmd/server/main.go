@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -13,6 +14,7 @@ import (
 
 	httpHandler "tile-backend/internal/http"
 	"tile-backend/internal/store"
+	"tile-backend/internal/store/fsstore"
 
 	"go.uber.org/zap"
 )
@@ -21,6 +23,7 @@ type Config struct {
 	Port               int
 	LogLevel           string
 	CORSAllowedOrigins []string
+	TemplatesDir       string
 }
 
 func main() {
@@ -31,11 +34,19 @@ func main() {
 	logger := initLogger(config.LogLevel)
 	defer logger.Sync()
 
-	// Wire a placeholder store. The real filesystem-backed store lands in ORT-66;
-	// until then every data endpoint reports ErrNotImplemented while /health still
-	// returns 200 so the binary is observably alive.
-	templateStore := store.NewStubStore()
-	logger.Warn("Using stub store — data endpoints will return ErrNotImplemented until the filesystem store (ORT-66) is wired up")
+	// Wire the filesystem-backed store. The proper config-driven path arrives
+	// in ORT-67; for now the path falls back to a per-user default if
+	// TEMPLATES_DIR is not set.
+	var templateStore store.Store
+	if fs, err := fsstore.New(config.TemplatesDir); err != nil {
+		logger.Warn("Falling back to stub store",
+			zap.String("templates_dir", config.TemplatesDir),
+			zap.Error(err))
+		templateStore = store.NewStubStore()
+	} else {
+		logger.Info("Filesystem store ready", zap.String("templates_dir", fs.RootDir()))
+		templateStore = fs
+	}
 
 	// Setup router
 	router := httpHandler.SetupRouter(templateStore, logger, config.CORSAllowedOrigins)
@@ -77,8 +88,9 @@ func main() {
 // loadConfig loads configuration from environment variables
 func loadConfig() *Config {
 	config := &Config{
-		Port:     getEnvInt("PORT", 8090),
-		LogLevel: getEnv("LOG_LEVEL", "info"),
+		Port:         getEnvInt("PORT", 8090),
+		LogLevel:     getEnv("LOG_LEVEL", "info"),
+		TemplatesDir: getEnv("TEMPLATES_DIR", defaultTemplatesDir()),
 	}
 
 	// Parse CORS origins
@@ -91,6 +103,15 @@ func loadConfig() *Config {
 	}
 
 	return config
+}
+
+// defaultTemplatesDir picks a sensible per-user location until ORT-67 lands a
+// proper config file that points at an OZX project folder.
+func defaultTemplatesDir() string {
+	if home, err := os.UserHomeDir(); err == nil {
+		return filepath.Join(home, ".local", "share", "ozx-roomeditor", "templates")
+	}
+	return "./templates"
 }
 
 // initLogger initializes the zap logger

@@ -1,10 +1,10 @@
 # Tile Template Backend (local-client branch)
 
-> **Status:** this branch is the foundation for the **local-client** variant of the
-> room template editor. The PostgreSQL backend has been removed; a filesystem-
-> backed `Store` will land in **ORT-66**, and the standalone binary with browser
-> auto-launch in **ORT-68**. Until then the binary builds and serves
-> `/health`, but every template endpoint returns `ErrNotImplemented`.
+> **Status:** local-client variant of the room template editor. The PostgreSQL
+> backend has been removed. As of **ORT-66** template CRUD is backed by an
+> on-disk store (`fsstore`) that writes one JSON file per template under a
+> configurable directory. Config-driven OZX project paths land in **ORT-67**
+> and the standalone binary with browser auto-launch in **ORT-68**.
 
 A Go HTTP service that powers the room template editor: validation, room
 generation (full/bridge/platform), and template CRUD. Storage is pluggable
@@ -41,6 +41,7 @@ Environment variables (see `.env.example`):
 | `PORT` | `8090` | HTTP listen port |
 | `LOG_LEVEL` | `info` | `debug` / `info` / `warn` / `error` |
 | `CORS_ALLOWED_ORIGINS` | _(empty → `*`)_ | Comma-separated allowed origins |
+| `TEMPLATES_DIR` | `~/.local/share/ozx-roomeditor/templates` | Filesystem store root |
 
 ## API
 
@@ -48,19 +49,16 @@ Base URL: `http://localhost:8090/api/v1`
 
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/templates` | Create template (stub → 500 until ORT-66) |
-| `GET` | `/templates` | List templates (stub → 500 until ORT-66) |
-| `GET` | `/templates/{id}` | Get template (stub → 500 until ORT-66) |
-| `DELETE` | `/templates/{id}` | Delete template (stub → 500 until ORT-66) |
+| `POST` | `/templates` | Create template |
+| `GET` | `/templates` | List templates |
+| `GET` | `/templates/{id}` | Get template |
+| `DELETE` | `/templates/{id}` | Delete template |
 | `POST` | `/templates/validate?strict=true` | Validate template payload |
 | `POST` | `/generate/fullroom` | Generate full room |
 | `POST` | `/generate/bridge` | Generate bridge room |
 | `POST` | `/generate/platform` | Generate platform room |
 | `GET` | `/stage-configs` | All stage type configurations |
-| `GET` | `/health` | Health check (always 200 with the stub store) |
-
-The `/validate` and `/generate/*` endpoints work today — they have no storage
-dependency.
+| `GET` | `/health` | Stats the templates dir and returns 200 if reachable |
 
 ## Architecture
 
@@ -68,11 +66,20 @@ dependency.
 cmd/server/                Entry point + config + logger
 internal/
   ├── http/               chi router, handlers, middleware
-  ├── store/              Store interface + StubStore (filesystem impl in ORT-66)
+  ├── store/              Store interface, StubStore, fsstore (filesystem impl)
   ├── model/              Template, request/response types
   ├── generate/           Room generators, stage rules, main-path planning
   └── validate/           Structural + logical validation
 ```
+
+### Filesystem store layout
+- Each template is a single JSON file: `<TEMPLATES_DIR>/<uuid>.json`.
+- Writes go to `<file>.json.tmp` then `rename`, so a crash mid-write never
+  leaves a half-written `.json` behind.
+- A single `RWMutex` serializes mutations; reads run in parallel.
+- Listing reads every file in the directory, applies the same filters as the
+  old SQL store, sorts by `UpdatedAt` desc, and paginates. Fine for the
+  hundreds of templates a local user is realistically going to have.
 
 ## Testing
 
