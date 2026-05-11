@@ -2,13 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **Branch:** `local-client`. This branch removes the PostgreSQL backend in
-> preparation for a standalone, filesystem-backed desktop variant of the editor
-> (epic ORT-65..ORT-69). The PostgreSQL/cloud variant lives on `main`. As of
-> ORT-67 the backend is driven by a JSON config file pointing at an OZX project
-> folder (`project_root` + `template_subdir`); templates are persisted by
-> `fsstore` (ORT-66). The bundled binary with browser auto-launch lands in
-> ORT-68.
+> **Branch:** `local-client`. Standalone, filesystem-backed desktop variant
+> of the editor; the PostgreSQL/cloud variant lives on `main`. As of ORT-68
+> the bundled binary `ozx-roomeditor` ships the React SPA via `go:embed`
+> and auto-opens the user's default browser. Build with
+> `cd tile-backend && make build-local`. Frontend local-mode UX changes
+> (ORT-69) come last.
 
 ## Project Overview
 
@@ -41,15 +40,17 @@ cd tile-backend
 # Install dependencies
 go mod tidy
 
-# Run server (port 8090)
+# Run API-only server (for use alongside `npm run dev`)
 go run cmd/server/main.go
 
 # Run with hot-reload (requires air: go install github.com/air-verse/air@latest)
 make dev
 
-# Build binary
-make build              # Development build
-make build-prod         # Production build with optimizations
+# Build binaries
+make build              # API-only server → bin/server
+make build-prod         # API-only server, optimized
+make build-local        # Standalone bundled binary → bin/ozx-roomeditor
+make build-local-all    # Cross-compile for darwin/linux/windows
 
 # Code quality
 make fmt                # Format code
@@ -110,13 +111,19 @@ go test -v -race ./internal/...
 
 **Layers**:
 ```
-cmd/server/           - Entry point and configuration
+cmd/
+  ├── server/             API-only entrypoint (frontend served separately)
+  └── ozx-roomeditor/     Standalone bundled binary (go:embed SPA + browser auto-launch)
 internal/
-  ├── http/          - HTTP handlers, routing, middleware (chi router)
-  ├── store/         - Store interface + StubStore + fsstore (filesystem impl)
-  ├── model/         - Data models and domain types
-  ├── generate/     - Room generators (full, bridge, platform), stage rules
-  └── validate/     - Validation logic (structure + logical constraints)
+  ├── config/             User config file (project_root, port, auto_open_browser)
+  ├── serve/              Shared startup helper (config → store → router → SIGINT)
+  ├── http/               chi router, handlers, middleware, frontend mount
+  ├── store/              Store interface + StubStore + fsstore (filesystem impl)
+  ├── browser/            Cross-platform default-browser launcher
+  ├── web/                go:embed dist/* — the SPA bundle
+  ├── model/              Data models and domain types
+  ├── generate/           Room generators (full, bridge, platform), stage rules
+  └── validate/           Validation logic (structure + logical constraints)
 ```
 
 **API Endpoints** (Base: `/api/v1`):

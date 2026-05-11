@@ -15,6 +15,13 @@ dist
 dist-ssr
 *.local
 
+# The embedded SPA stub at tile-backend/internal/web/dist/index.html is
+# committed so `go build` works before `make build-local` has produced a real
+# bundle; everything else in that directory is regenerated and stays ignored.
+!tile-backend/internal/web/dist/
+tile-backend/internal/web/dist/*
+!tile-backend/internal/web/dist/index.html
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

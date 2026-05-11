@@ -2,9 +2,9 @@
 
 > **Status:** local-client variant of the room template editor. The PostgreSQL
 > backend has been removed. Template CRUD is backed by an on-disk store
-> (`fsstore`, **ORT-66**) and driven by a user JSON config file pointing at an
-> OZX project folder (**ORT-67**). The standalone binary with browser
-> auto-launch lands in **ORT-68**.
+> (`fsstore`, **ORT-66**), driven by a user JSON config file pointing at an OZX
+> project folder (**ORT-67**), and shipped as a self-contained binary that
+> embeds the SPA and launches the default browser on start (**ORT-68**).
 
 A Go HTTP service that powers the room template editor: validation, room
 generation (full/bridge/platform), and template CRUD. Storage is pluggable
@@ -24,10 +24,29 @@ behind the `store.Store` interface.
 - Go 1.22+
 
 ### Build & run
+
+Two entrypoints:
+
+- **`cmd/ozx-roomeditor`** — standalone binary. Embeds the React SPA via
+  `go:embed`, serves both API and UI from one process, opens the default
+  browser on start. Use this for daily editor work.
+- **`cmd/server`** — API-only, intended for local development alongside
+  `npm run dev` (Vite hot-reload).
+
 ```bash
 cd tile-backend
 go mod tidy
-go run cmd/server/main.go      # listens on :8090
+
+# Standalone bundled binary (preferred for end users)
+make build-local                # → bin/ozx-roomeditor
+./bin/ozx-roomeditor            # opens browser on http://localhost:8090/
+./bin/ozx-roomeditor --config /path/to/cfg.json
+
+# Cross-compile for distribution
+make build-local-all            # → bin/ozx-roomeditor-{darwin,linux,windows}-*
+
+# API-only server (development, frontend served by `npm run dev`)
+go run cmd/server/main.go
 # or
 go build -o bin/server cmd/server/main.go && ./bin/server
 ```
