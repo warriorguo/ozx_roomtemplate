@@ -179,6 +179,8 @@ export interface LocalConfig {
   template_subdir: string;
   port: number;
   auto_open_browser: boolean;
+  /** Absolute path to the OzxRoomView.app simulator for the "Open with" action. */
+  ozx_room_view_path: string;
   templates_dir: string;
   config_path: string;
   uses_fallback: boolean;
@@ -190,6 +192,7 @@ export interface UpdateLocalConfigRequest {
   template_subdir?: string;
   port?: number;
   auto_open_browser?: boolean;
+  ozx_room_view_path?: string;
 }
 
 // API Configuration

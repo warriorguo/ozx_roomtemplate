@@ -40,6 +40,12 @@ type Config struct {
 	// AutoOpenBrowser controls whether the bundled binary launches the default
 	// browser on start (used by ORT-68).
 	AutoOpenBrowser bool `json:"auto_open_browser"`
+
+	// OzxRoomViewPath is the absolute path to the OzxRoomView.app simulator.
+	// When the sidebar's "Open with OzxRoomView" action is invoked, the macOS
+	// wrapper launches this bundle with --room <template.json>. Empty value
+	// means the menu item is disabled.
+	OzxRoomViewPath string `json:"ozx_room_view_path"`
 }
 
 // Default returns the config written on first run. The TemplateSubdir matches
@@ -52,6 +58,7 @@ func Default() Config {
 		TemplateSubdir:  "Assets/StreamingAssets/TilemapData",
 		Port:            8090,
 		AutoOpenBrowser: true,
+		OzxRoomViewPath: "/Users/andrew/Documents/OzxRoomView.app",
 	}
 	if home, err := os.UserHomeDir(); err == nil {
 		guess := filepath.Join(home, "Codes", "github.com", "warriorguo", "ozx_base")
@@ -118,6 +125,9 @@ func Load(path string) (cfg Config, resolvedPath string, wroteDefault bool, err 
 	def := Default()
 	if cfg.TemplateSubdir == "" {
 		cfg.TemplateSubdir = def.TemplateSubdir
+	}
+	if cfg.OzxRoomViewPath == "" {
+		cfg.OzxRoomViewPath = def.OzxRoomViewPath
 	}
 	if cfg.Port == 0 {
 		cfg.Port = def.Port

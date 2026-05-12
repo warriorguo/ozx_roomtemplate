@@ -41,6 +41,7 @@ func TestLoad_ExistingFile(t *testing.T) {
 		TemplateSubdir:  "Assets/Tilemaps",
 		Port:            9000,
 		AutoOpenBrowser: false,
+		OzxRoomViewPath: "/somewhere/RoomView.app",
 	}
 	if err := Save(path, want); err != nil {
 		t.Fatalf("Save: %v", err)

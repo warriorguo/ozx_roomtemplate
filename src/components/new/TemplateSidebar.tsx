@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   templateApi,
   type TemplateSummary,
+  type LocalConfig,
   ApiError,
 } from '../../services/api';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
@@ -28,6 +29,16 @@ export const TemplateSidebar: React.FC = () => {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [config, setConfig] = useState<LocalConfig | null>(null);
+
+  // Pull the local-mode config once so we know whether OzxRoomView is wired up.
+  useEffect(() => {
+    let cancelled = false;
+    templateApi.getLocalConfig().then((c) => {
+      if (!cancelled) setConfig(c);
+    }).catch(() => { /* cloud backend; nothing to do */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Debounce the search input so each keystroke doesn't fire a request.
   useEffect(() => {
@@ -114,6 +125,24 @@ export const TemplateSidebar: React.FC = () => {
   const handleContextMenu = useCallback((e: React.MouseEvent, item: TemplateSummary) => {
     e.preventDefault();
     setMenu({ x: e.clientX, y: e.clientY, item });
+  }, []);
+
+  /**
+   * Launches an external macOS app with arguments via the Swift bridge.
+   * Falls back to an alert in dev/browser mode (where there is no bridge)
+   * so the user at least sees what would have happened.
+   */
+  const openWith = useCallback((appPath: string, args: string[]) => {
+    const bridge = (window as any).webkit?.messageHandlers?.openWith;
+    if (bridge && typeof bridge.postMessage === 'function') {
+      try {
+        bridge.postMessage({ app: appPath, args });
+        return;
+      } catch (err) {
+        console.warn('openWith bridge failed', err);
+      }
+    }
+    alert(`OzxRoomView launch is only available in the macOS app.\n\nWould have run:\n  ${appPath} ${args.join(' ')}`);
   }, []);
 
   const copyToClipboard = useCallback(async (text: string) => {
@@ -406,6 +435,34 @@ export const TemplateSidebar: React.FC = () => {
           >
             Copy name
           </button>
+          {(() => {
+            const roomViewPath = config?.ozx_room_view_path?.trim() ?? '';
+            const filePath = menu.item.path ?? '';
+            const enabled = !!roomViewPath && !!filePath;
+            return (
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!enabled}
+                title={
+                  !roomViewPath
+                    ? 'Set ozx_room_view_path in config.json to enable'
+                    : !filePath
+                      ? '(no on-disk path available)'
+                      : `${roomViewPath} --room ${filePath}`
+                }
+                onClick={() => {
+                  if (enabled) {
+                    openWith(roomViewPath, ['--room', filePath]);
+                  }
+                  setMenu(null);
+                }}
+                style={menuItemStyle(!enabled)}
+              >
+                Open with OzxRoomView
+              </button>
+            );
+          })()}
         </div>
       )}
     </aside>

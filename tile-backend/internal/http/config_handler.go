@@ -55,6 +55,7 @@ type ConfigResponse struct {
 	TemplateSubdir  string `json:"template_subdir"`
 	Port            int    `json:"port"`
 	AutoOpenBrowser bool   `json:"auto_open_browser"`
+	OzxRoomViewPath string `json:"ozx_room_view_path"`
 
 	// Computed: where the fsstore is actually reading and writing.
 	TemplatesDir string `json:"templates_dir"`
@@ -73,6 +74,7 @@ type UpdateConfigRequest struct {
 	TemplateSubdir  *string `json:"template_subdir,omitempty"`
 	Port            *int    `json:"port,omitempty"`
 	AutoOpenBrowser *bool   `json:"auto_open_browser,omitempty"`
+	OzxRoomViewPath *string `json:"ozx_room_view_path,omitempty"`
 }
 
 // GetConfig handles GET /api/v1/config.
@@ -108,6 +110,9 @@ func (h *ConfigHandler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.AutoOpenBrowser != nil {
 		next.AutoOpenBrowser = *req.AutoOpenBrowser
+	}
+	if req.OzxRoomViewPath != nil {
+		next.OzxRoomViewPath = *req.OzxRoomViewPath
 	}
 
 	nextDir, err := next.TemplatesDir()
@@ -149,6 +154,7 @@ func (h *ConfigHandler) snapshot() ConfigResponse {
 		TemplateSubdir:  h.cfg.TemplateSubdir,
 		Port:            h.cfg.Port,
 		AutoOpenBrowser: h.cfg.AutoOpenBrowser,
+		OzxRoomViewPath: h.cfg.OzxRoomViewPath,
 		TemplatesDir:    h.templatesDir,
 		ConfigPath:      h.configPath,
 		UsesFallback:    h.cfg.UsesFallback(),

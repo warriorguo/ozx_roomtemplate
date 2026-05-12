@@ -43,6 +43,7 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
 
         let contentController = WKUserContentController()
         contentController.add(self, name: "copy")
+        contentController.add(self, name: "openWith")
         config.userContentController = contentController
 
         let webView = WKWebView(frame: .zero, configuration: config)
@@ -58,7 +59,9 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
     }
 
     deinit {
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "copy")
+        let ucc = webView.configuration.userContentController
+        ucc.removeScriptMessageHandler(forName: "copy")
+        ucc.removeScriptMessageHandler(forName: "openWith")
     }
 
     /// Replaces the current URL — handy if we ever add a "reload server" menu item.
@@ -70,21 +73,55 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
-        guard message.name == "copy" else { return }
-        let text: String
-        switch message.body {
-        case let s as String:
-            text = s
-        case let n as NSNumber:
-            text = n.stringValue
+        switch message.name {
+        case "copy":
+            handleCopy(message.body)
+        case "openWith":
+            handleOpenWith(message.body)
         default:
-            NSLog("copy bridge: unexpected body type \(type(of: message.body))")
+            NSLog("unknown script message: \(message.name)")
+        }
+    }
+
+    private func handleCopy(_ body: Any) {
+        let text: String
+        switch body {
+        case let s as String: text = s
+        case let n as NSNumber: text = n.stringValue
+        default:
+            NSLog("copy bridge: unexpected body type \(type(of: body))")
             return
         }
         let pb = NSPasteboard.general
         pb.clearContents()
         let ok = pb.setString(text, forType: .string)
         NSLog("copy bridge: wrote \(text.count) chars to pasteboard, ok=\(ok)")
+    }
+
+    /// Expects `{ "app": "<absolute path to .app>", "args": ["--room", "/foo.json"] }`.
+    /// Uses NSWorkspace.openApplication so the .app bundle is launched the same
+    /// way Finder / `open -a` would, with the supplied arguments forwarded to
+    /// the executable.
+    private func handleOpenWith(_ body: Any) {
+        guard let dict = body as? [String: Any],
+              let appPath = dict["app"] as? String,
+              !appPath.isEmpty else {
+            NSLog("openWith bridge: missing or invalid 'app' field: \(body)")
+            return
+        }
+        let args = (dict["args"] as? [String]) ?? []
+        let appURL = URL(fileURLWithPath: appPath)
+        let configuration = NSWorkspace.OpenConfiguration()
+        configuration.arguments = args
+        configuration.activates = true
+
+        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, err in
+            if let err = err {
+                NSLog("openWith bridge: launch failed (\(appPath) \(args)): \(err.localizedDescription)")
+            } else {
+                NSLog("openWith bridge: launched \(appPath) with args=\(args)")
+            }
+        }
     }
 
     // MARK: - WKUIDelegate
