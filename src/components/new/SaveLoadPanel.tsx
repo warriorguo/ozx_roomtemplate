@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import { templateApi, type BackendListResponse, type ListTemplatesParams, type TemplateSummary, ApiError } from '../../services/api';
+import { LazyThumbnail } from './LazyThumbnail';
 import { formatTemplateInfo, generateDefaultTemplateName } from '../../services/templateConverter';
 
 interface SaveLoadPanelProps {
@@ -658,7 +659,9 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                               gap: '15px',
                               alignItems: 'flex-start',
                             }}>
-                              {/* Thumbnail */}
+                              {/* Thumbnail (rendered lazily on scroll). The OZX file format
+                                  has no embedded thumbnail; we draw one from the Ground
+                                  layer once the row is in view. */}
                               {item.thumbnail ? (
                                 <div style={{
                                   flexShrink: 0,
@@ -681,22 +684,11 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                                   />
                                 </div>
                               ) : (
-                                <div style={{
-                                  flexShrink: 0,
-                                  width: '80px',
-                                  height: '80px',
-                                  border: '1px solid #ddd',
-                                  borderRadius: '4px',
-                                  backgroundColor: '#f0f0f0',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '12px',
-                                  color: '#666',
-                                  textAlign: 'center',
-                                }}>
-                                  No<br/>Preview
-                                </div>
+                                <LazyThumbnail
+                                  templateId={item.id}
+                                  alt={`${info.displayName} thumbnail`}
+                                  size={80}
+                                />
                               )}
 
                               {/* Template Info */}
