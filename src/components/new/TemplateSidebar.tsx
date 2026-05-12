@@ -109,19 +109,38 @@ export const TemplateSidebar: React.FC = () => {
   }, []);
 
   const copyToClipboard = useCallback(async (text: string) => {
+    // When running inside the Swift wrapper we have a native bridge to
+    // NSPasteboard — both navigator.clipboard.writeText and execCommand are
+    // unreliable in WKWebView. The bridge is registered as the "copy"
+    // message handler in MainWindow.swift.
+    const bridge = (window as any).webkit?.messageHandlers?.copy;
+    if (bridge && typeof bridge.postMessage === 'function') {
+      try {
+        bridge.postMessage(text);
+        return;
+      } catch (err) {
+        console.warn('native copy bridge failed, falling back', err);
+      }
+    }
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
-      } else {
-        const ta = document.createElement('textarea');
-        ta.value = text;
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
+        return;
       }
     } catch (err) {
-      console.warn('clipboard write failed', err);
+      console.warn('clipboard.writeText failed, falling back to execCommand', err);
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    } catch (err) {
+      console.warn('execCommand copy failed', err);
     }
   }, []);
 

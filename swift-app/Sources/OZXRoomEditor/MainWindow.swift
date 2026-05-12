@@ -4,7 +4,7 @@ import WebKit
 /// Native window hosting a WKWebView pointed at the embedded Go server. Kept
 /// deliberately spartan — no custom title bar tricks or window-state
 /// persistence; macOS handles all of that for free at .titled + .resizable.
-final class MainWindowController: NSWindowController, WKUIDelegate {
+final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMessageHandler {
     private let webView: WKWebView
 
     init(initialURL: URL) {
@@ -13,6 +13,14 @@ final class MainWindowController: NSWindowController, WKUIDelegate {
         prefs.javaScriptCanOpenWindowsAutomatically = true
         config.preferences = prefs
         config.websiteDataStore = .nonPersistent() // each launch starts clean
+
+        // Clipboard bridge: WKWebView's navigator.clipboard.writeText and
+        // document.execCommand('copy') are both unreliable here, so the SPA
+        // posts the text via window.webkit.messageHandlers.copy.postMessage
+        // and we write it to NSPasteboard from Swift. See userContentController
+        // below.
+        let contentController = WKUserContentController()
+        config.userContentController = contentController
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = false
@@ -45,6 +53,7 @@ final class MainWindowController: NSWindowController, WKUIDelegate {
         // can use window.confirm() for destructive actions (e.g. the sidebar
         // delete button) and window.alert() for error toasts.
         webView.uiDelegate = self
+        contentController.add(self, name: "copy")
         webView.load(URLRequest(url: initialURL))
     }
 
@@ -86,6 +95,16 @@ final class MainWindowController: NSWindowController, WKUIDelegate {
         alert.beginSheetModal(for: window ?? NSApp.keyWindow ?? NSWindow()) { response in
             completionHandler(response == .alertFirstButtonReturn)
         }
+    }
+
+    // MARK: - WKScriptMessageHandler (clipboard bridge)
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        guard message.name == "copy", let text = message.body as? String else { return }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.setString(text, forType: .string)
     }
 
     func webView(_ webView: WKWebView,
