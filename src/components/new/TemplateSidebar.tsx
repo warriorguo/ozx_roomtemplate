@@ -77,6 +77,34 @@ export const TemplateSidebar: React.FC = () => {
     [currentId, loadTemplateFromBackend]
   );
 
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const handleDelete = useCallback(
+    async (e: React.MouseEvent, item: TemplateSummary) => {
+      // Don't let the click bubble up to the row, which would try to load
+      // the template we're about to delete.
+      e.stopPropagation();
+      e.preventDefault();
+      const ok = window.confirm(`Delete "${item.name}"?\n\nThis removes the .json from the OZX folder. Unity will regenerate its .meta on next import.`);
+      if (!ok) return;
+      setDeletingId(item.id);
+      try {
+        await templateApi.deleteTemplate(item.id);
+        // Optimistic: drop from the local list immediately, then re-fetch
+        // to reconcile with whatever else may have changed on disk.
+        setItems((prev) => prev.filter((t) => t.id !== item.id));
+        setTotal((t) => Math.max(0, t - 1));
+        fetchList();
+      } catch (err) {
+        const msg = err instanceof ApiError ? err.message : String(err);
+        alert(`Delete failed: ${msg}`);
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [fetchList]
+  );
+
   const headerStyle: React.CSSProperties = {
     padding: '12px 14px 8px',
     borderBottom: '1px solid #e0e0e0',
@@ -87,6 +115,7 @@ export const TemplateSidebar: React.FC = () => {
     () =>
       items.map((item) => {
         const isCurrent = item.id === currentId;
+        const isDeleting = item.id === deletingId;
         const meta = [
           item.room_type ?? '?',
           item.stage_type ?? '?',
@@ -96,7 +125,9 @@ export const TemplateSidebar: React.FC = () => {
           <div
             key={item.id}
             onClick={() => handleSelect(item.id)}
+            className="ort-sidebar-row"
             style={{
+              position: 'relative',
               display: 'flex',
               gap: 10,
               padding: '8px 12px',
@@ -104,6 +135,7 @@ export const TemplateSidebar: React.FC = () => {
               cursor: 'pointer',
               backgroundColor: isCurrent ? '#E3F2FD' : 'transparent',
               transition: 'background-color 120ms',
+              opacity: isDeleting ? 0.5 : 1,
             }}
             onMouseEnter={(e) => {
               if (!isCurrent) e.currentTarget.style.backgroundColor = '#F5F5F5';
@@ -114,7 +146,7 @@ export const TemplateSidebar: React.FC = () => {
             title={item.name}
           >
             <LazyThumbnail templateId={item.id} alt={item.name} size={56} />
-            <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ flex: 1, minWidth: 0, paddingRight: 24 }}>
               <div
                 style={{
                   fontWeight: isCurrent ? 600 : 500,
@@ -143,10 +175,45 @@ export const TemplateSidebar: React.FC = () => {
                 {item.width}×{item.height}
               </div>
             </div>
+
+            <button
+              type="button"
+              aria-label={`Delete ${item.name}`}
+              title="Delete this template"
+              disabled={isDeleting}
+              onClick={(e) => handleDelete(e, item)}
+              className="ort-sidebar-delete"
+              style={{
+                position: 'absolute',
+                top: 6,
+                right: 6,
+                width: 22,
+                height: 22,
+                lineHeight: '18px',
+                padding: 0,
+                fontSize: 14,
+                fontWeight: 600,
+                border: '1px solid transparent',
+                borderRadius: 4,
+                background: 'transparent',
+                color: '#B71C1C',
+                cursor: isDeleting ? 'wait' : 'pointer',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = '#FFEBEE';
+                e.currentTarget.style.borderColor = '#FFCDD2';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.borderColor = 'transparent';
+              }}
+            >
+              ×
+            </button>
           </div>
         );
       }),
-    [items, currentId, handleSelect]
+    [items, currentId, deletingId, handleSelect, handleDelete]
   );
 
   return (
