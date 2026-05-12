@@ -57,13 +57,13 @@ export const HeatmapLayerEditor: React.FC = () => {
   // Transposed rendering (ORT-76) — see note in LayerEditor.tsx.
   const gridStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${template.height}, 30px)`,
+    gridTemplateColumns: `repeat(${template.height}, 36px)`,
     gap: '1px',
     backgroundColor: '#e0e0e0',
     padding: '10px',
     borderRadius: '4px',
-    maxWidth: '900px',
-    maxHeight: '600px',
+    maxWidth: '1200px',
+    maxHeight: '1000px',
     overflow: 'auto',
     userSelect: 'none',
   };
@@ -109,8 +109,8 @@ export const HeatmapLayerEditor: React.FC = () => {
                   <div
                     key={`heatmap-${x}-${y}`}
                     style={{
-                      width: '30px',
-                      height: '30px',
+                      width: '36px',
+                      height: '36px',
                       backgroundColor: scoreToStandaloneColor(score),
                       border: '1px solid rgba(0,0,0,0.08)',
                       cursor: 'default',

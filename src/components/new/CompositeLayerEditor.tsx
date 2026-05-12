@@ -46,8 +46,8 @@ const CompositeCell: React.FC<CompositeCellProps> = ({
 }) => {
   const getCellStyle = (): React.CSSProperties => {
     const baseStyle: React.CSSProperties = {
-      width: '30px',
-      height: '30px',
+      width: '36px',
+      height: '36px',
       border: '1px solid #ddd',
       cursor: 'default',
       display: 'flex',
@@ -147,13 +147,13 @@ export const CompositeLayerEditor: React.FC = () => {
   // Transposed rendering (ORT-76) — display column = data.y, display row = data.x.
   const gridStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${template.height}, 30px)`,
+    gridTemplateColumns: `repeat(${template.height}, 36px)`,
     gap: '1px',
     backgroundColor: '#f0f0f0',
     padding: '10px',
     borderRadius: '4px',
-    maxWidth: '900px',
-    maxHeight: '600px',
+    maxWidth: '1200px',
+    maxHeight: '1000px',
     overflow: 'auto',
     userSelect: 'none',
     WebkitUserSelect: 'none',

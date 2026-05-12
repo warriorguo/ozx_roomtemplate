@@ -103,8 +103,8 @@ const Cell: React.FC<CellProps> = ({
 
   const getCellStyle = (): React.CSSProperties => {
     const baseStyle: React.CSSProperties = {
-      width: '30px',
-      height: '30px',
+      width: '36px',
+      height: '36px',
       border: '1px solid #ddd',
       cursor: 'pointer',
       display: 'flex',
@@ -530,13 +530,15 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
   // flips, so display column = data.y and display row = data.x.
   const gridStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${template.height}, 30px)`,
+    gridTemplateColumns: `repeat(${template.height}, 36px)`,
     gap: '1px',
     backgroundColor: '#f0f0f0',
     padding: '10px',
     borderRadius: '4px',
-    maxWidth: '900px',
-    maxHeight: '600px',
+    // Sized to fit a typical 20-row transposed OZX room (20 × 37 + 20 padding
+    // ≈ 760px) without an inner scrollbar; larger rooms still scroll.
+    maxWidth: '1200px',
+    maxHeight: '1000px',
     overflow: 'auto',
     userSelect: 'none', // 禁用文本选择
     WebkitUserSelect: 'none', // Safari
@@ -665,10 +667,11 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                   pointerEvents: 'none',
                   // Transposed overlay (ORT-76): display column = data.y,
                   // display row = data.x. Width/height swap accordingly.
-                  left: `${10 + startY * 31}px`,
-                  top: `${10 + startX * 31}px`,
-                  width: `${actualHeight * 31 - 1}px`,
-                  height: `${actualWidth * 31 - 1}px`,
+                  // 36px cell + 1px gap = 37 stride.
+                  left: `${10 + startY * 37}px`,
+                  top: `${10 + startX * 37}px`,
+                  width: `${actualHeight * 37 - 1}px`,
+                  height: `${actualWidth * 37 - 1}px`,
                   border: `2px solid ${color}`,
                   borderRadius: '3px',
                   backgroundColor: `${color}20`,
