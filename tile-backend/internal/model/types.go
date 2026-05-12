@@ -115,6 +115,9 @@ type Template struct {
 	MobAirCount    *int            `json:"mobair_count,omitempty"`
 	StageType      *string         `json:"stage_type,omitempty"`
 	ProjectID      *uuid.UUID      `json:"project_id,omitempty"`
+	// Path is the absolute on-disk path of the source .json file (local-client
+	// branch only; the cloud variant omits this).
+	Path           string          `json:"path,omitempty"`
 	ViewCount      int             `json:"view_count"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`
@@ -140,6 +143,10 @@ type TemplateSummary struct {
 	DPSCount       *int            `json:"dps_count,omitempty"`
 	MobAirCount    *int            `json:"mobair_count,omitempty"`
 	StageType      *string         `json:"stage_type,omitempty"`
+	// Path is the absolute on-disk path of the source .json file. Set by
+	// fsstore on the local-client branch so the frontend can surface a
+	// "Copy path" affordance; omitted by other Store implementations.
+	Path           string          `json:"path,omitempty"`
 	ViewCount      int             `json:"view_count"`
 	CreatedAt      time.Time       `json:"created_at"`
 	UpdatedAt      time.Time       `json:"updated_at"`

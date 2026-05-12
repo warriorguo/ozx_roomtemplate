@@ -128,6 +128,8 @@ export interface TemplateSummary {
   zoner_count?: number;
   dps_count?: number;
   mobair_count?: number;
+  /** Absolute on-disk path of the source .json file. Local-client backend only. */
+  path?: string;
   created_at: string;
   updated_at: string;
 }

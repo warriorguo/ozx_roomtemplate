@@ -417,6 +417,7 @@ func (s *Store) synthesise(relPath, fullPath string, payload *model.TemplatePayl
 		Width:     payload.Meta.Width,
 		Height:    payload.Meta.Height,
 		Payload:   *payload,
+		Path:      fullPath,
 		CreatedAt: mtime,
 		UpdatedAt: mtime,
 	}
@@ -521,6 +522,7 @@ func summaryOf(t *model.Template) model.TemplateSummary {
 		DPSCount:       t.DPSCount,
 		MobAirCount:    t.MobAirCount,
 		StageType:      t.StageType,
+		Path:           t.Path,
 		ViewCount:      t.ViewCount,
 		CreatedAt:      t.CreatedAt,
 		UpdatedAt:      t.UpdatedAt,

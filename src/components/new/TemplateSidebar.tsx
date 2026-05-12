@@ -79,6 +79,52 @@ export const TemplateSidebar: React.FC = () => {
 
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  // Right-click context menu state. `null` means hidden. We render a single
+  // shared menu (not one per row) and anchor it to the click coordinates.
+  type MenuState = { x: number; y: number; item: TemplateSummary };
+  const [menu, setMenu] = useState<MenuState | null>(null);
+
+  // Close the menu on any outside click, scroll, or Escape.
+  useEffect(() => {
+    if (!menu) return;
+    const close = () => setMenu(null);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') close();
+    };
+    // Use capture so we close before any inner click handler fires; the
+    // menu's own buttons stopPropagation so they aren't dismissed too early.
+    document.addEventListener('mousedown', close, true);
+    document.addEventListener('scroll', close, true);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', close, true);
+      document.removeEventListener('scroll', close, true);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [menu]);
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, item: TemplateSummary) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, item });
+  }, []);
+
+  const copyToClipboard = useCallback(async (text: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+    } catch (err) {
+      console.warn('clipboard write failed', err);
+    }
+  }, []);
+
   const handleDelete = useCallback(
     async (e: React.MouseEvent, item: TemplateSummary) => {
       // Don't let the click bubble up to the row, which would try to load
@@ -125,6 +171,7 @@ export const TemplateSidebar: React.FC = () => {
           <div
             key={item.id}
             onClick={() => handleSelect(item.id)}
+            onContextMenu={(e) => handleContextMenu(e, item)}
             className="ort-sidebar-row"
             style={{
               position: 'relative',
@@ -268,6 +315,86 @@ export const TemplateSidebar: React.FC = () => {
         )}
         {rows}
       </div>
+
+      {menu && (
+        // Render through a portal-like fixed overlay so we don't get clipped
+        // by the sidebar's overflow:auto.
+        <div
+          role="menu"
+          onMouseDown={(e) => e.stopPropagation()}
+          style={{
+            position: 'fixed',
+            left: menu.x,
+            top: menu.y,
+            zIndex: 1000,
+            minWidth: 200,
+            background: '#fff',
+            border: '1px solid #ccc',
+            borderRadius: 4,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            padding: '4px 0',
+            fontSize: 13,
+          }}
+        >
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!menu.item.path}
+            title={menu.item.path || '(path unavailable)'}
+            onClick={() => {
+              if (menu.item.path) {
+                void copyToClipboard(menu.item.path);
+              }
+              setMenu(null);
+            }}
+            style={menuItemStyle(!menu.item.path)}
+          >
+            Copy path
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            disabled={!menu.item.path}
+            onClick={() => {
+              if (menu.item.path) {
+                // The parent directory is more useful than the file itself
+                // when pasting into Finder's "Go to Folder".
+                const dir = menu.item.path.replace(/\/[^/]+$/, '');
+                void copyToClipboard(dir);
+              }
+              setMenu(null);
+            }}
+            style={menuItemStyle(!menu.item.path)}
+          >
+            Copy folder
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              void copyToClipboard(menu.item.name);
+              setMenu(null);
+            }}
+            style={menuItemStyle(false)}
+          >
+            Copy name
+          </button>
+        </div>
+      )}
     </aside>
   );
 };
+
+function menuItemStyle(disabled: boolean): React.CSSProperties {
+  return {
+    display: 'block',
+    width: '100%',
+    textAlign: 'left',
+    padding: '6px 14px',
+    border: 'none',
+    background: 'transparent',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    color: disabled ? '#aaa' : '#222',
+    fontSize: 13,
+  };
+}
