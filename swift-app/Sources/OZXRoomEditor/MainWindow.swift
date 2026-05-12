@@ -5,31 +5,13 @@ import WebKit
 /// deliberately spartan — no custom title bar tricks or window-state
 /// persistence; macOS handles all of that for free at .titled + .resizable.
 final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMessageHandler {
-    private let webView: WKWebView
+    private var webView: WKWebView!
 
     init(initialURL: URL) {
-        let config = WKWebViewConfiguration()
-        let prefs = WKPreferences()
-        prefs.javaScriptCanOpenWindowsAutomatically = true
-        config.preferences = prefs
-        config.websiteDataStore = .nonPersistent() // each launch starts clean
-
-        // Clipboard bridge: WKWebView's navigator.clipboard.writeText and
-        // document.execCommand('copy') are both unreliable here, so the SPA
-        // posts the text via window.webkit.messageHandlers.copy.postMessage
-        // and we write it to NSPasteboard from Swift. The script-message
-        // handler is added *after* WKWebView init below (see init body) —
-        // WKWebViewConfiguration is snapshot at WebView construction time,
-        // so mutating this controller before isn't enough.
-        config.userContentController = WKUserContentController()
-
-        let webView = WKWebView(frame: .zero, configuration: config)
-        webView.allowsBackForwardNavigationGestures = false
-        self.webView = webView
-
-        // Size the window to fill ~90% of the current screen on first launch.
-        // setFrameAutosaveName persists user resizes, so this initial sizing
-        // only applies until the user moves or resizes the window once.
+        // Build the window first with an empty placeholder so we can call
+        // super.init and gain `self`. The WebView is constructed *after*
+        // super.init so we can register script message handlers (which need
+        // `self`) before the WKWebView snapshots its configuration.
         let visibleFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1600, height: 1000)
         let width = max(1280, visibleFrame.width * 0.9)
         let height = max(800, visibleFrame.height * 0.9)
@@ -46,18 +28,28 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
         // previous version so this enlarged default actually applies on the
         // next launch; user-initiated resizes from here on persist normally.
         window.setFrameAutosaveName("MainWindow.v2")
-        window.contentView = webView
 
         super.init(window: window)
-        // WKWebView's JS dialog methods (alert / confirm / prompt) are silent
-        // no-ops without a uiDelegate. Wire ourselves in so the React side
-        // can use window.confirm() for destructive actions (e.g. the sidebar
-        // delete button) and window.alert() for error toasts.
+
+        // Now build the WebView. Script-message handlers must be on the
+        // controller *before* WKWebView is constructed: the configuration is
+        // copied at init time, so post-creation mutations don't reach the
+        // running WebView.
+        let config = WKWebViewConfiguration()
+        let prefs = WKPreferences()
+        prefs.javaScriptCanOpenWindowsAutomatically = true
+        config.preferences = prefs
+        config.websiteDataStore = .nonPersistent() // each launch starts clean
+
+        let contentController = WKUserContentController()
+        contentController.add(self, name: "copy")
+        config.userContentController = contentController
+
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.allowsBackForwardNavigationGestures = false
         webView.uiDelegate = self
-        // Attach the clipboard bridge to the WebView's *live* content
-        // controller, not to the one we passed into config (which was
-        // snapshotted on init and no longer wired to anything).
-        webView.configuration.userContentController.add(self, name: "copy")
+        self.webView = webView
+        window.contentView = webView
         webView.load(URLRequest(url: initialURL))
     }
 
@@ -72,6 +64,27 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
     /// Replaces the current URL — handy if we ever add a "reload server" menu item.
     func load(_ url: URL) {
         webView.load(URLRequest(url: url))
+    }
+
+    // MARK: - WKScriptMessageHandler (clipboard bridge)
+
+    func userContentController(_ userContentController: WKUserContentController,
+                               didReceive message: WKScriptMessage) {
+        guard message.name == "copy" else { return }
+        let text: String
+        switch message.body {
+        case let s as String:
+            text = s
+        case let n as NSNumber:
+            text = n.stringValue
+        default:
+            NSLog("copy bridge: unexpected body type \(type(of: message.body))")
+            return
+        }
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        let ok = pb.setString(text, forType: .string)
+        NSLog("copy bridge: wrote \(text.count) chars to pasteboard, ok=\(ok)")
     }
 
     // MARK: - WKUIDelegate
@@ -103,29 +116,6 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
         alert.beginSheetModal(for: window ?? NSApp.keyWindow ?? NSWindow()) { response in
             completionHandler(response == .alertFirstButtonReturn)
         }
-    }
-
-    // MARK: - WKScriptMessageHandler (clipboard bridge)
-
-    func userContentController(_ userContentController: WKUserContentController,
-                               didReceive message: WKScriptMessage) {
-        guard message.name == "copy" else { return }
-        // JS may post either a string or a number — coerce to string. Anything
-        // else, just ignore.
-        let text: String
-        switch message.body {
-        case let s as String:
-            text = s
-        case let n as NSNumber:
-            text = n.stringValue
-        default:
-            NSLog("copy bridge: unexpected body type \(type(of: message.body))")
-            return
-        }
-        let pb = NSPasteboard.general
-        pb.clearContents()
-        let ok = pb.setString(text, forType: .string)
-        NSLog("copy bridge: wrote \(text.count) chars to pasteboard, ok=\(ok)")
     }
 
     func webView(_ webView: WKWebView,

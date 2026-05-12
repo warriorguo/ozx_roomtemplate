@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   templateApi,
   type TemplateSummary,
@@ -83,22 +83,30 @@ export const TemplateSidebar: React.FC = () => {
   // shared menu (not one per row) and anchor it to the click coordinates.
   type MenuState = { x: number; y: number; item: TemplateSummary };
   const [menu, setMenu] = useState<MenuState | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
-  // Close the menu on any outside click, scroll, or Escape.
+  // Close the menu on any outside click, scroll, or Escape. We have to be
+  // careful here: a capture-phase mousedown listener would close the menu
+  // *before* the menu item's own click handler can run (mousedown fires
+  // before click). So we use bubble phase and check whether the event target
+  // is inside the menu DOM — if it is, the menu's own onClick will handle it.
   useEffect(() => {
     if (!menu) return;
-    const close = () => setMenu(null);
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') close();
+    const onDown = (e: MouseEvent) => {
+      const node = menuRef.current;
+      if (node && e.target instanceof Node && node.contains(e.target)) return;
+      setMenu(null);
     };
-    // Use capture so we close before any inner click handler fires; the
-    // menu's own buttons stopPropagation so they aren't dismissed too early.
-    document.addEventListener('mousedown', close, true);
-    document.addEventListener('scroll', close, true);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMenu(null);
+    };
+    const onScroll = () => setMenu(null);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('scroll', onScroll, true);
     document.addEventListener('keydown', onKey);
     return () => {
-      document.removeEventListener('mousedown', close, true);
-      document.removeEventListener('scroll', close, true);
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('scroll', onScroll, true);
       document.removeEventListener('keydown', onKey);
     };
   }, [menu]);
@@ -339,8 +347,8 @@ export const TemplateSidebar: React.FC = () => {
         // Render through a portal-like fixed overlay so we don't get clipped
         // by the sidebar's overflow:auto.
         <div
+          ref={menuRef}
           role="menu"
-          onMouseDown={(e) => e.stopPropagation()}
           style={{
             position: 'fixed',
             left: menu.x,
