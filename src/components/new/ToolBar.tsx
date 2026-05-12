@@ -154,7 +154,6 @@ export const ToolBar: React.FC = () => {
 
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showSavePanel, setShowSavePanel] = useState(false);
-  const [showLoadPanel, setShowLoadPanel] = useState(false);
   
   const validationResult = uiState.validationResult;
 
@@ -301,21 +300,6 @@ export const ToolBar: React.FC = () => {
           </button>
 
           <button
-            onClick={() => setShowLoadPanel(true)}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#2196F3',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            📁 Load
-          </button>
-
-          <button
             onClick={copyToClipboard}
             style={{
               padding: '8px 16px',
@@ -393,12 +377,6 @@ export const ToolBar: React.FC = () => {
         isOpen={showSavePanel}
         onClose={() => setShowSavePanel(false)}
         mode="save"
-      />
-
-      <SaveLoadPanel
-        isOpen={showLoadPanel}
-        onClose={() => setShowLoadPanel(false)}
-        mode="load"
       />
     </div>
   );
