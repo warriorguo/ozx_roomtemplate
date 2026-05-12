@@ -54,9 +54,10 @@ export const HeatmapLayerEditor: React.FC = () => {
     marginBottom: '5px',
   };
 
+  // Transposed rendering (ORT-76) — see note in LayerEditor.tsx.
   const gridStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${template.width}, 30px)`,
+    gridTemplateColumns: `repeat(${template.height}, 30px)`,
     gap: '1px',
     backgroundColor: '#e0e0e0',
     padding: '10px',
@@ -98,8 +99,10 @@ export const HeatmapLayerEditor: React.FC = () => {
       {showHeatmap && (
         <>
           <div style={gridStyle} onMouseLeave={clearHoveredCell}>
-            {Array.from({ length: template.height }, (_, y) =>
-              Array.from({ length: template.width }, (_, x) => {
+            {/* Transposed iteration (ORT-76): outer = x → display row,
+                inner = y → display column. */}
+            {Array.from({ length: template.width }, (_, x) =>
+              Array.from({ length: template.height }, (_, y) => {
                 const score = heatmap[y][x];
                 const pct = Math.round(score * 100);
                 return (

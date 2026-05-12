@@ -144,9 +144,10 @@ export const CompositeLayerEditor: React.FC = () => {
     toggleCompositeView();
   };
 
+  // Transposed rendering (ORT-76) — display column = data.y, display row = data.x.
   const gridStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${template.width}, 30px)`,
+    gridTemplateColumns: `repeat(${template.height}, 30px)`,
     gap: '1px',
     backgroundColor: '#f0f0f0',
     padding: '10px',
@@ -221,8 +222,9 @@ export const CompositeLayerEditor: React.FC = () => {
           style={gridStyle}
           onMouseLeave={clearHoveredCell}
         >
-          {Array.from({ length: template.height }, (_, y) =>
-            Array.from({ length: template.width }, (_, x) => {
+          {/* Transposed iteration (ORT-76): outer = x → display row, inner = y → display column. */}
+          {Array.from({ length: template.width }, (_, x) =>
+            Array.from({ length: template.height }, (_, y) => {
               const groundValue = template.ground[y][x];
               const bridgeValue = template.bridge[y][x];
               const pipelineValue = template.pipeline[y][x];

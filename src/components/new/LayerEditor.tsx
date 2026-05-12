@@ -63,7 +63,10 @@ const Cell: React.FC<CellProps> = ({
 }) => {
   const { template } = useNewTemplateStore();
 
-  // 判断当前格子是否是门位置，以及哪一侧需要标记浅棕色
+  // Decides which CSS edge of a cell to paint with the door-marker colour.
+  // Returns a *visual* side (CSS notion) — since the grid is rendered
+  // transposed (ORT-76), data's top/bottom map to the visual left/right
+  // edges, and data's left/right map to the visual top/bottom edges.
   const getDoorBorderSide = (): 'top' | 'bottom' | 'left' | 'right' | null => {
     // 只在 ground 层显示门标记
     if (layer !== 'ground') return null;
@@ -75,24 +78,24 @@ const Cell: React.FC<CellProps> = ({
     const midWidth = Math.floor(width / 2);
     const midHeight = Math.floor(height / 2);
 
-    // 顶部边缘的中间两格
+    // Data top edge → visual LEFT after transpose.
     if (y === 0 && (x === midWidth - 1 || x === midWidth)) {
-      return 'top';
-    }
-
-    // 底部边缘的中间两格
-    if (y === height - 1 && (x === midWidth - 1 || x === midWidth)) {
-      return 'bottom';
-    }
-
-    // 左侧边缘的中间两格
-    if (x === 0 && (y === midHeight - 1 || y === midHeight)) {
       return 'left';
     }
 
-    // 右侧边缘的中间两格
-    if (x === width - 1 && (y === midHeight - 1 || y === midHeight)) {
+    // Data bottom edge → visual RIGHT after transpose.
+    if (y === height - 1 && (x === midWidth - 1 || x === midWidth)) {
       return 'right';
+    }
+
+    // Data left edge → visual TOP after transpose.
+    if (x === 0 && (y === midHeight - 1 || y === midHeight)) {
+      return 'top';
+    }
+
+    // Data right edge → visual BOTTOM after transpose.
+    if (x === width - 1 && (y === midHeight - 1 || y === midHeight)) {
+      return 'bottom';
     }
 
     return null;
@@ -522,9 +525,12 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
     { width: 4, height: 4, label: '4×4' },
   ];
 
+  // Rendering is transposed (ORT-76): a 20×12 room is shown 12 columns wide
+  // and 20 rows tall. Data on disk is unchanged — only the visual mapping
+  // flips, so display column = data.y and display row = data.x.
   const gridStyle: React.CSSProperties = {
     display: 'grid',
-    gridTemplateColumns: `repeat(${template.width}, 30px)`,
+    gridTemplateColumns: `repeat(${template.height}, 30px)`,
     gap: '1px',
     backgroundColor: '#f0f0f0',
     padding: '10px',
@@ -585,8 +591,10 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
             clearHoveredCell();
           }}
         >
-        {Array.from({ length: template.height }, (_, y) =>
-          Array.from({ length: template.width }, (_, x) => {
+        {/* Transposed iteration (ORT-76): outer = data.x → display row,
+            inner = data.y → display column. Data lookups stay [y][x]. */}
+        {Array.from({ length: template.width }, (_, x) =>
+          Array.from({ length: template.height }, (_, y) => {
             const cellValue = template[layer][y][x];
             const cellValid = validationResult?.layerValidation[layer]?.[y]?.[x] ?? true;
             const groundValue = template.ground[y][x];          // 获取对应位置的ground值
@@ -655,10 +663,12 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 style={{
                   position: 'absolute',
                   pointerEvents: 'none',
-                  left: `${10 + startX * 31}px`,
-                  top: `${10 + startY * 31}px`,
-                  width: `${actualWidth * 31 - 1}px`,
-                  height: `${actualHeight * 31 - 1}px`,
+                  // Transposed overlay (ORT-76): display column = data.y,
+                  // display row = data.x. Width/height swap accordingly.
+                  left: `${10 + startY * 31}px`,
+                  top: `${10 + startX * 31}px`,
+                  width: `${actualHeight * 31 - 1}px`,
+                  height: `${actualWidth * 31 - 1}px`,
                   border: `2px solid ${color}`,
                   borderRadius: '3px',
                   backgroundColor: `${color}20`,
