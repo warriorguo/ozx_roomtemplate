@@ -64,9 +64,9 @@ const Cell: React.FC<CellProps> = ({
   const { template } = useNewTemplateStore();
 
   // Decides which CSS edge of a cell to paint with the door-marker colour.
-  // Returns a *visual* side (CSS notion) — since the grid is rendered
-  // transposed (ORT-76), data's top/bottom map to the visual left/right
-  // edges, and data's left/right map to the visual top/bottom edges.
+  // The grid is rendered 90° CCW (ORT-76, updated): data top/bottom stay on
+  // the visual left/right respectively, but data left/right now appear on the
+  // visual bottom/top — the inverse of the prior transpose.
   const getDoorBorderSide = (): 'top' | 'bottom' | 'left' | 'right' | null => {
     // 只在 ground 层显示门标记
     if (layer !== 'ground') return null;
@@ -78,24 +78,24 @@ const Cell: React.FC<CellProps> = ({
     const midWidth = Math.floor(width / 2);
     const midHeight = Math.floor(height / 2);
 
-    // Data top edge → visual LEFT after transpose.
+    // Data top edge → visual LEFT (unchanged).
     if (y === 0 && (x === midWidth - 1 || x === midWidth)) {
       return 'left';
     }
 
-    // Data bottom edge → visual RIGHT after transpose.
+    // Data bottom edge → visual RIGHT (unchanged).
     if (y === height - 1 && (x === midWidth - 1 || x === midWidth)) {
       return 'right';
     }
 
-    // Data left edge → visual TOP after transpose.
+    // Data left edge → visual BOTTOM (flipped from transpose).
     if (x === 0 && (y === midHeight - 1 || y === midHeight)) {
-      return 'top';
+      return 'bottom';
     }
 
-    // Data right edge → visual BOTTOM after transpose.
+    // Data right edge → visual TOP (flipped from transpose).
     if (x === width - 1 && (y === midHeight - 1 || y === midHeight)) {
-      return 'bottom';
+      return 'top';
     }
 
     return null;
@@ -525,9 +525,10 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
     { width: 4, height: 4, label: '4×4' },
   ];
 
-  // Rendering is transposed (ORT-76): a 20×12 room is shown 12 columns wide
-  // and 20 rows tall. Data on disk is unchanged — only the visual mapping
-  // flips, so display column = data.y and display row = data.x.
+  // Rendering is rotated 90° CCW (ORT-76, updated): a 20×12 room is shown
+  // 12 columns wide and 20 rows tall, with data left → display bottom and
+  // data right → display top. Data on disk is unchanged: display column =
+  // data.y, display row = (width - 1 - data.x).
   const gridStyle: React.CSSProperties = {
     display: 'grid',
     gridTemplateColumns: `repeat(${template.height}, 36px)`,
@@ -593,10 +594,13 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
             clearHoveredCell();
           }}
         >
-        {/* Transposed iteration (ORT-76): outer = data.x → display row,
-            inner = data.y → display column. Data lookups stay [y][x]. */}
-        {Array.from({ length: template.width }, (_, x) =>
-          Array.from({ length: template.height }, (_, y) => {
+        {/* 90° CCW iteration (ORT-76, updated): we walk the *display rows*
+            top to bottom, which means data.x runs from width-1 down to 0
+            (the right edge of the data renders at the top of the display).
+            Inner loop = data.y → display column. Data lookups stay [y][x]. */}
+        {Array.from({ length: template.width }, (_, dispRow) => {
+          const x = template.width - 1 - dispRow;
+          return Array.from({ length: template.height }, (_, y) => {
             const cellValue = template[layer][y][x];
             const cellValid = validationResult?.layerValidation[layer]?.[y]?.[x] ?? true;
             const groundValue = template.ground[y][x];          // 获取对应位置的ground值
@@ -640,8 +644,8 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 onCellMouseLeave={clearHoveredCell}
               />
             );
-          })
-        )}
+          });
+        })}
 
         {/* 笔刷预览 */}
         {uiState.brushPreview.visible && 
@@ -665,11 +669,13 @@ export const LayerEditor: React.FC<LayerEditorProps> = ({ layer, title, color })
                 style={{
                   position: 'absolute',
                   pointerEvents: 'none',
-                  // Transposed overlay (ORT-76): display column = data.y,
-                  // display row = data.x. Width/height swap accordingly.
-                  // 36px cell + 1px gap = 37 stride.
+                  // 90° CCW overlay (ORT-76 updated): display column = data.y;
+                  // display row = (template.width - 1) - data.x, so the
+                  // top-most display row covered by the brush corresponds to
+                  // the *largest* data.x in range (endX - 1). 36px cell + 1px
+                  // gap = 37 stride.
                   left: `${10 + startY * 37}px`,
-                  top: `${10 + startX * 37}px`,
+                  top: `${10 + (template.width - endX) * 37}px`,
                   width: `${actualHeight * 37 - 1}px`,
                   height: `${actualWidth * 37 - 1}px`,
                   border: `2px solid ${color}`,

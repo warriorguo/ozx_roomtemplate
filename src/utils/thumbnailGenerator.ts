@@ -21,10 +21,10 @@ export function generateThumbnail(template: Template, size: number = 120): Promi
       canvas.width = size;
       canvas.height = size;
 
-      // Rendering is transposed (ORT-76): data column 0 (left edge) is drawn
-      // as the top row, so the canvas is `template.height` cells wide and
-      // `template.width` cells tall. The underlying ground array is read
-      // exactly the same way — only the canvas coordinates flip.
+      // Rendering is rotated 90° CCW (ORT-76, updated): data column → display
+      // column (unchanged from the transpose) but data row maps to the
+      // *flipped* display row. The canvas is template.height wide and
+      // template.width tall, same as before; only pixelY changes.
       const displayCols = template.height;
       const displayRows = template.width;
       const scaleX = size / displayCols;
@@ -46,9 +46,10 @@ export function generateThumbnail(template: Template, size: number = 120): Promi
       for (let y = 0; y < template.height; y++) {
         for (let x = 0; x < template.width; x++) {
           if (template.ground[y][x] === 1) {
-            // Transposed mapping: display column = data y, display row = data x.
+            // 90° CCW mapping: display column = data y, display row =
+            // (template.width - 1 - data.x).
             const pixelX = offsetX + y * scale;
-            const pixelY = offsetY + x * scale;
+            const pixelY = offsetY + (template.width - 1 - x) * scale;
             ctx.fillRect(pixelX, pixelY, scale, scale);
           }
         }
@@ -89,8 +90,8 @@ export function generateDetailedThumbnail(template: Template, size: number = 120
       canvas.width = size;
       canvas.height = size;
 
-      // Transposed rendering (ORT-76) — data column → display row, data row
-      // → display column. We compute scale against the rotated dimensions.
+      // 90° CCW rendering (ORT-76 updated) — same canvas extents as before
+      // but pixelY uses the flipped data-x.
       const displayCols = template.height;
       const displayRows = template.width;
       const scaleX = size / displayCols;
@@ -128,9 +129,10 @@ export function generateDetailedThumbnail(template: Template, size: number = 120
         for (let y = 0; y < template.height; y++) {
           for (let x = 0; x < template.width; x++) {
             if (template[layerName][y][x] === 1) {
-              // Transposed mapping: display column = data.y, display row = data.x.
+              // 90° CCW mapping: display column = data.y, display row =
+              // (template.width - 1 - data.x).
               const pixelX = offsetX + y * scale;
-              const pixelY = offsetY + x * scale;
+              const pixelY = offsetY + (template.width - 1 - x) * scale;
               ctx.fillRect(pixelX, pixelY, scale, scale);
             }
           }

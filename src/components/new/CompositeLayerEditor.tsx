@@ -222,9 +222,11 @@ export const CompositeLayerEditor: React.FC = () => {
           style={gridStyle}
           onMouseLeave={clearHoveredCell}
         >
-          {/* Transposed iteration (ORT-76): outer = x → display row, inner = y → display column. */}
-          {Array.from({ length: template.width }, (_, x) =>
-            Array.from({ length: template.height }, (_, y) => {
+          {/* 90° CCW iteration (ORT-76 updated): outer iterates display
+              rows top→bottom, data.x runs from width-1 down to 0. */}
+          {Array.from({ length: template.width }, (_, dispRow) => {
+            const x = template.width - 1 - dispRow;
+            return Array.from({ length: template.height }, (_, y) => {
               const groundValue = template.ground[y][x];
               const bridgeValue = template.bridge[y][x];
               const pipelineValue = template.pipeline[y][x];
@@ -273,8 +275,8 @@ export const CompositeLayerEditor: React.FC = () => {
                   onCellMouseLeave={clearHoveredCell}
                 />
               );
-            })
-          )}
+            });
+          })}
         </div>
       )}
 
