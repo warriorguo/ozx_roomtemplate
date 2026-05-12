@@ -125,7 +125,9 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
   }, [isOpen, apiState.lastSaved?.name, templateName]);
 
   const buildFilterParams = useCallback((): ListTemplatesParams => {
-    const params: ListTemplatesParams = {};
+    // OZX projects routinely have a few hundred templates; ask for enough to
+    // show them all in one page instead of relying on the backend default.
+    const params: ListTemplatesParams = { limit: 1000 };
 
     if (searchTerm) params.name_like = searchTerm;
     if (filters.roomType !== 'all') params.room_type = filters.roomType;

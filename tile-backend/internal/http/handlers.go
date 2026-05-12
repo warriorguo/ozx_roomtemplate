@@ -96,15 +96,16 @@ func (h *TemplateHandler) ListTemplates(w http.ResponseWriter, r *http.Request) 
 
 	// Build query parameters
 	params := model.ListTemplatesQueryParams{
-		Limit:    20, // default
-		Offset:   0,  // default
+		Limit:    200, // default — fits a typical OZX project (~260 templates) in one page
+		Offset:   0,
 		NameLike: query.Get("name_like"),
 		RoomType: query.Get("room_type"),
 	}
 
-	// Parse limit
+	// Parse limit. Cap at 1000 — beyond that a single response page stops
+	// being a UI-friendly list anyway.
 	if limitStr := query.Get("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 100 {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 && l <= 1000 {
 			params.Limit = l
 		}
 	}
