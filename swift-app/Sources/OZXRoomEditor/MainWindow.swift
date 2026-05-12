@@ -17,10 +17,11 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
         // Clipboard bridge: WKWebView's navigator.clipboard.writeText and
         // document.execCommand('copy') are both unreliable here, so the SPA
         // posts the text via window.webkit.messageHandlers.copy.postMessage
-        // and we write it to NSPasteboard from Swift. See userContentController
-        // below.
-        let contentController = WKUserContentController()
-        config.userContentController = contentController
+        // and we write it to NSPasteboard from Swift. The script-message
+        // handler is added *after* WKWebView init below (see init body) —
+        // WKWebViewConfiguration is snapshot at WebView construction time,
+        // so mutating this controller before isn't enough.
+        config.userContentController = WKUserContentController()
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.allowsBackForwardNavigationGestures = false
@@ -53,12 +54,19 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
         // can use window.confirm() for destructive actions (e.g. the sidebar
         // delete button) and window.alert() for error toasts.
         webView.uiDelegate = self
-        contentController.add(self, name: "copy")
+        // Attach the clipboard bridge to the WebView's *live* content
+        // controller, not to the one we passed into config (which was
+        // snapshotted on init and no longer wired to anything).
+        webView.configuration.userContentController.add(self, name: "copy")
         webView.load(URLRequest(url: initialURL))
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) not used")
+    }
+
+    deinit {
+        webView.configuration.userContentController.removeScriptMessageHandler(forName: "copy")
     }
 
     /// Replaces the current URL — handy if we ever add a "reload server" menu item.
@@ -101,10 +109,23 @@ final class MainWindowController: NSWindowController, WKUIDelegate, WKScriptMess
 
     func userContentController(_ userContentController: WKUserContentController,
                                didReceive message: WKScriptMessage) {
-        guard message.name == "copy", let text = message.body as? String else { return }
+        guard message.name == "copy" else { return }
+        // JS may post either a string or a number — coerce to string. Anything
+        // else, just ignore.
+        let text: String
+        switch message.body {
+        case let s as String:
+            text = s
+        case let n as NSNumber:
+            text = n.stringValue
+        default:
+            NSLog("copy bridge: unexpected body type \(type(of: message.body))")
+            return
+        }
         let pb = NSPasteboard.general
         pb.clearContents()
-        pb.setString(text, forType: .string)
+        let ok = pb.setString(text, forType: .string)
+        NSLog("copy bridge: wrote \(text.count) chars to pasteboard, ok=\(ok)")
     }
 
     func webView(_ webView: WKWebView,
