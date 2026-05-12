@@ -253,6 +253,33 @@ export const ToolBar: React.FC = () => {
     };
   }, [uiState.acceptPaste, loadTemplateFromJSON]);
 
+  // Cmd+S (macOS) / Ctrl+S (Win/Linux) → quick save. Re-saves under the last
+  // saved name if there is one, otherwise opens the SaveLoadPanel so the user
+  // can pick a name. Always preventDefault to suppress the browser's
+  // "Save Page" dialog.
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isSaveKey =
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        e.key.toLowerCase() === 's';
+      if (!isSaveKey) return;
+      e.preventDefault();
+      if (showSavePanel) return;
+      const state = useNewTemplateStore.getState();
+      if (state.apiState.isLoading) return;
+      const lastName = state.apiState.lastSaved?.name;
+      if (lastName) {
+        state.saveTemplate(lastName);
+      } else {
+        setShowSavePanel(true);
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showSavePanel]);
+
   return (
     <div style={{
       padding: '20px',
