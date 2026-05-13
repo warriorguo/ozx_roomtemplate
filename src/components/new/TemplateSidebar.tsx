@@ -219,6 +219,13 @@ export const TemplateSidebar: React.FC = () => {
       items.map((item) => {
         const isCurrent = item.id === currentId;
         const isDeleting = item.id === deletingId;
+        // Prefer the on-disk filename (e.g. `all_boss_3_01`) over the freeform
+        // stored name — multiple templates can share a name but each has a
+        // unique structural filename. Falls back to name when `path` is
+        // missing (cloud backend mode).
+        const label = item.path
+          ? item.path.split('/').pop()!.replace(/\.json$/, '')
+          : item.name;
         const meta = [
           item.room_type ?? '?',
           item.stage_type ?? '?',
@@ -261,7 +268,7 @@ export const TemplateSidebar: React.FC = () => {
                   color: '#222',
                 }}
               >
-                {item.name}
+                {label}
               </div>
               <div
                 style={{
