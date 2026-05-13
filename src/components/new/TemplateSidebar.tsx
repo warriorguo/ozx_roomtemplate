@@ -7,6 +7,7 @@ import {
 } from '../../services/api';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import { LazyThumbnail } from './LazyThumbnail';
+import { formatOpenDoors } from '../../services/templateConverter';
 
 /**
  * Persistent left sidebar listing every template in the configured OZX
@@ -221,7 +222,7 @@ export const TemplateSidebar: React.FC = () => {
         const meta = [
           item.room_type ?? '?',
           item.stage_type ?? '?',
-          `doors=${item.open_doors ?? '?'}`,
+          `doors=${formatOpenDoors(item.open_doors)}`,
         ].join(' · ');
         return (
           <div

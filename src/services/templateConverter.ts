@@ -196,6 +196,18 @@ export function generateDefaultTemplateName(): string {
   return `room-template-${timestamp}`;
 }
 
+// Bitmask: Top=1, Right=2, Bottom=4, Left=8 (frontend/RT convention).
+export function formatOpenDoors(mask: number | null | undefined): string {
+  if (mask == null) return '?';
+  if (mask === 0) return '—';
+  const parts: string[] = [];
+  if (mask & 1) parts.push('T');
+  if (mask & 2) parts.push('R');
+  if (mask & 4) parts.push('B');
+  if (mask & 8) parts.push('L');
+  return parts.join(' ');
+}
+
 /**
  * Format template metadata for display
  */
