@@ -13,13 +13,22 @@ import { formatOpenDoors } from '../../services/templateConverter';
  * Persistent left sidebar listing every template in the configured OZX
  * folder. Replaces the modal Load dialog for everyday switching.
  *
- * - Search filters by name via the existing `?name_like=` backend param.
+ * - Search is client-side substring match against the displayed label so
+ *   what the user sees is what they search.
  * - Rows pull thumbnails through <LazyThumbnail/> only as they scroll into
  *   view, so opening the app against a 261-template project stays cheap.
  * - The list refetches whenever `apiState.lastSaved` changes so a freshly
  *   saved template appears immediately and jumps to the top (server sorts
  *   by mtime desc).
  */
+
+// Source of truth for the sidebar row label. Falls back to `name` when
+// `path` is absent (cloud backend mode).
+function getDisplayLabel(item: TemplateSummary): string {
+  return item.path
+    ? item.path.split('/').pop()!.replace(/\.json$/, '')
+    : item.name;
+}
 export const TemplateSidebar: React.FC = () => {
   const apiState = useNewTemplateStore((s) => s.apiState);
   const loadTemplateFromBackend = useNewTemplateStore((s) => s.loadTemplateFromBackend);
@@ -51,10 +60,7 @@ export const TemplateSidebar: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const resp = await templateApi.listTemplates({
-        limit: 1000,
-        name_like: debouncedSearch || undefined,
-      });
+      const resp = await templateApi.listTemplates({ limit: 1000 });
       setItems(resp.items);
       setTotal(resp.total);
     } catch (e) {
@@ -62,7 +68,7 @@ export const TemplateSidebar: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch]);
+  }, []);
 
   useEffect(() => {
     fetchList();
@@ -214,18 +220,18 @@ export const TemplateSidebar: React.FC = () => {
     backgroundColor: '#fafafa',
   };
 
+  const filteredItems = useMemo(() => {
+    const q = debouncedSearch.toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => getDisplayLabel(item).toLowerCase().includes(q));
+  }, [items, debouncedSearch]);
+
   const rows = useMemo(
     () =>
-      items.map((item) => {
+      filteredItems.map((item) => {
         const isCurrent = item.id === currentId;
         const isDeleting = item.id === deletingId;
-        // Prefer the on-disk filename (e.g. `all_boss_3_01`) over the freeform
-        // stored name — multiple templates can share a name but each has a
-        // unique structural filename. Falls back to name when `path` is
-        // missing (cloud backend mode).
-        const label = item.path
-          ? item.path.split('/').pop()!.replace(/\.json$/, '')
-          : item.name;
+        const label = getDisplayLabel(item);
         const meta = [
           item.room_type ?? '?',
           item.stage_type ?? '?',
@@ -324,7 +330,7 @@ export const TemplateSidebar: React.FC = () => {
           </div>
         );
       }),
-    [items, currentId, deletingId, handleSelect, handleDelete]
+    [filteredItems, currentId, deletingId, handleSelect, handleDelete]
   );
 
   return (
@@ -345,12 +351,16 @@ export const TemplateSidebar: React.FC = () => {
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <strong style={{ fontSize: 14 }}>Templates</strong>
           <span style={{ fontSize: 11, color: '#888' }}>
-            {loading ? 'loading…' : `${total} total`}
+            {loading
+              ? 'loading…'
+              : debouncedSearch
+                ? `${filteredItems.length} / ${total}`
+                : `${total} total`}
           </span>
         </div>
         <input
           type="search"
-          placeholder="Search name…"
+          placeholder="Search filename…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{
@@ -372,7 +382,7 @@ export const TemplateSidebar: React.FC = () => {
       )}
 
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {!loading && !error && items.length === 0 && (
+        {!loading && !error && filteredItems.length === 0 && (
           <div style={{ padding: '24px 14px', color: '#999', fontSize: 12, textAlign: 'center' }}>
             No templates match.
           </div>
