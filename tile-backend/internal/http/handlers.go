@@ -2,6 +2,7 @@ package http
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strconv"
 	"strings"
@@ -246,6 +247,70 @@ func (h *TemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	respondJSON(w, h.logger, http.StatusOK, template)
+}
+
+// UpdateTemplate handles PUT /api/v1/templates/{id}. Reuses the same request
+// shape as Create but overwrites an existing template in-place — the on-disk
+// filename does not change (see fsstore.Store.Update).
+func (h *TemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	if !isValidTemplateID(id) {
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid template id", "expected a UUID or '<category>__<basename>'")
+		return
+	}
+
+	var req model.CreateTemplateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		respondError(w, h.logger, http.StatusBadRequest, "Invalid JSON", err.Error())
+		return
+	}
+
+	name := req.Name
+	if name == "" {
+		name = req.Payload.Meta.Name
+	}
+
+	validationResult := validate.ValidateTemplate(&req.Payload, false)
+	if !validationResult.Valid {
+		h.respondValidationError(w, validationResult)
+		return
+	}
+
+	template := model.Template{
+		Name:      name,
+		Version:   req.Payload.Meta.Version,
+		Width:     req.Payload.Meta.Width,
+		Height:    req.Payload.Meta.Height,
+		Payload:   req.Payload,
+		Thumbnail: req.Thumbnail,
+	}
+
+	if req.ProjectID != nil && *req.ProjectID != "" {
+		if pid, err := uuid.Parse(*req.ProjectID); err == nil {
+			template.ProjectID = &pid
+		}
+	}
+
+	savedTemplate, err := h.store.Update(r.Context(), id, template)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			respondError(w, h.logger, http.StatusNotFound, "Template not found", "")
+			return
+		}
+		h.logger.Error("Failed to update template", zap.String("id", id), zap.Error(err))
+		respondError(w, h.logger, http.StatusInternalServerError, "Failed to update template", err.Error())
+		return
+	}
+
+	response := model.CreateTemplateResponse{
+		ID:        savedTemplate.ID,
+		Name:      savedTemplate.Name,
+		CreatedAt: savedTemplate.CreatedAt,
+		UpdatedAt: savedTemplate.UpdatedAt,
+	}
+
+	respondJSON(w, h.logger, http.StatusOK, response)
 }
 
 // DeleteTemplate handles DELETE /api/v1/templates/{id}

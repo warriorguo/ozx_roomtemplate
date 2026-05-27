@@ -17,7 +17,7 @@
 // computed counts) are synthesised on read:
 //
 //   - id        = "<category>__<basename>" (double-underscore separates the
-//                 category folder from the OZX shape_stage_doors_seq stem)
+//     category folder from the OZX shape_stage_doors_seq stem)
 //   - name      = the file's basename without .json
 //   - created_at, updated_at = file mtime (best we have without an envelope)
 //   - id as UUID = uuid.NewSHA1(namespace, "<category>/<basename>")
@@ -47,13 +47,13 @@ import (
 )
 
 const (
-	fileSuffix     = ".json"
-	metaSuffix     = ".meta"
-	tempSuffix     = ".json.tmp"
-	defaultPerm    = 0o644
-	defaultDirPerm = 0o755
-	idSeparator    = "__"
-	maxSeq         = 99
+	fileSuffix      = ".json"
+	metaSuffix      = ".meta"
+	tempSuffix      = ".json.tmp"
+	defaultPerm     = 0o644
+	defaultDirPerm  = 0o755
+	idSeparator     = "__"
+	maxSeq          = 99
 	defaultCategory = "normal"
 	defaultShape    = "all"
 	defaultStage    = "none"

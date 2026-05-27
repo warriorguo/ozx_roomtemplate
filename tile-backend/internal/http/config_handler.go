@@ -160,4 +160,3 @@ func (h *ConfigHandler) snapshot() ConfigResponse {
 		UsesFallback:    h.cfg.UsesFallback(),
 	}
 }
-

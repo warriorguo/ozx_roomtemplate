@@ -85,11 +85,11 @@ type TemplatePayload struct {
 	MobAir        Layer           `json:"mobAir"`
 	MainPath      Layer           `json:"mainPath,omitempty"` // Main path through room center
 	Doors         *DoorStates     `json:"doors,omitempty"`
-	Attributes    *RoomAttributes `json:"attributes,omitempty"` // Deprecated
-	StageType    *string         `json:"stageType,omitempty"`    // none, start, teaching, building, pressure, peak, release, boss
-	RoomShape    *string         `json:"roomShape,omitempty"`    // "all", "bridge", or "platform"
-	RoomCategory *string         `json:"roomCategory,omitempty"` // "normal", "basement", "test", "cave"
-	OpenDoors    *int            `json:"openDoors,omitempty"`    // Bitmask: Top=1, Right=2, Bottom=4, Left=8
+	Attributes    *RoomAttributes `json:"attributes,omitempty"`   // Deprecated
+	StageType     *string         `json:"stageType,omitempty"`    // none, start, teaching, building, pressure, peak, release, boss
+	RoomShape     *string         `json:"roomShape,omitempty"`    // "all", "bridge", or "platform"
+	RoomCategory  *string         `json:"roomCategory,omitempty"` // "normal", "basement", "test", "cave"
+	OpenDoors     *int            `json:"openDoors,omitempty"`    // Bitmask: Top=1, Right=2, Bottom=4, Left=8
 	Meta          TemplateMeta    `json:"meta"`
 }
 
@@ -117,10 +117,10 @@ type Template struct {
 	ProjectID      *uuid.UUID      `json:"project_id,omitempty"`
 	// Path is the absolute on-disk path of the source .json file (local-client
 	// branch only; the cloud variant omits this).
-	Path           string          `json:"path,omitempty"`
-	ViewCount      int             `json:"view_count"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	Path      string    `json:"path,omitempty"`
+	ViewCount int       `json:"view_count"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // TemplateSummary represents a template summary for list responses
@@ -146,10 +146,10 @@ type TemplateSummary struct {
 	// Path is the absolute on-disk path of the source .json file. Set by
 	// fsstore on the local-client branch so the frontend can surface a
 	// "Copy path" affordance; omitted by other Store implementations.
-	Path           string          `json:"path,omitempty"`
-	ViewCount      int             `json:"view_count"`
-	CreatedAt      time.Time       `json:"created_at"`
-	UpdatedAt      time.Time       `json:"updated_at"`
+	Path      string    `json:"path,omitempty"`
+	ViewCount int       `json:"view_count"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // ListTemplatesQueryParams represents query parameters for listing templates

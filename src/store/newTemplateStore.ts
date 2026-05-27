@@ -415,10 +415,16 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     try {
       // Generate thumbnail
       const thumbnail = await generateDetailedThumbnail(template, 120);
-      
+
+      const existingId = get().apiState.lastSaved?.id;
       const projectId = get().apiState.lastSaved?.projectId;
       const request = frontendToBackendCreateRequest(template, name, thumbnail, projectId);
-      const response = await templateApi.createTemplate(request);
+      // If the template was loaded from the backend, overwrite it in place;
+      // otherwise create a new one. Without this branch, every save (including
+      // Cmd+S quick-save) would spawn a duplicate file. See ORT-83.
+      const response = existingId
+        ? await templateApi.updateTemplate(existingId, request)
+        : await templateApi.createTemplate(request);
 
       set((state) => ({
         apiState: {
@@ -427,17 +433,17 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
           lastSaved: {
             id: response.id,
             name: response.name,
-            savedAt: response.created_at,
+            savedAt: response.updated_at ?? response.created_at,
             thumbnail: thumbnail,
             projectId: projectId,
           },
         },
       }));
     } catch (error) {
-      const errorMessage = error instanceof ApiError 
-        ? error.message 
+      const errorMessage = error instanceof ApiError
+        ? error.message
         : 'Failed to save template';
-      
+
       set((state) => ({
         apiState: {
           ...state.apiState,

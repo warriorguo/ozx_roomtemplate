@@ -294,6 +294,17 @@ export class TemplateApiService {
   }
 
   /**
+   * Overwrite an existing template in place. The on-disk filename does not
+   * change — see fsstore.Store.Update.
+   */
+  async updateTemplate(id: string, request: BackendCreateRequest): Promise<BackendCreateResponse> {
+    return this.makeRequest<BackendCreateResponse>(`/templates/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(request),
+    });
+  }
+
+  /**
    * List templates with optional filtering
    */
   async listTemplates(params?: ListTemplatesParams): Promise<BackendListResponse> {

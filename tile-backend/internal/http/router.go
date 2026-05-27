@@ -43,6 +43,7 @@ func SetupRouter(templateStore store.Store, cfgHandler *ConfigHandler, logger *z
 			r.Post("/", templateHandler.CreateTemplate)
 			r.Get("/", templateHandler.ListTemplates)
 			r.Get("/{id}", templateHandler.GetTemplate)
+			r.Put("/{id}", templateHandler.UpdateTemplate)
 			r.Delete("/{id}", templateHandler.DeleteTemplate)
 			r.Post("/validate", templateHandler.ValidateTemplate)
 		})
