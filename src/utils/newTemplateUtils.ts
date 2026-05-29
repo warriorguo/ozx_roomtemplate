@@ -139,7 +139,7 @@ export function validateCellRules(
     bridge: validateBridgeCell(template, x, y),
     // Pipeline: must be on ground, cannot be on bridge
     pipeline: pipeline === 0 || (ground === 1 && bridge === 0),
-    // Rail: must be on ground or bridge, must form closed loop (each cell has exactly 2 neighbors)
+    // Rail: must be on ground or bridge; segments cannot branch/intersect (max 2 rail neighbors). Endpoints are allowed.
     rail: validateRailCell(template, x, y),
     // Static: can't be on bridge, can't conflict with pipeline or rail
     static: static_ === 0 || ((ground === 1 || bridge === 1) && bridge === 0 && pipeline === 0 && rail === 0),
@@ -210,7 +210,7 @@ function countRailNeighbors(template: Template, x: number, y: number): number {
   return count;
 }
 
-// Validate rail cell: must be on ground or bridge, and must have exactly 2 rail neighbors (for closed loop)
+// Validate rail cell: must be on ground or bridge, and cannot branch/intersect (max 2 rail neighbors). Endpoints (0 or 1 neighbor) are valid.
 function validateRailCell(template: Template, x: number, y: number): boolean {
   const rail = template.rail[y][x];
   if (rail === 0) return true; // Empty rail cells are always valid
@@ -221,9 +221,8 @@ function validateRailCell(template: Template, x: number, y: number): boolean {
   // Rail must be on ground or bridge
   if (ground === 0 && bridge === 0) return false;
 
-  // For a closed loop, each rail cell must have exactly 2 neighbors
   const neighborCount = countRailNeighbors(template, x, y);
-  return neighborCount === 2;
+  return neighborCount <= 2;
 }
 
 // Validate bridge placement: bridge should span unwalkable areas (ground=0) to connect walkable areas
@@ -365,9 +364,7 @@ function getValidationErrorReason(
       return 'Unknown error';
     case 'rail':
       if (ground === 0 && bridge === 0) return 'Rail must be placed on ground or bridge';
-      // Count neighbors for closed loop check
       const railNeighbors = countRailNeighbors(template, x, y);
-      if (railNeighbors < 2) return `Rail must form closed loop (has ${railNeighbors} neighbor, needs 2)`;
       if (railNeighbors > 2) return `Rail segments cannot intersect (has ${railNeighbors} neighbors, max 2)`;
       return 'Unknown error';
     case 'static':

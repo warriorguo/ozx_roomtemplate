@@ -301,16 +301,10 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 					})
 				}
 
-				// Rule: rail must form closed loop (each cell must have exactly 2 neighbors)
+				// Rule: rail segments cannot branch or intersect (max 2 neighbors per
+				// cell). Closed-loop requirement was dropped — endpoints are valid.
 				neighborCount := countRailNeighbors(payload, x, y, width, height)
-				if neighborCount < 2 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "rail",
-						X:      x,
-						Y:      y,
-						Reason: fmt.Sprintf("rail must form closed loop (has %d neighbor, needs 2)", neighborCount),
-					})
-				} else if neighborCount > 2 {
+				if neighborCount > 2 {
 					errors = append(errors, model.ValidationError{
 						Layer:  "rail",
 						X:      x,

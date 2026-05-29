@@ -42,7 +42,7 @@ const layerConfigs: Array<{
     layer: 'rail',
     title: 'Rail (轨道)',
     color: '#8B4513',
-    description: 'Rail paths - can be on ground or bridge. Lines must form closed loops and can connect end-to-end but cannot intersect in the middle.'
+    description: 'Rail paths - can be on ground or bridge. Lines can have endpoints (open segments are fine) but cannot branch or intersect.'
   },
   {
     layer: 'static',
