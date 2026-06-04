@@ -256,6 +256,47 @@ func TestUpdate_RelocatesOnCategoryChange(t *testing.T) {
 	}
 }
 
+func TestUpdate_RenamesOnAttributeChange(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	s.Create(ctx, fixture("alpha"))
+	id := "normal" + idSeparator + "all_boss_3_01"
+
+	oldJSON := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	if err := os.WriteFile(oldJSON+metaSuffix, []byte("guid: def456"), 0o644); err != nil {
+		t.Fatalf("seed meta: %v", err)
+	}
+
+	// Change only the stage; category stays "normal" but the derived basename
+	// prefix becomes all_teaching_3_.
+	revised := fixture("alpha")
+	teaching := "teaching"
+	revised.Payload.StageType = &teaching
+
+	updated, err := s.Update(ctx, id, revised)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	newJSON := filepath.Join(s.RootDir(), "normal", "all_teaching_3_01.json")
+	if _, err := os.Stat(newJSON); err != nil {
+		t.Errorf("expected renamed file at %s: %v", newJSON, err)
+	}
+	if _, err := os.Stat(oldJSON); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("old file should be removed, stat err=%v", err)
+	}
+	if _, err := os.Stat(newJSON + metaSuffix); err != nil {
+		t.Errorf("meta should move with the rename: %v", err)
+	}
+	if _, err := os.Stat(oldJSON + metaSuffix); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("old meta should be removed, stat err=%v", err)
+	}
+	if updated.StageType == nil || *updated.StageType != "teaching" {
+		t.Errorf("StageType not teaching: %+v", updated.StageType)
+	}
+}
+
 func TestUpdate_MissingFails(t *testing.T) {
 	s := newTestStore(t)
 	_, err := s.Update(context.Background(), "normal__nope", fixture("ghost"))

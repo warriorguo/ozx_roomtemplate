@@ -137,12 +137,16 @@ func (s *Store) Get(ctx context.Context, id string) (*model.Template, error) {
 	return s.synthesise(relPath, fullPath, payload)
 }
 
-// Update overwrites the payload of an existing template. Within a category the
-// on-disk basename never changes — renaming would break the Unity .meta
-// linkage. But when the payload's roomCategory changes (e.g. the user switches
-// a room from "normal" to "basement"), the file is relocated into the matching
-// category subfolder, carrying its .meta sibling along so the Unity asset GUID
-// is preserved. See ORT-85.
+// Update overwrites the payload of an existing template and keeps the on-disk
+// filename in sync with the template's attributes. The OZX filename encodes
+// category (subfolder) plus roomShape/stageType/openDoors (the basename
+// prefix). When the current filename still matches the desired category and
+// prefix, the payload is overwritten in place — the sequence number stays put
+// and edits that don't touch those fields cause no churn. When the category or
+// any name-affecting attribute changed, the file is renamed/relocated to its
+// new derived name, the old file is removed, and the Unity .meta sidecar is
+// carried along so the asset GUID survives. See ORT-85 (category moves) and
+// ORT-87 (attribute renames).
 func (s *Store) Update(ctx context.Context, id string, t model.Template) (*model.Template, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -162,22 +166,26 @@ func (s *Store) Update(ctx context.Context, id string, t model.Template) (*model
 	model.ComputeTemplateStats(&t)
 
 	curCat := strings.TrimRight(filepath.Dir(relPath), string(filepath.Separator))
-	if wantCat := categoryOf(&t); wantCat != curCat {
-		return s.relocate(relPath, fullPath, wantCat, &t)
+	curBase := strings.TrimSuffix(filepath.Base(relPath), fileSuffix)
+	if categoryOf(&t) == curCat && strings.HasPrefix(curBase, basenamePrefix(&t)) {
+		if err := writePayload(fullPath, &t.Payload); err != nil {
+			return nil, err
+		}
+		return s.synthesise(relPath, fullPath, &t.Payload)
 	}
-
-	if err := writePayload(fullPath, &t.Payload); err != nil {
-		return nil, err
-	}
-	return s.synthesise(relPath, fullPath, &t.Payload)
+	return s.relocate(relPath, fullPath, categoryOf(&t), &t)
 }
 
-// relocate moves an existing template into a different category subfolder. A
-// fresh basename is allocated in the destination (the source sequence number
-// may already be taken there), the payload is written to the new path, the
-// .meta sidecar is moved alongside to keep Unity's asset GUID stable, and the
-// old .json is removed. Returns the relocated template (with a new id derived
-// from the new path).
+// relocate writes an existing template under a freshly-derived name and removes
+// the old file. It handles both a category change (destination is a different
+// subfolder) and a same-folder rename driven by changed shape/stage/doors. A
+// new basename is allocated in the destination category, the payload is written
+// there, the .meta sidecar is moved alongside to keep Unity's asset GUID
+// stable, and the old .json is removed. Returns the relocated template (with a
+// new id derived from the new path). Because relocate only runs when the
+// destination category+prefix differs from the source, the old file never
+// occupies a sequence slot under the new prefix, so allocateBasename won't
+// collide with it.
 func (s *Store) relocate(oldRel, oldFull, wantCat string, t *model.Template) (*model.Template, error) {
 	if err := s.ensureCategory(wantCat); err != nil {
 		return nil, err
@@ -394,13 +402,18 @@ func (s *Store) ensureCategory(cat string) error {
 	return nil
 }
 
+// basenamePrefix returns the `<shape>_<stage>_<doors>_` filename prefix a
+// template's structural attributes map to. allocateBasename appends the
+// two-digit sequence; Update uses it to decide whether the on-disk name is
+// still current.
+func basenamePrefix(t *model.Template) string {
+	return fmt.Sprintf("%s_%s_%d_", shapeOf(t), stageOf(t), doorsOf(t))
+}
+
 // allocateBasename picks the next free `<shape>_<stage>_<doors>_<NN>` in a
 // category folder. Returns the basename WITHOUT the .json suffix.
 func (s *Store) allocateBasename(cat string, t *model.Template) (string, error) {
-	shape := shapeOf(t)
-	stage := stageOf(t)
-	doors := doorsOf(t)
-	prefix := fmt.Sprintf("%s_%s_%d_", shape, stage, doors)
+	prefix := basenamePrefix(t)
 
 	catDir := filepath.Join(s.rootDir, cat)
 	entries, err := os.ReadDir(catDir)
