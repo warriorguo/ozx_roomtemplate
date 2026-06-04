@@ -9,6 +9,18 @@ export interface DoorStates {
   left: 0 | 1;
 }
 
+// Per-door explicit open/closed override. A side present here forces that
+// door's open state; an absent side falls back to the ground-connectivity
+// check (see calculateDoorStates). Empty/undefined = fully automatic.
+export interface DoorOverrides {
+  top?: 0 | 1;
+  right?: 0 | 1;
+  bottom?: 0 | 1;
+  left?: 0 | 1;
+}
+
+export type DoorSide = 'top' | 'right' | 'bottom' | 'left';
+
 export type StageType = 'start' | 'teaching' | 'building' | 'pressure' | 'peak' | 'release' | 'boss';
 
 export type RoomType = 'full' | 'bridge' | 'platform';
@@ -66,6 +78,7 @@ export interface Template {
   mainPath: Grid<CellValue>;
   mobAir: Grid<CellValue>;
   doors: DoorStates;
+  doorOverrides?: DoorOverrides; // explicit per-door open/closed; absent side = auto
   stageType: StageType;
   roomType: RoomType;
   roomCategory: RoomCategory;

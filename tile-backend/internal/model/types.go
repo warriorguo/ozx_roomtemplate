@@ -38,6 +38,17 @@ type DoorStates struct {
 	Left   int `json:"left"`   // 0 or 1
 }
 
+// DoorOverrides holds explicit per-door open/closed overrides. A nil side means
+// "unspecified" — the door's open state falls back to ground connectivity.
+// Persisted as-is for round-trip; the effective DoorStates (and thus openDoors)
+// are computed on the frontend with these applied.
+type DoorOverrides struct {
+	Top    *int `json:"top,omitempty"`    // nil = auto, else 0 or 1
+	Right  *int `json:"right,omitempty"`  // nil = auto, else 0 or 1
+	Bottom *int `json:"bottom,omitempty"` // nil = auto, else 0 or 1
+	Left   *int `json:"left,omitempty"`   // nil = auto, else 0 or 1
+}
+
 // StageType represents the room stage type
 type StageType = string
 
@@ -85,11 +96,12 @@ type TemplatePayload struct {
 	MobAir        Layer           `json:"mobAir"`
 	MainPath      Layer           `json:"mainPath,omitempty"` // Main path through room center
 	Doors         *DoorStates     `json:"doors,omitempty"`
-	Attributes    *RoomAttributes `json:"attributes,omitempty"`   // Deprecated
-	StageType     *string         `json:"stageType,omitempty"`    // none, start, teaching, building, pressure, peak, release, boss
-	RoomShape     *string         `json:"roomShape,omitempty"`    // "all", "bridge", or "platform"
-	RoomCategory  *string         `json:"roomCategory,omitempty"` // "normal", "basement", "test", "cave"
-	OpenDoors     *int            `json:"openDoors,omitempty"`    // Bitmask: Top=1, Right=2, Bottom=4, Left=8
+	DoorOverrides *DoorOverrides  `json:"doorOverrides,omitempty"` // explicit per-door open/closed; absent side = auto
+	Attributes    *RoomAttributes `json:"attributes,omitempty"`    // Deprecated
+	StageType     *string         `json:"stageType,omitempty"`     // none, start, teaching, building, pressure, peak, release, boss
+	RoomShape     *string         `json:"roomShape,omitempty"`     // "all", "bridge", or "platform"
+	RoomCategory  *string         `json:"roomCategory,omitempty"`  // "normal", "basement", "test", "cave"
+	OpenDoors     *int            `json:"openDoors,omitempty"`     // Bitmask: Top=1, Right=2, Bottom=4, Left=8
 	Meta          TemplateMeta    `json:"meta"`
 }
 

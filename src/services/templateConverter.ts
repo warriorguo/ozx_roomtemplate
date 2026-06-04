@@ -46,6 +46,7 @@ export function frontendToBackendCreateRequest(
       mainPath: template.mainPath,
       mobAir: template.mobAir,
       doors: template.doors,
+      doorOverrides: template.doorOverrides,
       stageType: template.stageType,
       roomType: template.roomType,
       roomCategory: template.roomCategory,
@@ -92,6 +93,7 @@ export function backendToFrontendTemplate(
       Array(backendTemplate.height).fill(null).map(() => Array(backendTemplate.width).fill(0))) as Grid<CellValue>,
     mobAir: backendTemplate.payload.mobAir as Grid<CellValue>,
     doors: backendTemplate.payload.doors || { top: 0, right: 0, bottom: 0, left: 0 },
+    doorOverrides: backendTemplate.payload.doorOverrides || {},
     stageType: (backendTemplate.payload.stageType as any) || 'teaching',
     roomType: backendTemplate.payload.roomType || 'full',
     roomCategory:
@@ -147,6 +149,7 @@ export function frontendToBackendPayload(
     mainPath: template.mainPath,
     mobAir: template.mobAir,
     doors: template.doors,
+    doorOverrides: template.doorOverrides,
     stageType: template.stageType,
     roomType: template.roomType,
     roomCategory: template.roomCategory,

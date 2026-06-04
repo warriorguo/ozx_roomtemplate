@@ -113,6 +113,40 @@ func TestCreate_FillsGapsInSequence(t *testing.T) {
 	}
 }
 
+func TestCreateGet_RoundTripsDoorOverrides(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	open := 1
+	closed := 0
+	tpl := fixture("alpha")
+	// Top forced open, bottom forced closed; left/right unspecified (auto).
+	tpl.Payload.DoorOverrides = &model.DoorOverrides{Top: &open, Bottom: &closed}
+
+	saved, err := s.Create(ctx, tpl)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	got, err := s.Get(ctx, saved.ID.String())
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	ov := got.Payload.DoorOverrides
+	if ov == nil {
+		t.Fatal("DoorOverrides not persisted")
+	}
+	if ov.Top == nil || *ov.Top != 1 {
+		t.Errorf("Top override = %v, want 1", ov.Top)
+	}
+	if ov.Bottom == nil || *ov.Bottom != 0 {
+		t.Errorf("Bottom override = %v, want 0", ov.Bottom)
+	}
+	if ov.Left != nil || ov.Right != nil {
+		t.Errorf("Left/Right should stay unspecified, got left=%v right=%v", ov.Left, ov.Right)
+	}
+}
+
 func TestGet_AcceptsBothIDForms(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()

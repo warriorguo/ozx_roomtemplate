@@ -12,10 +12,11 @@ import { calculateAllTileProperties } from './tilePropertiesCalculator';
 
 /**
  * 计算门的开通状态
- * 如果门对应的两个格子在 ground 层都为 1，则该门视为开通
+ * 优先使用显式的 doorOverrides（用户手动指定开/关）；
+ * 未指定的方向回退到 ground 连通性：门对应的两个中间格子在 ground 层都为 1 则视为开通。
  */
 export function calculateDoorStates(template: Template): DoorStates {
-  const { width, height, ground } = template;
+  const { width, height, ground, doorOverrides } = template;
 
   // 计算中间位置
   const midWidth = Math.floor(width / 2);
@@ -41,11 +42,15 @@ export function calculateDoorStates(template: Template): DoorStates {
     ground[midHeight - 1]?.[width - 1] === 1 &&
     ground[midHeight]?.[width - 1] === 1 ? 1 : 0;
 
+  // Explicit override wins per-side; undefined falls back to connectivity.
+  const pick = (override: 0 | 1 | undefined, connected: 0 | 1): 0 | 1 =>
+    override === undefined ? connected : override;
+
   return {
-    top: topOpen as 0 | 1,
-    right: rightOpen as 0 | 1,
-    bottom: bottomOpen as 0 | 1,
-    left: leftOpen as 0 | 1,
+    top: pick(doorOverrides?.top, topOpen as 0 | 1),
+    right: pick(doorOverrides?.right, rightOpen as 0 | 1),
+    bottom: pick(doorOverrides?.bottom, bottomOpen as 0 | 1),
+    left: pick(doorOverrides?.left, leftOpen as 0 | 1),
   };
 }
 
@@ -73,6 +78,7 @@ export function createEmptyTemplate(width: number, height: number): Template {
     mainPath: createLayer(),
     mobAir: createLayer(),
     doors: { top: 0, right: 0, bottom: 0, left: 0 },
+    doorOverrides: {},
     stageType: 'teaching',
     roomType: 'full',
     roomCategory: 'normal',

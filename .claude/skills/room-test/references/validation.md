@@ -211,6 +211,9 @@ right:  (19, 6)
 ```
 
 Only check doors that are enabled (where `payload.doors.{direction} == 1`).
+`payload.doors` already reflects any explicit `payload.doorOverrides` (a side
+present there forces open/closed; absent sides fall back to ground
+connectivity), so validate against `payload.doors`, not the raw overrides.
 
 ```python
 def manhattan(x1, y1, x2, y2):

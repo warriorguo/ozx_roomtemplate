@@ -5,7 +5,8 @@ import type {
   UIState,
   StageType,
   RoomType,
-  RoomCategory
+  RoomCategory,
+  DoorSide
 } from '../types/newTemplate';
 import {
   createEmptyTemplate,
@@ -66,6 +67,9 @@ interface NewTemplateStore {
   setStageType: (stageType: StageType) => void;
   setRoomType: (roomType: RoomType) => void;
   setRoomCategory: (roomCategory: RoomCategory) => void;
+  // Set or clear a per-door open/closed override. value=undefined clears the
+  // override (door reverts to ground-connectivity auto-detection).
+  setDoorOverride: (side: DoorSide, value: 0 | 1 | undefined) => void;
 
   // Drag operations
   startDrag: (layer: LayerType, x: number, y: number) => void;
@@ -786,6 +790,27 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
 
     const newTemplate = { ...template };
     newTemplate.roomCategory = roomCategory;
+
+    set({
+      template: newTemplate,
+    });
+  },
+
+  setDoorOverride: (side: DoorSide, value: 0 | 1 | undefined) => {
+    const { template } = get();
+
+    const newOverrides = { ...(template.doorOverrides ?? {}) };
+    if (value === undefined) {
+      delete newOverrides[side];
+    } else {
+      newOverrides[side] = value;
+    }
+
+    const newTemplate = { ...template, doorOverrides: newOverrides };
+    // Recompute the effective door states and tile properties (door distances
+    // depend on which doors are open).
+    newTemplate.doors = calculateDoorStates(newTemplate);
+    newTemplate.tileProperties = calculateAllTileProperties(newTemplate);
 
     set({
       template: newTemplate,

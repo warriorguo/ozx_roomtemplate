@@ -83,7 +83,7 @@ const layerConfigs: Array<{
 ];
 
 export const TileTemplateApp: React.FC = () => {
-  const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, loadTemplateFromJSON } = useNewTemplateStore();
+  const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, setDoorOverride, loadTemplateFromJSON } = useNewTemplateStore();
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [selectedDoors, setSelectedDoors] = useState<{ top: boolean; right: boolean; bottom: boolean; left: boolean }>({
@@ -438,62 +438,50 @@ export const TileTemplateApp: React.FC = () => {
                     gridTemplateColumns: '1fr 1fr',
                     gap: '8px'
                   }}>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <span style={{
-                        width: '12px',
-                        height: '12px',
-                        borderRadius: '50%',
-                        backgroundColor: template.doors.top ? '#28a745' : '#dc3545',
-                        display: 'inline-block'
-                      }}></span>
-                      <span>Top</span>
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <span style={{
-                        width: '12px',
-                        height: '12px',
-                        borderRadius: '50%',
-                        backgroundColor: template.doors.right ? '#28a745' : '#dc3545',
-                        display: 'inline-block'
-                      }}></span>
-                      <span>Right</span>
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <span style={{
-                        width: '12px',
-                        height: '12px',
-                        borderRadius: '50%',
-                        backgroundColor: template.doors.bottom ? '#28a745' : '#dc3545',
-                        display: 'inline-block'
-                      }}></span>
-                      <span>Bottom</span>
-                    </div>
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '6px'
-                    }}>
-                      <span style={{
-                        width: '12px',
-                        height: '12px',
-                        borderRadius: '50%',
-                        backgroundColor: template.doors.left ? '#28a745' : '#dc3545',
-                        display: 'inline-block'
-                      }}></span>
-                      <span>Left</span>
-                    </div>
+                    {(['top', 'right', 'bottom', 'left'] as const).map((side) => {
+                      const isOpen = template.doors[side] === 1;
+                      const override = template.doorOverrides?.[side];
+                      const mode = override === undefined ? 'Auto' : override === 1 ? 'Open' : 'Closed';
+                      const label = side.charAt(0).toUpperCase() + side.slice(1);
+                      // Click cycles the door: Auto → Open → Closed → Auto.
+                      const next = override === undefined ? 1 : override === 1 ? 0 : undefined;
+                      return (
+                        <button
+                          key={side}
+                          type="button"
+                          onClick={() => setDoorOverride(side, next)}
+                          title={`${label} door: ${mode}${override === undefined ? ' (from ground connectivity)' : ' (manual override)'}. Click to cycle Auto → Open → Closed.`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            padding: '4px 6px',
+                            background: 'white',
+                            border: override === undefined ? '1px solid #ddd' : '2px solid #0d6efd',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            font: 'inherit',
+                            textAlign: 'left',
+                          }}
+                        >
+                          <span style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: isOpen ? '#28a745' : '#dc3545',
+                            display: 'inline-block',
+                            flexShrink: 0,
+                          }}></span>
+                          <span>{label}</span>
+                          <span style={{
+                            marginLeft: 'auto',
+                            fontSize: '10px',
+                            color: override === undefined ? '#6c757d' : '#0d6efd',
+                            fontWeight: override === undefined ? 'normal' : 'bold',
+                          }}>{mode}</span>
+                        </button>
+                      );
+                    })}
                   </div>
                   <div style={{
                     marginTop: '8px',
@@ -502,7 +490,7 @@ export const TileTemplateApp: React.FC = () => {
                     fontSize: '11px',
                     color: '#6c757d'
                   }}>
-                    💡 Door opens when both middle cells = 1 in ground layer
+                    💡 Auto = open when both middle cells = 1 in ground layer. Click a door to override (Open/Closed); the saved openDoors value follows the override.
                   </div>
                 </div>
               </div>
