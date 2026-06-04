@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ToolBar } from './ToolBar';
 import { LayerEditor } from './LayerEditor';
 import { CompositeLayerEditor } from './CompositeLayerEditor';
@@ -95,6 +95,21 @@ export const TileTemplateApp: React.FC = () => {
     bottom: false,
     left: false,
   });
+
+  // When a template is opened/loaded, mirror its open doors into the generator's
+  // door selection so the "Select Doors to Connect" checkboxes match the loaded
+  // template. Keyed on the loaded id only (not template.doors) so edits while
+  // authoring don't clobber the user's manual selection. See ORT-90.
+  const loadedId = apiState.lastSaved?.id;
+  useEffect(() => {
+    setSelectedDoors({
+      top: template.doors.top === 1,
+      right: template.doors.right === 1,
+      bottom: template.doors.bottom === 1,
+      left: template.doors.left === 1,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadedId]);
   const [softEdgeCount, setSoftEdgeCount] = useState<number>(3);
   const [staticCount, setStaticCount] = useState<number>(8);
   const [chaserCount, setChaserCount] = useState<number>(4);
