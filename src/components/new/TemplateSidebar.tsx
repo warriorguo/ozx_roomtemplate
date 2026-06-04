@@ -22,12 +22,17 @@ import { formatOpenDoors } from '../../services/templateConverter';
  *   by mtime desc).
  */
 
-// Source of truth for the sidebar row label. Falls back to `name` when
-// `path` is absent (cloud backend mode).
+// Source of truth for the sidebar row label. Renders as `<category>/<filename>`
+// (e.g. `normal/all_boss_3_01`, `basement/all_none_0_02`) so the category
+// subfolder a template lives in is obvious at a glance. The category and
+// filename are the last two path segments. Falls back to `name` when `path`
+// is absent (cloud backend mode).
 function getDisplayLabel(item: TemplateSummary): string {
-  return item.path
-    ? item.path.split('/').pop()!.replace(/\.json$/, '')
-    : item.name;
+  if (!item.path) return item.name;
+  const segments = item.path.split('/');
+  const filename = segments.pop()!.replace(/\.json$/, '');
+  const category = segments.pop();
+  return category ? `${category}/${filename}` : filename;
 }
 export const TemplateSidebar: React.FC = () => {
   const apiState = useNewTemplateStore((s) => s.apiState);
