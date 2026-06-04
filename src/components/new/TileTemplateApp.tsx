@@ -84,7 +84,7 @@ const layerConfigs: Array<{
 ];
 
 export const TileTemplateApp: React.FC = () => {
-  const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, setDoorOverride, loadTemplateFromJSON } = useNewTemplateStore();
+  const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, setDoorWhitelist, loadTemplateFromJSON } = useNewTemplateStore();
   // Sides the user marked open but the ground doesn't connect — blocks save.
   const invalidDoors = getInvalidDoorSelections(template);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -142,9 +142,13 @@ export const TileTemplateApp: React.FC = () => {
     }
   };
 
-  // Toggle door selection
+  // Toggle a door in the "Select Doors to Connect" panel. This is the single
+  // authoritative open-door selector: it feeds room generation AND drives the
+  // saved open-door whitelist (template.doorOverrides). See ORT-91.
   const toggleDoorSelection = (door: 'top' | 'right' | 'bottom' | 'left') => {
-    setSelectedDoors(prev => ({ ...prev, [door]: !prev[door] }));
+    const next = { ...selectedDoors, [door]: !selectedDoors[door] };
+    setSelectedDoors(next);
+    setDoorWhitelist((['top', 'right', 'bottom', 'left'] as const).filter(s => next[s]));
   };
 
   // Check if ground layer has data
@@ -440,9 +444,11 @@ export const TileTemplateApp: React.FC = () => {
                 <strong>Dimensions:</strong> {template.width} × {template.height}
               </div>
 
-              {/* Door States */}
+              {/* Door States — read-only status. Edit via "Select Doors to
+                  Connect" below; this just shows the resulting open/closed +
+                  any invalid selection. See ORT-91. */}
               <div style={{ marginBottom: '15px' }}>
-                <strong>🚪 Doors:</strong>
+                <strong>🚪 Doors (status):</strong>
                 <div style={{
                   marginTop: '8px',
                   padding: '10px',
@@ -458,37 +464,16 @@ export const TileTemplateApp: React.FC = () => {
                   }}>
                     {(['top', 'right', 'bottom', 'left'] as const).map((side) => {
                       const isOpen = template.doors[side] === 1;
-                      const selected = template.doorOverrides?.[side] === 1;
                       const invalid = invalidDoors.includes(side);
-                      const mode = selected ? (invalid ? 'Open ⚠' : 'Open') : 'Auto';
                       const label = side.charAt(0).toUpperCase() + side.slice(1);
-                      // Two-state toggle: Auto ↔ Open. Selecting builds the
-                      // authoritative open-door whitelist; selecting none = auto.
-                      const next = selected ? undefined : 1;
-                      const borderColor = invalid ? '#dc3545' : selected ? '#0d6efd' : '#ddd';
                       return (
-                        <button
+                        <div
                           key={side}
-                          type="button"
-                          onClick={() => setDoorOverride(side, next)}
-                          title={
-                            invalid
-                              ? `${label} door is selected open but the ground layer doesn't connect it — saving is blocked until you open it in the ground or deselect it.`
-                              : selected
-                                ? `${label} door: explicitly open (in the open-door whitelist). Click to revert to Auto.`
-                                : `${label} door: Auto (from ground connectivity). Click to mark it explicitly open.`
-                          }
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
                             padding: '4px 6px',
-                            background: invalid ? '#fff5f5' : 'white',
-                            border: `${selected || invalid ? '2px' : '1px'} solid ${borderColor}`,
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            font: 'inherit',
-                            textAlign: 'left',
                           }}
                         >
                           <span style={{
@@ -503,10 +488,10 @@ export const TileTemplateApp: React.FC = () => {
                           <span style={{
                             marginLeft: 'auto',
                             fontSize: '10px',
-                            color: invalid ? '#dc3545' : selected ? '#0d6efd' : '#6c757d',
-                            fontWeight: selected ? 'bold' : 'normal',
-                          }}>{mode}</span>
-                        </button>
+                            color: invalid ? '#dc3545' : isOpen ? '#28a745' : '#6c757d',
+                            fontWeight: invalid ? 'bold' : 'normal',
+                          }}>{invalid ? 'Open ⚠' : isOpen ? 'Open' : 'Closed'}</span>
+                        </div>
                       );
                     })}
                   </div>
@@ -520,7 +505,7 @@ export const TileTemplateApp: React.FC = () => {
                       fontSize: '11px',
                     }}>
                       ⚠ {invalidDoors.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}{' '}
-                      marked open but not connected in the ground layer — saving is blocked until fixed.
+                      selected open but not connected in the ground layer — saving is blocked until fixed.
                     </div>
                   )}
                   <div style={{
@@ -530,7 +515,7 @@ export const TileTemplateApp: React.FC = () => {
                     fontSize: '11px',
                     color: '#6c757d'
                   }}>
-                    💡 No selection = doors auto-detected from ground connectivity. Click doors to set an explicit open-door whitelist; only selected doors are open. A selected door must be connected in the ground or save is blocked.
+                    💡 Open doors are chosen in “Select Doors to Connect” below. No selection = auto-detected from ground connectivity.
                   </div>
                 </div>
               </div>
@@ -639,7 +624,7 @@ export const TileTemplateApp: React.FC = () => {
                         marginBottom: '8px',
                         color: '#555',
                       }}>
-                        Select Doors to Connect:
+                        Select Open Doors (used for generation &amp; saved openDoors):
                       </div>
 
                       <div style={{

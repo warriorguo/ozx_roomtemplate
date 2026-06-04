@@ -68,9 +68,10 @@ interface NewTemplateStore {
   setStageType: (stageType: StageType) => void;
   setRoomType: (roomType: RoomType) => void;
   setRoomCategory: (roomCategory: RoomCategory) => void;
-  // Set or clear a per-door open/closed override. value=undefined clears the
-  // override (door reverts to ground-connectivity auto-detection).
-  setDoorOverride: (side: DoorSide, value: 0 | 1 | undefined) => void;
+  // Set the open-door whitelist to exactly `sides`. A non-empty whitelist makes
+  // those the only open doors (others closed); an empty whitelist reverts to
+  // ground-connectivity auto-detection. See ORT-89/91.
+  setDoorWhitelist: (sides: DoorSide[]) => void;
 
   // Drag operations
   startDrag: (layer: LayerType, x: number, y: number) => void;
@@ -811,15 +812,13 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     });
   },
 
-  setDoorOverride: (side: DoorSide, value: 0 | 1 | undefined) => {
+  setDoorWhitelist: (sides: DoorSide[]) => {
     const { template } = get();
 
-    const newOverrides = { ...(template.doorOverrides ?? {}) };
-    if (value === undefined) {
-      delete newOverrides[side];
-    } else {
-      newOverrides[side] = value;
-    }
+    const newOverrides: NonNullable<Template['doorOverrides']> = {};
+    sides.forEach((s) => {
+      newOverrides[s] = 1;
+    });
 
     const newTemplate = { ...template, doorOverrides: newOverrides };
     // Recompute the effective door states and tile properties (door distances
