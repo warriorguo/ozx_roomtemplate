@@ -137,10 +137,12 @@ func (s *Store) Get(ctx context.Context, id string) (*model.Template, error) {
 	return s.synthesise(relPath, fullPath, payload)
 }
 
-// Update overwrites the payload of an existing template. The on-disk
-// filename does not change even if the payload's category/shape/etc.
-// changed — renaming would break the Unity .meta linkage. The user can
-// delete and re-create if they really need a new filename.
+// Update overwrites the payload of an existing template. Within a category the
+// on-disk basename never changes — renaming would break the Unity .meta
+// linkage. But when the payload's roomCategory changes (e.g. the user switches
+// a room from "normal" to "basement"), the file is relocated into the matching
+// category subfolder, carrying its .meta sibling along so the Unity asset GUID
+// is preserved. See ORT-85.
 func (s *Store) Update(ctx context.Context, id string, t model.Template) (*model.Template, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -158,10 +160,49 @@ func (s *Store) Update(ctx context.Context, id string, t model.Template) (*model
 	}
 
 	model.ComputeTemplateStats(&t)
+
+	curCat := strings.TrimRight(filepath.Dir(relPath), string(filepath.Separator))
+	if wantCat := categoryOf(&t); wantCat != curCat {
+		return s.relocate(relPath, fullPath, wantCat, &t)
+	}
+
 	if err := writePayload(fullPath, &t.Payload); err != nil {
 		return nil, err
 	}
 	return s.synthesise(relPath, fullPath, &t.Payload)
+}
+
+// relocate moves an existing template into a different category subfolder. A
+// fresh basename is allocated in the destination (the source sequence number
+// may already be taken there), the payload is written to the new path, the
+// .meta sidecar is moved alongside to keep Unity's asset GUID stable, and the
+// old .json is removed. Returns the relocated template (with a new id derived
+// from the new path).
+func (s *Store) relocate(oldRel, oldFull, wantCat string, t *model.Template) (*model.Template, error) {
+	if err := s.ensureCategory(wantCat); err != nil {
+		return nil, err
+	}
+	basename, err := s.allocateBasename(wantCat, t)
+	if err != nil {
+		return nil, err
+	}
+	newRel := filepath.Join(wantCat, basename+fileSuffix)
+	newFull := filepath.Join(s.rootDir, newRel)
+
+	if err := writePayload(newFull, &t.Payload); err != nil {
+		return nil, err
+	}
+	// Move the Unity .meta sidecar so the asset keeps its GUID; best-effort,
+	// since a freshly-created template may not have one yet.
+	if _, statErr := os.Stat(oldFull + metaSuffix); statErr == nil {
+		if err := os.Rename(oldFull+metaSuffix, newFull+metaSuffix); err != nil {
+			return nil, fmt.Errorf("fsstore: move meta %s: %w", oldRel, err)
+		}
+	}
+	if err := os.Remove(oldFull); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("fsstore: remove old %s: %w", oldRel, err)
+	}
+	return s.synthesise(newRel, newFull, &t.Payload)
 }
 
 // Delete removes the template file plus its Unity .meta sibling (if any).

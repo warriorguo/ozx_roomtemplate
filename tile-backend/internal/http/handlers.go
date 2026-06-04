@@ -250,8 +250,9 @@ func (h *TemplateHandler) GetTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateTemplate handles PUT /api/v1/templates/{id}. Reuses the same request
-// shape as Create but overwrites an existing template in-place — the on-disk
-// filename does not change (see fsstore.Store.Update).
+// shape as Create and overwrites an existing template in-place; if the
+// roomCategory changed, the file is relocated to the matching category
+// subfolder and the response carries the new id (see fsstore.Store.Update).
 func (h *TemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 

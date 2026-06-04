@@ -210,6 +210,52 @@ func TestUpdate_OverwritesButKeepsFilename(t *testing.T) {
 	}
 }
 
+func TestUpdate_RelocatesOnCategoryChange(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	s.Create(ctx, fixture("alpha"))
+	id := "normal" + idSeparator + "all_boss_3_01"
+
+	// Drop a Unity .meta sidecar so we can assert it moves with the file.
+	oldJSON := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	if err := os.WriteFile(oldJSON+metaSuffix, []byte("guid: abc123"), 0o644); err != nil {
+		t.Fatalf("seed meta: %v", err)
+	}
+
+	revised := fixture("alpha")
+	basement := "basement"
+	revised.Payload.RoomCategory = &basement
+
+	updated, err := s.Update(ctx, id, revised)
+	if err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+
+	// New file lives under basement/, old normal/ file is gone.
+	newJSON := filepath.Join(s.RootDir(), "basement", "all_boss_3_01.json")
+	if _, err := os.Stat(newJSON); err != nil {
+		t.Errorf("expected relocated file at %s: %v", newJSON, err)
+	}
+	if _, err := os.Stat(oldJSON); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("old file should be removed, stat err=%v", err)
+	}
+	// The .meta sidecar moved along to preserve the Unity asset GUID.
+	if _, err := os.Stat(newJSON + metaSuffix); err != nil {
+		t.Errorf("meta should move with the file: %v", err)
+	}
+	if _, err := os.Stat(oldJSON + metaSuffix); !errors.Is(err, os.ErrNotExist) {
+		t.Errorf("old meta should be removed, stat err=%v", err)
+	}
+	// Returned template reflects the new category and a new path-derived id.
+	if updated.RoomCategory == nil || *updated.RoomCategory != "basement" {
+		t.Errorf("RoomCategory not basement: %+v", updated.RoomCategory)
+	}
+	if want := filepath.Join(s.RootDir(), "basement", "all_boss_3_01.json"); updated.Path != want {
+		t.Errorf("Path = %q, want %q", updated.Path, want)
+	}
+}
+
 func TestUpdate_MissingFails(t *testing.T) {
 	s := newTestStore(t)
 	_, err := s.Update(context.Background(), "normal__nope", fixture("ghost"))
