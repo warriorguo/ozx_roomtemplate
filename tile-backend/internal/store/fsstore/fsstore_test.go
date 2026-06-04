@@ -118,10 +118,9 @@ func TestCreateGet_RoundTripsDoorOverrides(t *testing.T) {
 	ctx := context.Background()
 
 	open := 1
-	closed := 0
 	tpl := fixture("alpha")
-	// Top forced open, bottom forced closed; left/right unspecified (auto).
-	tpl.Payload.DoorOverrides = &model.DoorOverrides{Top: &open, Bottom: &closed}
+	// Whitelist: top and left explicitly open; right/bottom unselected (auto).
+	tpl.Payload.DoorOverrides = &model.DoorOverrides{Top: &open, Left: &open}
 
 	saved, err := s.Create(ctx, tpl)
 	if err != nil {
@@ -139,11 +138,11 @@ func TestCreateGet_RoundTripsDoorOverrides(t *testing.T) {
 	if ov.Top == nil || *ov.Top != 1 {
 		t.Errorf("Top override = %v, want 1", ov.Top)
 	}
-	if ov.Bottom == nil || *ov.Bottom != 0 {
-		t.Errorf("Bottom override = %v, want 0", ov.Bottom)
+	if ov.Left == nil || *ov.Left != 1 {
+		t.Errorf("Left override = %v, want 1", ov.Left)
 	}
-	if ov.Left != nil || ov.Right != nil {
-		t.Errorf("Left/Right should stay unspecified, got left=%v right=%v", ov.Left, ov.Right)
+	if ov.Right != nil || ov.Bottom != nil {
+		t.Errorf("Right/Bottom should stay unselected, got right=%v bottom=%v", ov.Right, ov.Bottom)
 	}
 }
 

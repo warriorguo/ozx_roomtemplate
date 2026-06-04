@@ -6,52 +6,86 @@ import type {
   ValidationResult,
   ValidationError,
   LayerValidation,
-  DoorStates
+  DoorStates,
+  DoorSide
 } from '../types/newTemplate';
 import { calculateAllTileProperties } from './tilePropertiesCalculator';
 
-/**
- * 计算门的开通状态
- * 优先使用显式的 doorOverrides（用户手动指定开/关）；
- * 未指定的方向回退到 ground 连通性：门对应的两个中间格子在 ground 层都为 1 则视为开通。
- */
-export function calculateDoorStates(template: Template): DoorStates {
-  const { width, height, ground, doorOverrides } = template;
+const DOOR_SIDES = ['top', 'right', 'bottom', 'left'] as const;
 
-  // 计算中间位置
+/**
+ * 根据 ground 连通性检测每个门是否“物理上”开通：
+ * 门对应的两个中间格子在 ground 层都为 1 则视为连通。
+ */
+export function detectDoorConnectivity(template: Template): DoorStates {
+  const { width, height, ground } = template;
+
   const midWidth = Math.floor(width / 2);
   const midHeight = Math.floor(height / 2);
 
-  // 检查顶部门（y=0，中间两格）
   const topOpen =
     ground[0]?.[midWidth - 1] === 1 &&
     ground[0]?.[midWidth] === 1 ? 1 : 0;
 
-  // 检查底部门（y=height-1，中间两格）
   const bottomOpen =
     ground[height - 1]?.[midWidth - 1] === 1 &&
     ground[height - 1]?.[midWidth] === 1 ? 1 : 0;
 
-  // 检查左侧门（x=0，中间两格）
   const leftOpen =
     ground[midHeight - 1]?.[0] === 1 &&
     ground[midHeight]?.[0] === 1 ? 1 : 0;
 
-  // 检查右侧门（x=width-1，中间两格）
   const rightOpen =
     ground[midHeight - 1]?.[width - 1] === 1 &&
     ground[midHeight]?.[width - 1] === 1 ? 1 : 0;
 
-  // Explicit override wins per-side; undefined falls back to connectivity.
-  const pick = (override: 0 | 1 | undefined, connected: 0 | 1): 0 | 1 =>
-    override === undefined ? connected : override;
-
   return {
-    top: pick(doorOverrides?.top, topOpen as 0 | 1),
-    right: pick(doorOverrides?.right, rightOpen as 0 | 1),
-    bottom: pick(doorOverrides?.bottom, bottomOpen as 0 | 1),
-    left: pick(doorOverrides?.left, leftOpen as 0 | 1),
+    top: topOpen as 0 | 1,
+    right: rightOpen as 0 | 1,
+    bottom: bottomOpen as 0 | 1,
+    left: leftOpen as 0 | 1,
   };
+}
+
+/** The sides the user has explicitly marked open (the override whitelist). */
+function selectedOpenSides(template: Template): DoorSide[] {
+  const ov = template.doorOverrides;
+  return DOOR_SIDES.filter((s) => ov?.[s] === 1);
+}
+
+/**
+ * 计算门的最终开通状态（写入 meta 与文件名 openDoors 的依据）。
+ *
+ * 规则（whitelist 模型）：
+ * - 如果用户做了显式选择（doorOverrides 中有任意一侧为 1），则开门集合 = 所选集合，
+ *   未选中的门一律视为关闭（即使 ground 连通）。
+ * - 如果用户没有选择，则回退到 ground 连通性自动检测。
+ *
+ * 注意：选中但实际未连通的门属于无效选择，由 getInvalidDoorSelections 检出，
+ * 并在保存时报错拦截（见 saveTemplate）。
+ */
+export function calculateDoorStates(template: Template): DoorStates {
+  const connectivity = detectDoorConnectivity(template);
+  const selected = selectedOpenSides(template);
+  if (selected.length === 0) {
+    return connectivity;
+  }
+  return {
+    top: selected.includes('top') ? 1 : 0,
+    right: selected.includes('right') ? 1 : 0,
+    bottom: selected.includes('bottom') ? 1 : 0,
+    left: selected.includes('left') ? 1 : 0,
+  };
+}
+
+/**
+ * Returns the sides the user explicitly marked open that the ground layer does
+ * NOT actually connect. A non-empty result means the door selection is invalid
+ * and the template must not be saved.
+ */
+export function getInvalidDoorSelections(template: Template): DoorSide[] {
+  const connectivity = detectDoorConnectivity(template);
+  return selectedOpenSides(template).filter((s) => connectivity[s] !== 1);
 }
 
 export function createEmptyTemplate(width: number, height: number): Template {

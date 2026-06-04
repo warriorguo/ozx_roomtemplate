@@ -220,12 +220,10 @@ The API returns this JSON structure:
       "bottom": 0|1,
       "left": 0|1
     },
-    "doorOverrides": {          // optional; explicit per-door open/closed override
-      "top": 0|1,               // omit a side for "auto" (use ground connectivity)
-      "right": 0|1,
-      "bottom": 0|1,
-      "left": 0|1
-    },
+    "doorOverrides": {          // optional; user's explicit open-door whitelist
+      "top": 1,                 // side present & =1 => explicitly open; omit => auto
+      "left": 1                 // when any side is set, open doors = exactly these
+    },                          // (others closed); empty/absent => ground connectivity
     "roomShape": "all"|"bridge"|"platform",
     "roomCategory": "normal"|"basement"|"test"|"cave",
     "stageType": "default"|"start"|"teaching"|"building"|"pressure"|"peak"|"release"|"boss",

@@ -6,6 +6,7 @@ import { HeatmapLayerEditor } from './HeatmapLayerEditor';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
 import { ROOM_TYPES, ROOM_CATEGORIES } from '../../types/newTemplate';
+import { getInvalidDoorSelections } from '../../utils/newTemplateUtils';
 import { templateApi, ApiError, type DoorPosition } from '../../services/api';
 
 const layerConfigs: Array<{
@@ -84,6 +85,8 @@ const layerConfigs: Array<{
 
 export const TileTemplateApp: React.FC = () => {
   const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, setDoorOverride, loadTemplateFromJSON } = useNewTemplateStore();
+  // Sides the user marked open but the ground doesn't connect — blocks save.
+  const invalidDoors = getInvalidDoorSelections(template);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [selectedDoors, setSelectedDoors] = useState<{ top: boolean; right: boolean; bottom: boolean; left: boolean }>({
@@ -440,24 +443,33 @@ export const TileTemplateApp: React.FC = () => {
                   }}>
                     {(['top', 'right', 'bottom', 'left'] as const).map((side) => {
                       const isOpen = template.doors[side] === 1;
-                      const override = template.doorOverrides?.[side];
-                      const mode = override === undefined ? 'Auto' : override === 1 ? 'Open' : 'Closed';
+                      const selected = template.doorOverrides?.[side] === 1;
+                      const invalid = invalidDoors.includes(side);
+                      const mode = selected ? (invalid ? 'Open ⚠' : 'Open') : 'Auto';
                       const label = side.charAt(0).toUpperCase() + side.slice(1);
-                      // Click cycles the door: Auto → Open → Closed → Auto.
-                      const next = override === undefined ? 1 : override === 1 ? 0 : undefined;
+                      // Two-state toggle: Auto ↔ Open. Selecting builds the
+                      // authoritative open-door whitelist; selecting none = auto.
+                      const next = selected ? undefined : 1;
+                      const borderColor = invalid ? '#dc3545' : selected ? '#0d6efd' : '#ddd';
                       return (
                         <button
                           key={side}
                           type="button"
                           onClick={() => setDoorOverride(side, next)}
-                          title={`${label} door: ${mode}${override === undefined ? ' (from ground connectivity)' : ' (manual override)'}. Click to cycle Auto → Open → Closed.`}
+                          title={
+                            invalid
+                              ? `${label} door is selected open but the ground layer doesn't connect it — saving is blocked until you open it in the ground or deselect it.`
+                              : selected
+                                ? `${label} door: explicitly open (in the open-door whitelist). Click to revert to Auto.`
+                                : `${label} door: Auto (from ground connectivity). Click to mark it explicitly open.`
+                          }
                           style={{
                             display: 'flex',
                             alignItems: 'center',
                             gap: '6px',
                             padding: '4px 6px',
-                            background: 'white',
-                            border: override === undefined ? '1px solid #ddd' : '2px solid #0d6efd',
+                            background: invalid ? '#fff5f5' : 'white',
+                            border: `${selected || invalid ? '2px' : '1px'} solid ${borderColor}`,
                             borderRadius: '4px',
                             cursor: 'pointer',
                             font: 'inherit',
@@ -476,13 +488,26 @@ export const TileTemplateApp: React.FC = () => {
                           <span style={{
                             marginLeft: 'auto',
                             fontSize: '10px',
-                            color: override === undefined ? '#6c757d' : '#0d6efd',
-                            fontWeight: override === undefined ? 'normal' : 'bold',
+                            color: invalid ? '#dc3545' : selected ? '#0d6efd' : '#6c757d',
+                            fontWeight: selected ? 'bold' : 'normal',
                           }}>{mode}</span>
                         </button>
                       );
                     })}
                   </div>
+                  {invalidDoors.length > 0 && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '6px 8px',
+                      backgroundColor: '#f8d7da',
+                      color: '#842029',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                    }}>
+                      ⚠ {invalidDoors.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}{' '}
+                      marked open but not connected in the ground layer — saving is blocked until fixed.
+                    </div>
+                  )}
                   <div style={{
                     marginTop: '8px',
                     paddingTop: '8px',
@@ -490,7 +515,7 @@ export const TileTemplateApp: React.FC = () => {
                     fontSize: '11px',
                     color: '#6c757d'
                   }}>
-                    💡 Auto = open when both middle cells = 1 in ground layer. Click a door to override (Open/Closed); the saved openDoors value follows the override.
+                    💡 No selection = doors auto-detected from ground connectivity. Click doors to set an explicit open-door whitelist; only selected doors are open. A selected door must be connected in the ground or save is blocked.
                   </div>
                 </div>
               </div>

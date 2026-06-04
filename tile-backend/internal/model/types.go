@@ -38,15 +38,18 @@ type DoorStates struct {
 	Left   int `json:"left"`   // 0 or 1
 }
 
-// DoorOverrides holds explicit per-door open/closed overrides. A nil side means
-// "unspecified" — the door's open state falls back to ground connectivity.
-// Persisted as-is for round-trip; the effective DoorStates (and thus openDoors)
-// are computed on the frontend with these applied.
+// DoorOverrides is the user's explicit open-door whitelist. A side set to 1
+// means the user marked that door open; nil means unselected. When any side is
+// selected, the open-door set equals exactly the selected sides (others closed)
+// and each selected side must be backed by ground connectivity; when none is
+// selected, doors fall back to connectivity auto-detection. Persisted as-is for
+// round-trip; the effective DoorStates (and thus openDoors) are computed and
+// validated on the frontend.
 type DoorOverrides struct {
-	Top    *int `json:"top,omitempty"`    // nil = auto, else 0 or 1
-	Right  *int `json:"right,omitempty"`  // nil = auto, else 0 or 1
-	Bottom *int `json:"bottom,omitempty"` // nil = auto, else 0 or 1
-	Left   *int `json:"left,omitempty"`   // nil = auto, else 0 or 1
+	Top    *int `json:"top,omitempty"`    // 1 = explicitly open; nil = unselected (auto)
+	Right  *int `json:"right,omitempty"`  // 1 = explicitly open; nil = unselected (auto)
+	Bottom *int `json:"bottom,omitempty"` // 1 = explicitly open; nil = unselected (auto)
+	Left   *int `json:"left,omitempty"`   // 1 = explicitly open; nil = unselected (auto)
 }
 
 // StageType represents the room stage type

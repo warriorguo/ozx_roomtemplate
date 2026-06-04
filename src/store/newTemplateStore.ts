@@ -12,7 +12,8 @@ import {
   createEmptyTemplate,
   setCellValue,
   validateTemplate,
-  calculateDoorStates
+  calculateDoorStates,
+  getInvalidDoorSelections
 } from '../utils/newTemplateUtils';
 import { calculateAllTileProperties } from '../utils/tilePropertiesCalculator';
 import {
@@ -402,6 +403,20 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
         apiState: {
           ...state.apiState,
           error: nameValidation.error || 'Invalid template name',
+        },
+      }));
+      return;
+    }
+
+    // Forbid saving when a manually-opened door isn't backed by the ground
+    // layer (the user selected a door the room doesn't actually connect).
+    const invalidDoors = getInvalidDoorSelections(template);
+    if (invalidDoors.length > 0) {
+      const labels = invalidDoors.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(', ');
+      set((state) => ({
+        apiState: {
+          ...state.apiState,
+          error: `Cannot save: ${labels} door${invalidDoors.length > 1 ? 's are' : ' is'} marked open but not connected in the ground layer. Open the door in the ground (both middle edge cells = 1) or deselect it.`,
         },
       }));
       return;
