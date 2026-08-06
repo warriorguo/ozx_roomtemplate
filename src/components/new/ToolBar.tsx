@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import { SaveLoadPanel } from './SaveLoadPanel';
 import { frontendToBackendPayload } from '../../services/templateConverter';
+import { DEFAULT_ROOM_WIDTH, DEFAULT_ROOM_HEIGHT } from '../../types/newTemplate';
 
 interface NewTemplateDialogProps {
   isOpen: boolean;
@@ -10,8 +11,8 @@ interface NewTemplateDialogProps {
 }
 
 const NewTemplateDialog: React.FC<NewTemplateDialogProps> = ({ isOpen, onClose, onConfirm }) => {
-  const [width, setWidth] = useState<string>('20');
-  const [height, setHeight] = useState<string>('12');
+  const [width, setWidth] = useState<string>(String(DEFAULT_ROOM_WIDTH));
+  const [height, setHeight] = useState<string>(String(DEFAULT_ROOM_HEIGHT));
   const [error, setError] = useState<string>('');
 
   if (!isOpen) return null;

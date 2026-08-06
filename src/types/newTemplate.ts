@@ -27,6 +27,10 @@ export type RoomType = 'full' | 'bridge' | 'platform';
 
 export type RoomCategory = 'normal' | 'basement' | 'test' | 'cave';
 
+// Dimensions a fresh template starts at, and what the "New" dialog prefills.
+export const DEFAULT_ROOM_WIDTH = 16;
+export const DEFAULT_ROOM_HEIGHT = 8;
+
 export const ROOM_CATEGORIES: { value: RoomCategory; label: string }[] = [
   { value: 'normal', label: 'Normal (普通)' },
   { value: 'basement', label: 'Basement (地下室)' },

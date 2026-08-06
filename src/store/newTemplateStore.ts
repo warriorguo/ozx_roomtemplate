@@ -8,6 +8,7 @@ import type {
   RoomCategory,
   DoorSide
 } from '../types/newTemplate';
+import { DEFAULT_ROOM_WIDTH, DEFAULT_ROOM_HEIGHT } from '../types/newTemplate';
 import {
   createEmptyTemplate,
   setCellValue,
@@ -99,7 +100,7 @@ interface NewTemplateStore {
 }
 
 export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
-  const initialTemplate = createEmptyTemplate(20, 12);
+  const initialTemplate = createEmptyTemplate(DEFAULT_ROOM_WIDTH, DEFAULT_ROOM_HEIGHT);
   const initialValidation = validateTemplate(initialTemplate);
   
   return {
