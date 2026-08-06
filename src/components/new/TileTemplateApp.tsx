@@ -113,6 +113,100 @@ const heatmapTabConfig = {
   description: 'Grid-based threat coverage from DPS (×1.0) and Zoner (×0.8) layers, radius 5',
 };
 
+// Sidebar panels remember whether they were left open (ORT-97). Defined at
+// module scope so the panel bodies aren't remounted on every parent render —
+// remounting would steal focus from the generator's number inputs.
+const panelStorageKey = (id: string) => `ort.sidebar.panel.${id}`;
+
+const readPanelOpen = (id: string, fallback: boolean): boolean => {
+  try {
+    const raw = window.localStorage.getItem(panelStorageKey(id));
+    return raw === null ? fallback : raw === '1';
+  } catch {
+    return fallback;
+  }
+};
+
+const CollapsiblePanel: React.FC<{
+  id: string;
+  title: string;
+  defaultOpen?: boolean;
+  headerExtra?: React.ReactNode;
+  children: React.ReactNode;
+}> = ({ id, title, defaultOpen = false, headerExtra, children }) => {
+  const [isOpen, setIsOpen] = useState(() => readPanelOpen(id, defaultOpen));
+
+  const toggle = () => {
+    setIsOpen(prev => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(panelStorageKey(id), next ? '1' : '0');
+      } catch {
+        // Private-browsing / quota — the panel just won't be remembered.
+      }
+      return next;
+    });
+  };
+
+  return (
+    <div style={{
+      border: '1px solid #dee2e6',
+      borderRadius: '8px',
+      marginBottom: '10px',
+      overflow: 'hidden',
+      backgroundColor: 'white',
+    }}>
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        backgroundColor: '#f1f3f5',
+        borderBottom: isOpen ? '1px solid #dee2e6' : 'none',
+      }}>
+        <button
+          onClick={toggle}
+          aria-expanded={isOpen}
+          style={{
+            flex: 1,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            padding: '10px 12px',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: 'bold',
+            color: '#333',
+            textAlign: 'left',
+          }}
+        >
+          <span>{title}</span>
+          <span style={{
+            fontSize: '11px',
+            color: '#6c757d',
+            transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+            transition: 'transform 0.2s',
+          }}>
+            ▼
+          </span>
+        </button>
+        {headerExtra && (
+          <div style={{ paddingRight: '10px', display: 'flex', alignItems: 'center' }}>
+            {headerExtra}
+          </div>
+        )}
+      </div>
+      {isOpen && (
+        <div style={{ padding: '12px', fontSize: '14px', lineHeight: '1.5' }}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const TileTemplateApp: React.FC = () => {
   const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, setDoorWhitelist, loadTemplateFromJSON } = useNewTemplateStore();
   // Sides the user marked open but the ground doesn't connect — blocks save.
@@ -272,6 +366,15 @@ export const TileTemplateApp: React.FC = () => {
     {} as Partial<Record<LayerType, number>>
   );
 
+  const roomTypeLabel =
+    template.roomType === 'platform' ? 'Platform'
+    : template.roomType === 'full' ? 'Full'
+    : 'Bridge';
+  const roomTypeColor =
+    template.roomType === 'platform' ? '#2196F3'
+    : template.roomType === 'full' ? '#4CAF50'
+    : '#9966CC';
+
   const activeLayerConfig = layerConfigs.find(c => c.layer === activeTab);
   const activePanel =
     activeTab === 'composite' ? compositeTabConfig
@@ -410,7 +513,8 @@ export const TileTemplateApp: React.FC = () => {
       }}>
         <ToolBar />
         
-        {/* API Status */}
+        {/* Backend status now lives in the Template Info panel (ORT-97); only
+            hard API errors still warrant a page-level banner. */}
         {apiState.error && (
           <div style={{
             padding: '15px',
@@ -421,19 +525,6 @@ export const TileTemplateApp: React.FC = () => {
             color: '#721c24',
           }}>
             <strong>❌ API Error:</strong> {apiState.error}
-          </div>
-        )}
-
-        {apiState.lastSaved && (
-          <div style={{
-            padding: '15px',
-            backgroundColor: '#d4edda',
-            border: '1px solid #c3e6cb',
-            borderRadius: '4px',
-            marginBottom: '20px',
-            color: '#155724',
-          }}>
-            <strong>✅ Last Saved:</strong> "{apiState.lastSaved.name}" (ID: {apiState.lastSaved.id})
           </div>
         )}
 
@@ -528,23 +619,92 @@ export const TileTemplateApp: React.FC = () => {
             </div>
           </div>
 
-          {/* Info sidebar */}
+          {/* Info sidebar — collapsible panels (ORT-97) */}
           <div style={{
-            backgroundColor: 'white',
-            border: '1px solid #dee2e6',
-            borderRadius: '8px',
-            padding: '15px',
             height: 'fit-content',
             position: 'sticky',
-            top: '20px'
+            top: '20px',
+            maxHeight: 'calc(100vh - 40px)',
+            overflowY: 'auto',
           }}>
-            <h3 style={{ margin: '0 0 15px 0', fontSize: '16px' }}>
-              📊 Template Info
-            </h3>
-            
-            <div style={{ fontSize: '14px', lineHeight: '1.5' }}>
+            <CollapsiblePanel id="template-info" title="📊 Template Info" defaultOpen>
               <div style={{ marginBottom: '10px' }}>
                 <strong>Dimensions:</strong> {template.width} × {template.height}
+              </div>
+
+              {/* Stage Type */}
+              <div style={{ marginBottom: '15px' }}>
+                <strong>🏷️ Stage Type:</strong>
+                <div style={{
+                  marginTop: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '13px'
+                }}>
+                  <select
+                    value={template.stageType}
+                    onChange={(e) => handleStageTypeChange(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    <option value="start">Start (起始期)</option>
+                    <option value="teaching">Teaching (引导期)</option>
+                    <option value="building">Building (建立期)</option>
+                    <option value="pressure">Pressure (压力期)</option>
+                    <option value="peak">Peak (峰值期)</option>
+                    <option value="release">Release (释放期)</option>
+                    <option value="boss">Boss (Boss期)</option>
+                  </select>
+                  {stageDefaults[template.stageType] && (
+                    <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
+                      Chaser: {stageDefaults[template.stageType].chaser[0]}-{stageDefaults[template.stageType].chaser[1]} |
+                      Zoner: {stageDefaults[template.stageType].zoner[0]}-{stageDefaults[template.stageType].zoner[1]} |
+                      DPS: {stageDefaults[template.stageType].dps[0]}-{stageDefaults[template.stageType].dps[1]} |
+                      MobAir: {stageDefaults[template.stageType].mobAir[0]}-{stageDefaults[template.stageType].mobAir[1]}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Room Category */}
+              <div style={{ marginBottom: '15px' }}>
+                <strong>🗂️ Room Category:</strong>
+                <div style={{
+                  marginTop: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '13px'
+                }}>
+                  <select
+                    value={template.roomCategory}
+                    onChange={(e) => setRoomCategory(e.target.value as any)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ddd',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {ROOM_CATEGORIES.map(({ value, label }) => (
+                      <option key={value} value={value}>{label}</option>
+                    ))}
+                  </select>
+                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
+                    Used by OZX to bucket tilemaps (e.g. <code>basement</code> for basement rooms).
+                  </div>
+                </div>
               </div>
 
               {/* Door States — read-only status. Edit via "Select Doors to
@@ -623,11 +783,82 @@ export const TileTemplateApp: React.FC = () => {
                 </div>
               </div>
 
-              {/* Room Type */}
+              {/* Backend status — merged into Template Info (ORT-97) */}
               <div style={{ marginBottom: '15px' }}>
-                <strong>🏠 Room Type:</strong>
+                <strong>🔌 Backend Status:</strong>
                 <div style={{
                   marginTop: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '12px'
+                }}>
+                  {apiState.isLoading && (
+                    <div style={{ color: '#007bff' }}>🔄 Loading...</div>
+                  )}
+                  {apiState.lastSaved ? (
+                    <div style={{ color: '#28a745' }}>
+                      ✅ Saved: "{apiState.lastSaved.name}"<br/>
+                      <span style={{ color: '#666' }}>ID: {apiState.lastSaved.id}</span>
+                    </div>
+                  ) : (
+                    <div style={{ color: '#6c757d' }}>💾 Not saved</div>
+                  )}
+                  {apiState.error && (
+                    <div style={{ color: '#dc3545', marginTop: '5px' }}>
+                      ❌ {apiState.error}
+                    </div>
+                  )}
+                  {apiState.lastSaved?.thumbnail && (
+                    <div style={{ marginTop: '8px', textAlign: 'center' }}>
+                      <img
+                        src={apiState.lastSaved.thumbnail}
+                        alt="Template Thumbnail"
+                        style={{
+                          width: '120px',
+                          height: '120px',
+                          border: '1px solid #ccc',
+                          borderRadius: '4px',
+                          backgroundColor: '#fff',
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CollapsiblePanel>
+
+            {/* Room Type — generation & regeneration (ORT-97). The Generate
+                action is pinned to the header so it stays reachable while the
+                panel body is collapsed. */}
+            <CollapsiblePanel
+              id="room-type"
+              title="🏠 Room Type"
+              defaultOpen
+              headerExtra={
+                <button
+                  onClick={handleGenerateRoom}
+                  disabled={isGenerating}
+                  title={`Generate ${roomTypeLabel} Room`}
+                  style={{
+                    padding: '5px 10px',
+                    backgroundColor: isGenerating ? '#6c757d' : roomTypeColor,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: isGenerating ? 'not-allowed' : 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '12px',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {isGenerating ? '…' : '🎲 Generate'}
+                </button>
+              }
+            >
+              <div>
+                <div style={{
                   padding: '10px',
                   backgroundColor: '#f8f9fa',
                   borderRadius: '6px',
@@ -1101,141 +1332,18 @@ export const TileTemplateApp: React.FC = () => {
                   )}
                 </div>
               </div>
+            </CollapsiblePanel>
 
-              {/* Stage Type */}
-              <div style={{ marginBottom: '15px' }}>
-                <strong>🏷️ Stage Type:</strong>
-                <div style={{
-                  marginTop: '8px',
-                  padding: '10px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '6px',
-                  border: '1px solid #dee2e6',
-                  fontSize: '13px'
-                }}>
-                  <select
-                    value={template.stageType}
-                    onChange={(e) => handleStageTypeChange(e.target.value)}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    <option value="start">Start (起始期)</option>
-                    <option value="teaching">Teaching (引导期)</option>
-                    <option value="building">Building (建立期)</option>
-                    <option value="pressure">Pressure (压力期)</option>
-                    <option value="peak">Peak (峰值期)</option>
-                    <option value="release">Release (释放期)</option>
-                    <option value="boss">Boss (Boss期)</option>
-                  </select>
-                  {stageDefaults[template.stageType] && (
-                    <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
-                      Chaser: {stageDefaults[template.stageType].chaser[0]}-{stageDefaults[template.stageType].chaser[1]} |
-                      Zoner: {stageDefaults[template.stageType].zoner[0]}-{stageDefaults[template.stageType].zoner[1]} |
-                      DPS: {stageDefaults[template.stageType].dps[0]}-{stageDefaults[template.stageType].dps[1]} |
-                      MobAir: {stageDefaults[template.stageType].mobAir[0]}-{stageDefaults[template.stageType].mobAir[1]}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Room Category */}
-              <div style={{ marginBottom: '15px' }}>
-                <strong>🗂️ Room Category:</strong>
-                <div style={{
-                  marginTop: '8px',
-                  padding: '10px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '6px',
-                  border: '1px solid #dee2e6',
-                  fontSize: '13px'
-                }}>
-                  <select
-                    value={template.roomCategory}
-                    onChange={(e) => setRoomCategory(e.target.value as any)}
-                    style={{
-                      width: '100%',
-                      padding: '8px',
-                      border: '1px solid #ddd',
-                      borderRadius: '4px',
-                      fontSize: '13px',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    {ROOM_CATEGORIES.map(({ value, label }) => (
-                      <option key={value} value={value}>{label}</option>
-                    ))}
-                  </select>
-                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
-                    Used by OZX to bucket tilemaps (e.g. <code>basement</code> for basement rooms).
-                  </div>
-                </div>
-              </div>
-
-              {/* Thumbnail */}
-              {apiState.lastSaved?.thumbnail && (
-                <div style={{ marginBottom: '15px' }}>
-                  <strong>Thumbnail:</strong><br/>
-                  <div style={{ 
-                    marginTop: '8px',
-                    padding: '8px',
-                    backgroundColor: '#f8f9fa',
-                    borderRadius: '6px',
-                    border: '1px solid #dee2e6',
-                    textAlign: 'center'
-                  }}>
-                    <img
-                      src={apiState.lastSaved.thumbnail}
-                      alt="Template Thumbnail"
-                      style={{
-                        width: '120px',
-                        height: '120px',
-                        border: '1px solid #ccc',
-                        borderRadius: '4px',
-                        backgroundColor: '#fff',
-                      }}
-                    />
-                    <div style={{ 
-                      fontSize: '11px', 
-                      color: '#666', 
-                      marginTop: '4px' 
-                    }}>
-                      {apiState.lastSaved.name}
-                    </div>
-                  </div>
+            {/* Cell inspector — live readout for the cell under the cursor */}
+            <CollapsiblePanel id="cell-inspector" title="🔍 Cell Inspector" defaultOpen>
+              {!uiState.hoveredCell && (
+                <div style={{ fontSize: '12px', color: '#6c757d' }}>
+                  Hover a cell in the editor to inspect its layer values and tile properties.
                 </div>
               )}
 
-              {/* API Status */}
-              <div style={{ marginBottom: '15px' }}>
-                <strong>Backend Status:</strong><br/>
-                <div style={{ fontSize: '12px', marginTop: '5px' }}>
-                  {apiState.isLoading && (
-                    <div style={{ color: '#007bff' }}>🔄 Loading...</div>
-                  )}
-                  {apiState.lastSaved ? (
-                    <div style={{ color: '#28a745' }}>
-                      ✅ Saved: "{apiState.lastSaved.name}"<br/>
-                      <span style={{ color: '#666' }}>ID: {apiState.lastSaved.id}</span>
-                    </div>
-                  ) : (
-                    <div style={{ color: '#6c757d' }}>💾 Not saved</div>
-                  )}
-                  {apiState.error && (
-                    <div style={{ color: '#dc3545', marginTop: '5px' }}>
-                      ❌ {apiState.error}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
               {uiState.hoveredCell && (
-                <div style={{ marginBottom: '15px' }}>
+                <div>
                   <strong>Hovered Cell:</strong> ({uiState.hoveredCell.x}, {uiState.hoveredCell.y})
                   <div style={{ fontSize: '12px', marginTop: '5px' }}>
                     <strong>Layer Values:</strong><br/>
@@ -1295,29 +1403,23 @@ export const TileTemplateApp: React.FC = () => {
                 </div>
               )}
 
-              <div style={{ marginBottom: '15px' }}>
+            </CollapsiblePanel>
+
+            {/* Usage tips — collapsed by default, it's reference material */}
+            <CollapsiblePanel id="usage-tips" title="🎨 Usage Tips">
+              <div style={{ marginBottom: '10px', fontSize: '12px' }}>
                 <strong>Edit Mode:</strong> Click any cell to toggle (0 ↔ 1)<br/>
                 <strong>All layers:</strong> Directly editable
               </div>
 
-              <div style={{ 
-                padding: '10px',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '4px',
-                fontSize: '12px'
-              }}>
-                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px' }}>
-                  🎨 Usage Tips:
-                </h4>
-                <ul style={{ margin: 0, paddingLeft: '15px' }}>
-                  <li>All layers are always editable</li>
-                  <li>Click cells to toggle between 0 and 1</li>
-                  <li>Drag to paint/erase multiple cells</li>
-                  <li>Red borders indicate rule violations</li>
-                  <li>Must fix all errors before export</li>
-                </ul>
-              </div>
-            </div>
+              <ul style={{ margin: 0, paddingLeft: '15px', fontSize: '12px' }}>
+                <li>All layers are always editable</li>
+                <li>Click cells to toggle between 0 and 1</li>
+                <li>Drag to paint/erase multiple cells</li>
+                <li>Red borders indicate rule violations</li>
+                <li>Must fix all errors before export</li>
+              </ul>
+            </CollapsiblePanel>
           </div>
         </div>
       </div>
