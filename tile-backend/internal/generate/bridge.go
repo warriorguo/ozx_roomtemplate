@@ -105,12 +105,14 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	if stageErr != nil {
 		return nil, stageErr
 	}
+	var hints *StagePlacementHints
 	if stageResult != nil && stageResult.Valid && req.StageType != "" {
 		req.ChaserCount = stageResult.ChaserCount
 		req.ZonerCount = stageResult.ZonerCount
 		req.DPSCount = stageResult.DPSCount
 		req.MobAirCount = stageResult.MobAirCount
 		req.StaticCount = stageResult.StaticCount
+		hints = stageResult.PlacementHints
 	}
 
 	// Main path computation
@@ -120,7 +122,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	// Step 4: Generate static layer if requested
 	staticLayer := copyLayer(emptyLayer)
 	if req.StaticCount > 0 {
-		staticDebug := generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdgeLayer, bridgeLayer, railLayer, doorPositions, req.Width, req.Height, req.StaticCount)
+		staticDebug := generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdgeLayer, bridgeLayer, railLayer, doorPositions, req.Width, req.Height, req.StaticCount, hints)
 		debugInfo.Static = staticDebug
 	} else {
 		debugInfo.Static = &StaticDebugInfo{

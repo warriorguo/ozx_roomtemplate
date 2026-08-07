@@ -238,7 +238,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	// Static layer
 	staticLayer := copyLayer(emptyLayer)
 	if req.StaticCount > 0 {
-		staticDebug := generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdgeLayer, bridgeLayer, railLayer, doorPositions, req.Width, req.Height, req.StaticCount)
+		staticDebug := generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdgeLayer, bridgeLayer, railLayer, doorPositions, req.Width, req.Height, req.StaticCount, hints)
 		debugInfo.Static = staticDebug
 	} else {
 		debugInfo.Static = &StaticDebugInfo{

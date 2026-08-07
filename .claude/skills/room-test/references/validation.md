@@ -229,6 +229,25 @@ if static_cells < lo * 4:
 
 With an empty `stageType` the request's `staticCount` is used verbatim.
 
+### 5a-2. Stage Static Placement Strategy (ORT-99)
+
+The stage also selects *where* the blocks go, via `StagePlacementHints.StaticDisperse`:
+
+| Stage | Strategy |
+|---|---|
+| start, teaching, building, release | alternating centre-outward / edge-inward scatter (the long-standing default) |
+| pressure, peak | edge-first seeding, then farthest-point dispersion |
+
+pressure/peak carry the heaviest enemy loads, so their cover is pushed to the
+perimeter to leave the middle open. Expect their statics to show a **lower mean
+distance from the nearest wall** and a **larger mean nearest-neighbour spacing**
+than the default path. This is a distributional property — do not assert it on a
+single generated room; average over many trials if you check it at all.
+
+All the hard constraints are unchanged by strategy: 8-directional non-contact,
+door forbidden diamond, no overlap with softEdge/bridge/rail, and door-to-door
+connectivity after placement.
+
 ### 5b. Stage Minimum Room Size
 
 Some stages require a minimum room size; the generator rejects smaller rooms

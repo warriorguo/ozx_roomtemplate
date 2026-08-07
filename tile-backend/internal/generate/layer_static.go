@@ -200,7 +200,10 @@ func generateStaticLayerWithDebug(staticLayer, ground, softEdge, bridge [][]int,
 }
 
 // generateStaticLayerWithDebugAndRail generates the static layer avoiding rail positions
-func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, rail [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int) *StaticDebugInfo {
+// hints may be nil, in which case the default alternating strategy is used.
+func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, rail [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int, hints *StagePlacementHints) *StaticDebugInfo {
+	disperse := hints != nil && hints.StaticDisperse
+
 	debug := &StaticDebugInfo{
 		TargetCount: targetCount,
 		PlacedCount: 0,
@@ -235,10 +238,15 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 	invalidatedCount := 0
 	connectivityBlockedCount := 0
 	railBlockedCount := 0
+	placedPositions := []Point{}
 
 	// First try to place in priority positions (inside rail loop)
 	for remaining > 0 && len(priorityPositions) > 0 {
-		sortPositionsByStrategy(priorityPositions, currentStrategy, centerX, centerY, width, height)
+		if disperse {
+			sortPositionsDispersed(priorityPositions, placedPositions, width, height)
+		} else {
+			sortPositionsByStrategy(priorityPositions, currentStrategy, centerX, centerY, width, height)
+		}
 
 		placed := false
 		for i, pos := range priorityPositions {
@@ -256,6 +264,7 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 			remaining--
 			placed = true
 			debug.PlacedCount++
+			placedPositions = append(placedPositions, pos)
 
 			debug.Placements = append(debug.Placements, PlaceInfo{
 				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
@@ -279,11 +288,15 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 
 	// Then place remaining in regular positions
 	for remaining > 0 && strategyAttempts < maxStrategyAttempts {
-		sortPositionsByStrategy(validPositions, currentStrategy, centerX, centerY, width, height)
-
 		strategyName := "center_outward"
-		if currentStrategy == StrategyEdgeInward {
-			strategyName = "edge_inward"
+		if disperse {
+			sortPositionsDispersed(validPositions, placedPositions, width, height)
+			strategyName = "edge_first_disperse"
+		} else {
+			sortPositionsByStrategy(validPositions, currentStrategy, centerX, centerY, width, height)
+			if currentStrategy == StrategyEdgeInward {
+				strategyName = "edge_inward"
+			}
 		}
 
 		placed := false
@@ -302,6 +315,7 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 			remaining--
 			placed = true
 			debug.PlacedCount++
+			placedPositions = append(placedPositions, pos)
 
 			debug.Placements = append(debug.Placements, PlaceInfo{
 				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
@@ -318,10 +332,14 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 			strategyAttempts++
 		}
 
-		if currentStrategy == StrategyCenterOutward {
-			currentStrategy = StrategyEdgeInward
-		} else {
-			currentStrategy = StrategyCenterOutward
+		// Dispersion re-scores every candidate against what is already placed,
+		// so it has no strategy to alternate.
+		if !disperse {
+			if currentStrategy == StrategyCenterOutward {
+				currentStrategy = StrategyEdgeInward
+			} else {
+				currentStrategy = StrategyCenterOutward
+			}
 		}
 	}
 
@@ -351,6 +369,55 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 	}
 
 	return debug
+}
+
+// sortPositionsDispersed orders candidates for the edge-first dispersion
+// strategy used by the pressure and peak stages (ORT-99).
+//
+// With nothing placed yet it degenerates to edge-inward, seeding the first
+// block against the perimeter. Afterwards it is a farthest-point (Mitchell)
+// selection: each candidate is scored by the distance to its nearest already
+// placed static and the largest score wins, so blocks repel each other instead
+// of alternating in and out from the centre. Ties fall back to the edge
+// preference, which keeps cover on the perimeter once spacing is equal.
+func sortPositionsDispersed(positions []Point, placed []Point, width, height int) {
+	// Shuffle first so equal-score positions get random order
+	rand.Shuffle(len(positions), func(i, j int) {
+		positions[i], positions[j] = positions[j], positions[i]
+	})
+
+	if len(placed) == 0 {
+		sort.SliceStable(positions, func(i, j int) bool {
+			return distanceFromEdge(positions[i], width, height) < distanceFromEdge(positions[j], width, height)
+		})
+		return
+	}
+
+	spread := make(map[Point]int, len(positions))
+	for _, pos := range positions {
+		spread[pos] = distanceToNearest(pos, placed)
+	}
+
+	sort.SliceStable(positions, func(i, j int) bool {
+		if spread[positions[i]] != spread[positions[j]] {
+			return spread[positions[i]] > spread[positions[j]]
+		}
+		return distanceFromEdge(positions[i], width, height) < distanceFromEdge(positions[j], width, height)
+	})
+}
+
+// distanceToNearest returns the Manhattan distance from pos to the closest of
+// the already-placed statics. Points are 2x2 top-left corners; since every
+// block carries the same offset, corner-to-corner equals center-to-center.
+func distanceToNearest(pos Point, placed []Point) int {
+	nearest := -1
+	for _, p := range placed {
+		d := abs(pos.X-p.X) + abs(pos.Y-p.Y)
+		if nearest < 0 || d < nearest {
+			nearest = d
+		}
+	}
+	return nearest
 }
 
 // sortPositionsByStrategy sorts positions based on the placement strategy

@@ -191,6 +191,14 @@ blocks; pressure/peak place 2–3 (roughly one third, so the denser enemy waves
 have room to move); start/boss place none. An empty stage type still honours the
 request value verbatim.
 
+**Stage-driven static placement** (`StagePlacementHints.StaticDisperse`, ORT-99):
+start/teaching/building/release keep the default alternating centre-outward /
+edge-inward scatter. Pressure and peak seed the first block from the room edge
+and then pick each next one by farthest-point selection, so cover ends up on the
+perimeter with the middle left open for the heavy enemy waves. The hints are
+built in `buildPlacementHints` and passed into
+`generateStaticLayerWithDebugAndRail` by all three generators.
+
 **Stage minimum room size** (`StageConfig.MinWidth` / `MinHeight`, ORT-102): a room
 smaller than the stage minimum cannot fit that stage's enemy counts under the
 8-directional spacing constraint. The relaxed placement fallback would meet the

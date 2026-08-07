@@ -42,6 +42,12 @@ type StagePlacementHints struct {
 	// Zoner placement
 	ZonerCentral bool // place zoner as close to room center as possible
 
+	// Static placement (ORT-99). False keeps the default alternating
+	// centre-outward/edge-inward scatter. True seeds from the room edge and
+	// then picks each subsequent block by farthest-point selection, pushing
+	// cover to the perimeter and leaving the middle open for heavy enemy waves.
+	StaticDisperse bool
+
 	// Grouping
 	GroupCount int              // 0 = no grouping, just use default placement
 	Groups     []PlacementGroup // if GroupCount > 0, defines how enemies are split per group
@@ -334,6 +340,7 @@ func buildPlacementHints(cfg *StageConfig, chaserCount, zonerCount, dpsCount, mo
 	case "pressure":
 		// Zoner central, split into 2 groups
 		hints.ZonerCentral = true
+		hints.StaticDisperse = true
 		hints.GroupCount = 2
 		// Split enemies into 2 groups, pick top/bottom or left/right randomly
 		groupDPS := splitCount(dpsCount, 2)
@@ -353,6 +360,7 @@ func buildPlacementHints(cfg *StageConfig, chaserCount, zonerCount, dpsCount, mo
 
 	case "peak":
 		// Split into 2-4 groups
+		hints.StaticDisperse = true
 		groupCount := randRange(2, 4)
 		hints.GroupCount = groupCount
 
