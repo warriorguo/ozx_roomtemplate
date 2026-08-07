@@ -184,6 +184,13 @@ internal/
 - Release: light mix — DPS (2-4) + Chaser (2) + Zoner (1) + MobAir (6)
 - Boss: requires 6×6 clear center area, restricted door configs
 
+**Stage-driven static count** (`StageConfig.StaticRange`, ORT-100): when a stage
+type is supplied it also supplies the static count, overriding the request's
+`staticCount` in all three generators. Teaching/building/release place 6–9 2×2
+blocks; pressure/peak place 2–3 (roughly one third, so the denser enemy waves
+have room to move); start/boss place none. An empty stage type still honours the
+request value verbatim.
+
 **Stage minimum room size** (`StageConfig.MinWidth` / `MinHeight`, ORT-102): a room
 smaller than the stage minimum cannot fit that stage's enemy counts under the
 8-directional spacing constraint. The relaxed placement fallback would meet the

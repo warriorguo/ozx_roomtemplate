@@ -192,6 +192,43 @@ stageRanges = {
 
 If `stageType` is empty or not provided, skip this check.
 
+### 5a. Stage Static Counts (ORT-100)
+
+When a `stageType` is supplied, the stage also drives `staticCount` — the
+request's `staticCount` is **overridden**, not merged. The high-pressure stages
+get roughly one third the cover of the low-pressure ones:
+
+```
+stageStaticBlocks = {
+    "start":    (0,0),   # no enemies, no cover needed
+    "teaching": (6,9),
+    "building": (6,9),
+    "pressure": (2,3),   # ~1/3 of the baseline
+    "peak":     (2,3),   # ~1/3 of the baseline
+    "release":  (6,9),
+    "boss":     (0,0),   # 6x6 clear center arena
+}
+```
+
+These are counts of **2×2 blocks**, not cells. Blocks never touch, so a
+successful placement of N blocks yields `4 * N` cells in the `static` layer.
+
+**Do not assert an exact cell count.** Placement is best-effort: door forbidden
+zones can exhaust the valid 2×2 sites and leave the layer short of target (open
+bug ORT-40). Treat the range as an upper bound:
+
+```
+static_cells = sum(payload['static'][y][x] for y in range(h) for x in range(w))
+lo, hi = stageStaticBlocks[st]
+assert static_cells % 4 == 0, "static cells not whole 2x2 blocks"
+assert static_cells <= hi * 4, f"stage {st}: {static_cells//4} blocks, max {hi}"
+# under-placement is ORT-40, report it but do not fail the run
+if static_cells < lo * 4:
+    warnings.append(f"stage {st}: only {static_cells//4} blocks, expected >= {lo} (ORT-40)")
+```
+
+With an empty `stageType` the request's `staticCount` is used verbatim.
+
 ### 5b. Stage Minimum Room Size
 
 Some stages require a minimum room size; the generator rejects smaller rooms

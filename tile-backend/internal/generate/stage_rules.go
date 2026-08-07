@@ -17,7 +17,7 @@ type StageConfig struct {
 	ZonerRange       [2]int
 	DPSRange         [2]int
 	MobAirRange      [2]int
-	StaticRange      [2]int // [0,0] means use request value
+	StaticRange      [2]int // [min, max] 2x2 blocks; [0,0] places none (start/boss)
 	BossArena        bool   // requires 6x6 clear center area
 	PlacementRule    string // placement rule identifier
 }

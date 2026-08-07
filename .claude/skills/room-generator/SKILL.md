@@ -18,11 +18,11 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `width` | int | `20` | Room width in tiles (4-200) |
 | `height` | int | `12` | Room height in tiles (4-200) |
 | `doors` | string[] | `["top","right","bottom","left"]` | Doors to connect. At least 2 required. Options: `top`, `right`, `bottom`, `left` |
-| `stageType` | string | `""` | Stage type: `"start"`, `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty (defaults to `"default"` in output). Controls enemy count ranges. |
+| `stageType` | string | `""` | Stage type: `"start"`, `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty (defaults to `"default"` in output). Controls enemy count ranges **and `staticCount`** — when set, it overrides the counts below. |
 | `roomCategory` | string | `"normal"` | Room category: `"normal"`, `"basement"`, `"test"`, `"cave"`. Passed through to output. |
 | `softEdgeCount` | int | `3` | Number of soft edge strips to place in void notches |
 | `railEnabled` | bool | `true` | Whether to generate a rail loop on the ground |
-| `staticCount` | int | `8` | Number of 2x2 static obstacle blocks |
+| `staticCount` | int | `8` | Number of 2x2 static obstacle blocks. **Ignored when `stageType` is set** — the stage supplies it: teaching/building/release 6–9, pressure/peak 2–3, start/boss 0. |
 | `chaserCount` | int | `4` | Number of chaser placements (melee enemies near main path) |
 | `zonerCount` | int | `2` | Number of zoner placements (area control enemies) |
 | `dpsCount` | int | `4` | Number of DPS placements (ranged damage enemies) |
