@@ -126,7 +126,12 @@
       "Bash(codesign -dv \"/Applications/OZX Room Editor.app\")",
       "Bash(pkill -f \"tile-backend/bin/ozx-roomeditor\")",
       "Bash(pkill -f \"ozx-roomeditor\")",
-      "Bash(xargs -r kill -9)"
+      "Bash(xargs -r kill -9)",
+      "Bash(sed -n '/^func isValidEnemyPosition/,/^}/p' internal/generate/rules.go)",
+      "Bash(sed -n '/^func pickFromTopN/,/^}/p' internal/generate/rules.go)",
+      "Bash(sed -n '/^func isValidMobAirPositionNew/,/^}/p' internal/generate/rules.go)",
+      "Bash(sed -n '/^func dpsScore/,/^}/p' internal/generate/layer_dps.go)",
+      "Artifact"
     ],
     "deny": []
   }
