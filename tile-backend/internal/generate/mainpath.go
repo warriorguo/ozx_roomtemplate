@@ -19,10 +19,11 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 		}
 	}
 
-	// Collect door positions
+	// Collect door positions, anchored onto the door's own edge line so the
+	// path actually crosses the doorway (see snapDoorToEdge).
 	doors := make([]Point, 0, len(doorPositions))
-	for _, pos := range doorPositions {
-		doors = append(doors, pos)
+	for side, pos := range doorPositions {
+		doors = append(doors, snapDoorToEdge(walkable, side, pos, width, height))
 	}
 
 	if len(doors) < 2 {
@@ -44,7 +45,7 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 		for j := i + 1; j < len(doors); j++ {
 			path := findCenterBiasedPath(walkable, doors[i], doors[j], centerX, centerY, width, height)
 			if path != nil {
-				markWidenedPath(onMainPath, walkable, path, width, height)
+				markWidenedPath(onMainPath, walkable, path, centerX, centerY, width, height)
 				debug.PathSegments = append(debug.PathSegments,
 					fmt.Sprintf("(%d,%d)->(%d,%d) len=%d", doors[i].X, doors[i].Y, doors[j].X, doors[j].Y, len(path)))
 			} else {
@@ -105,20 +106,33 @@ const mainPathWidth = 2
 // stamps along a straight run overlap, so the run comes out exactly that wide
 // rather than accumulating; bends come out as a corridor-width elbow.
 //
-// Blocks extend toward +x/+y and flip to -x/-y only to stay inside the grid, so
-// the widened side is stable along a run instead of jittering cell to cell.
-// Cells that aren't walkable are skipped — the path stays thin where it hugs a
-// wall, since there is nothing to widen into.
-func markWidenedPath(onMainPath, walkable [][]bool, path []Point, width, height int) {
+// Each block widens toward the room center, so the corridor straddles the
+// middle of the room rather than drifting to one side of the trace — a run
+// along the center line comes out spanning the center, not sitting beside it.
+// The direction flips only when the preferred side would leave the grid.
+//
+// Every trace cell is stamped as the block's anchor, so the door cells the A*
+// trace starts and ends on are always on the resulting path. Cells that aren't
+// walkable are skipped — the path stays thin where it hugs a wall or squeezes
+// through a one-tile door mouth, since there is nothing to widen into.
+func markWidenedPath(onMainPath, walkable [][]bool, path []Point, centerX, centerY, width, height int) {
 	span := mainPathWidth - 1
 
 	for _, p := range path {
-		stepX, stepY := 1, 1
-		if p.X+span >= width {
-			stepX = -1
+		// Step toward the center; on the center line itself step back so the
+		// pair straddles it (e.g. width 16 -> centerX 8 -> columns 7 and 8).
+		stepX, stepY := -1, -1
+		if p.X < centerX {
+			stepX = 1
 		}
-		if p.Y+span >= height {
-			stepY = -1
+		if p.Y < centerY {
+			stepY = 1
+		}
+		if x := p.X + span*stepX; x < 0 || x >= width {
+			stepX = -stepX
+		}
+		if y := p.Y + span*stepY; y < 0 || y >= height {
+			stepY = -stepY
 		}
 
 		for i := 0; i <= span; i++ {
@@ -230,6 +244,46 @@ func findCenterBiasedPath(walkable [][]bool, start, end Point, centerX, centerY,
 	}
 
 	return path
+}
+
+// snapDoorToEdge moves a door anchor onto the nearest walkable cell along that
+// door's own edge — the top/bottom row for a top/bottom door, the left/right
+// column for a left/right door.
+//
+// Door anchors are the geometric midpoint of each wall, but the ground
+// generators carve pits and erase corners afterwards, so the midpoint is often
+// not walkable. The generic ring search in findNearestWalkablePoint would then
+// snap inward, one row off the wall, and the main path would stop short of the
+// doorway instead of crossing it. Staying on the edge line keeps the path
+// running out through the room's actual opening on that wall.
+//
+// If the whole edge line is unwalkable there is no doorway to reach, so the
+// anchor is returned untouched and findNearestWalkablePoint handles it.
+func snapDoorToEdge(walkable [][]bool, side DoorPosition, pos Point, width, height int) Point {
+	if pos.X >= 0 && pos.X < width && pos.Y >= 0 && pos.Y < height && walkable[pos.Y][pos.X] {
+		return pos
+	}
+
+	switch side {
+	case DoorTop, DoorBottom:
+		for d := 1; d < width; d++ {
+			for _, x := range [2]int{pos.X - d, pos.X + d} {
+				if x >= 0 && x < width && walkable[pos.Y][x] {
+					return Point{X: x, Y: pos.Y}
+				}
+			}
+		}
+	case DoorLeft, DoorRight:
+		for d := 1; d < height; d++ {
+			for _, y := range [2]int{pos.Y - d, pos.Y + d} {
+				if y >= 0 && y < height && walkable[y][pos.X] {
+					return Point{X: pos.X, Y: y}
+				}
+			}
+		}
+	}
+
+	return pos
 }
 
 // findNearestWalkablePoint finds the nearest walkable cell to pos
