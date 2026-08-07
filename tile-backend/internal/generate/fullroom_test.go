@@ -289,8 +289,16 @@ func TestGenerateFullRoom_PressureStageZonerCount(t *testing.T) {
 				}
 			}
 		}
-		// Pressure stage ZonerRange is [1,1], so exactly 1 zoner must be placed
-		assert.Equal(t, 1, zonerCount, "pressure stage must place exactly 1 zoner (iteration %d)", i)
+		// The regression this guards is the grouped placement path dropping zoners
+		// entirely, so assert against the configured range rather than a pinned
+		// number — that way the test follows stage range changes (ORT-101).
+		cfg := GetStageConfig("pressure")
+		assert.GreaterOrEqualf(t, zonerCount, cfg.ZonerRange[0],
+			"pressure stage placed %d zoners, below configured min %d (iteration %d)",
+			zonerCount, cfg.ZonerRange[0], i)
+		assert.LessOrEqualf(t, zonerCount, cfg.ZonerRange[1],
+			"pressure stage placed %d zoners, above configured max %d (iteration %d)",
+			zonerCount, cfg.ZonerRange[1], i)
 	}
 }
 

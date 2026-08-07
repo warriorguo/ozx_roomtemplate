@@ -118,32 +118,39 @@ Zoner 先放置（占据高脆皮攻击度位置），然后 Chaser 填充近路
 ### 阶段配置
 
 #### 引导期 (teaching)
-- DPS：2-3
-- 其他：0
+- DPS：4-6
+- Chaser：2
+- Zoner：1
+- MobAir：6
 
 #### 建立期 (building)
-- DPS：2-3
-- Chaser：2-3
-- 其他：0
+- DPS：4-6
+- Chaser：4-6
+- Zoner：1
+- MobAir：6
 
 #### 压力期 (pressure)
 - **房间限制**：不能是 bridge
-- DPS：4-6
-- Chaser：6-8
-- Zoner：1
-- MobAir：2-4
+- **最小房间尺寸**：18×10
+- DPS：8-12
+- Chaser：12-16
+- Zoner：2
+- MobAir：6-12
 
 #### 峰值期 (peak)
 - **房间限制**：只能是 full
 - **门限制**：不能是 2 开门的对角组合（左上/左下/右上/右下）
-- DPS：6-12
-- Chaser：6-8
-- Zoner：2-3
-- MobAir：2-4
+- **最小房间尺寸**：20×12
+- DPS：12-24
+- Chaser：12-16
+- Zoner：4-6
+- MobAir：18
 
 #### 释放期 (release)
-- DPS：0-2
-- 其他：0
+- DPS：2-4
+- Chaser：2
+- Zoner：1
+- MobAir：6
 
 #### Boss 期 (boss)
 - **房间限制**：不能是 bridge
@@ -154,9 +161,17 @@ Zoner 先放置（占据高脆皮攻击度位置），然后 Chaser 填充近路
 ### 阶段验证流程
 
 1. 检查 roomType 是否在 allowedRoomTypes 中
-2. 检查门配置是否满足 DoorRestrictions
-3. 随机生成范围内的敌人数量
-4. Boss 阶段额外检查 6×6 空地
+2. 检查房间尺寸是否满足 MinWidth / MinHeight
+3. 检查门配置是否满足 DoorRestrictions
+4. 随机生成范围内的敌人数量
+5. Boss 阶段额外检查 6×6 空地
+
+**最小房间尺寸**（ORT-102）：房间小于该尺寸时，严格放置无法在 8 邻域间距约束下放下
+该阶段的敌人数量；放宽兜底会通过丢弃间距来凑数，从而产生同类相邻的刷怪格（Zoner
+会导致游戏崩溃，见 ORT-93）。`ValidateAndApplyStage` 因此在生成任何图层之前就直接
+拒绝过小的房间，错误信息为
+`stage <名称> room size: requires a room of at least WxH, got WxH`。
+`MinWidth` / `MinHeight` 为 0 表示该阶段不限制尺寸。
 
 ## API 参数
 

@@ -181,11 +181,11 @@ Count entities by summing all 1s in each layer.
 
 ```
 stageRanges = {
-    "teaching":  { dps: (2,3),  chaser: (0,0),  zoner: (0,0),  mobAir: (0,0) },
-    "building":  { dps: (2,3),  chaser: (2,3),  zoner: (0,0),  mobAir: (0,0) },
-    "pressure":  { dps: (4,6),  chaser: (6,8),  zoner: (1,1),  mobAir: (2,4) },
-    "peak":      { dps: (6,12), chaser: (6,8),  zoner: (2,3),  mobAir: (2,4) },
-    "release":   { dps: (0,2),  chaser: (0,2),  zoner: (0,1),  mobAir: (0,2) },
+    "teaching":  { dps: (4,6),   chaser: (2,2),   zoner: (1,1),  mobAir: (6,6)  },
+    "building":  { dps: (4,6),   chaser: (4,6),   zoner: (1,1),  mobAir: (6,6)  },
+    "pressure":  { dps: (8,12),  chaser: (12,16), zoner: (2,2),  mobAir: (6,12) },
+    "peak":      { dps: (12,24), chaser: (12,16), zoner: (4,6),  mobAir: (18,18)},
+    "release":   { dps: (2,4),   chaser: (2,2),   zoner: (1,1),  mobAir: (6,6)  },
     "boss":      { dps: (0,0),  chaser: (0,0),  zoner: (0,0),  mobAir: (0,0) },
 }
 ```
@@ -381,11 +381,11 @@ def validate(payload, expected_stage=None):
 
     # 5. Stage rules
     stage_ranges = {
-        'teaching': {'dps':(2,3),'chaser':(0,0),'zoner':(0,0),'mobAir':(0,0)},
-        'building': {'dps':(2,3),'chaser':(2,3),'zoner':(0,0),'mobAir':(0,0)},
-        'pressure': {'dps':(4,6),'chaser':(6,8),'zoner':(1,1),'mobAir':(2,4)},
-        'peak':     {'dps':(6,12),'chaser':(6,8),'zoner':(2,3),'mobAir':(2,4)},
-        'release':  {'dps':(0,2),'chaser':(0,2),'zoner':(0,1),'mobAir':(0,2)},
+        'teaching': {'dps':(4,6),'chaser':(2,2),'zoner':(1,1),'mobAir':(6,6)},
+        'building': {'dps':(4,6),'chaser':(4,6),'zoner':(1,1),'mobAir':(6,6)},
+        'pressure': {'dps':(8,12),'chaser':(12,16),'zoner':(2,2),'mobAir':(6,12)},
+        'peak':     {'dps':(12,24),'chaser':(12,16),'zoner':(4,6),'mobAir':(18,18)},
+        'release':  {'dps':(2,4),'chaser':(2,2),'zoner':(1,1),'mobAir':(6,6)},
         'boss':     {'dps':(0,0),'chaser':(0,0),'zoner':(0,0),'mobAir':(0,0)},
     }
     st = expected_stage or (payload.get('stageType') or '')

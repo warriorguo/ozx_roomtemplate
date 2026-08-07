@@ -256,11 +256,11 @@ export const TileTemplateApp: React.FC = () => {
     minSize?: [number, number];
   }> = {
     start:    { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
-    teaching: { chaser: [0, 0], zoner: [0, 0], dps: [2, 3], mobAir: [0, 0] },
-    building: { chaser: [2, 3], zoner: [0, 0], dps: [2, 3], mobAir: [0, 0] },
-    pressure: { chaser: [6, 8], zoner: [1, 1], dps: [4, 6], mobAir: [2, 4], minSize: [18, 10] },
-    peak:     { chaser: [6, 8], zoner: [2, 3], dps: [6, 12], mobAir: [2, 4], minSize: [20, 12] },
-    release:  { chaser: [0, 0], zoner: [0, 0], dps: [0, 3], mobAir: [0, 0] },
+    teaching: { chaser: [2, 2], zoner: [1, 1], dps: [4, 6], mobAir: [6, 6] },
+    building: { chaser: [4, 6], zoner: [1, 1], dps: [4, 6], mobAir: [6, 6] },
+    pressure: { chaser: [12, 16], zoner: [2, 2], dps: [8, 12], mobAir: [6, 12], minSize: [18, 10] },
+    peak:     { chaser: [12, 16], zoner: [4, 6], dps: [12, 24], mobAir: [18, 18], minSize: [20, 12] },
+    release:  { chaser: [2, 2], zoner: [1, 1], dps: [2, 4], mobAir: [6, 6] },
     boss:     { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
   };
 

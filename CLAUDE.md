@@ -177,11 +177,11 @@ internal/
 - MobAir: prefers zoner/chaser dense areas, spacing >= 1
 
 **Stage Rules**:
-- Teaching: DPS only (2-3)
-- Building: DPS (2-3) + Chaser (2-3)
-- Pressure: DPS (4-6) + Chaser (6-8) + Zoner (1) + MobAir (2-4), not bridge, **min room 18×10**
-- Peak: DPS (6-12) + Chaser (6-8) + Zoner (2-3) + MobAir (2-4), full only, **min room 20×12**
-- Release: minimal or no enemies
+- Teaching: DPS (4-6) + Chaser (2) + Zoner (1) + MobAir (6)
+- Building: DPS (4-6) + Chaser (4-6) + Zoner (1) + MobAir (6)
+- Pressure: DPS (8-12) + Chaser (12-16) + Zoner (2) + MobAir (6-12), not bridge, **min room 18×10**
+- Peak: DPS (12-24) + Chaser (12-16) + Zoner (4-6) + MobAir (18), full only, **min room 20×12**
+- Release: light mix — DPS (2-4) + Chaser (2) + Zoner (1) + MobAir (6)
 - Boss: requires 6×6 clear center area, restricted door configs
 
 **Stage minimum room size** (`StageConfig.MinWidth` / `MinHeight`, ORT-102): a room
