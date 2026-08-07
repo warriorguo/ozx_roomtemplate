@@ -160,3 +160,107 @@ func TestReleaseStage_OnlyDPSEnemies(t *testing.T) {
 		}
 	}
 }
+
+// TestStageMinRoomSize verifies the per-stage minimum room dimensions (ORT-102).
+// A room smaller than the minimum must be rejected before any layer is built,
+// rather than silently falling back to relaxed placement that violates the
+// 8-directional spacing constraint (ORT-93).
+func TestStageMinRoomSize(t *testing.T) {
+	t.Run("configured minimums", func(t *testing.T) {
+		tests := []struct {
+			stage             string
+			minWidth, minHght int
+		}{
+			{"start", 0, 0},
+			{"teaching", 0, 0},
+			{"building", 0, 0},
+			{"pressure", 18, 10},
+			{"peak", 20, 12},
+			{"release", 0, 0},
+			{"boss", 0, 0},
+		}
+		for _, tt := range tests {
+			cfg := GetStageConfig(tt.stage)
+			if cfg == nil {
+				t.Fatalf("stage %q not found", tt.stage)
+			}
+			assert.Equal(t, tt.minWidth, cfg.MinWidth, "min width for stage %q", tt.stage)
+			assert.Equal(t, tt.minHght, cfg.MinHeight, "min height for stage %q", tt.stage)
+		}
+	})
+
+	// Doors that satisfy every stage's door restrictions used below.
+	doors := []DoorPosition{DoorTop, DoorBottom, DoorLeft, DoorRight}
+
+	t.Run("undersized rooms are rejected", func(t *testing.T) {
+		tests := []struct {
+			stage         string
+			roomType      string
+			width, height int
+			wantIn        string
+		}{
+			{"pressure", "full", 16, 8, "at least 18x10"},
+			{"pressure", "full", 17, 10, "at least 18x10"}, // width short
+			{"pressure", "full", 18, 9, "at least 18x10"},  // height short
+			{"peak", "full", 16, 8, "at least 20x12"},
+			{"peak", "full", 18, 12, "at least 20x12"}, // width short
+			{"peak", "full", 20, 11, "at least 20x12"}, // height short
+		}
+		for _, tt := range tests {
+			ground := makeFullGround(tt.width, tt.height)
+			_, err := ValidateAndApplyStage(tt.stage, tt.roomType, doors, ground, tt.width, tt.height)
+			if assert.Error(t, err, "%s %dx%d should be rejected", tt.stage, tt.width, tt.height) {
+				assert.Contains(t, err.Error(), tt.wantIn)
+				assert.Contains(t, err.Error(), "room size")
+			}
+		}
+	})
+
+	t.Run("rooms at or above the minimum are accepted", func(t *testing.T) {
+		tests := []struct {
+			stage         string
+			width, height int
+		}{
+			{"pressure", 18, 10}, // exactly at the minimum
+			{"pressure", 20, 12},
+			{"peak", 20, 12}, // exactly at the minimum
+			{"peak", 24, 16},
+		}
+		for _, tt := range tests {
+			ground := makeFullGround(tt.width, tt.height)
+			res, err := ValidateAndApplyStage(tt.stage, "full", doors, ground, tt.width, tt.height)
+			if assert.NoError(t, err, "%s %dx%d should be accepted", tt.stage, tt.width, tt.height) {
+				assert.True(t, res.Valid)
+			}
+		}
+	})
+
+	t.Run("unconstrained stages accept small rooms", func(t *testing.T) {
+		for _, stage := range []string{"teaching", "building", "release"} {
+			ground := makeFullGround(16, 8)
+			res, err := ValidateAndApplyStage(stage, "full", doors, ground, 16, 8)
+			if assert.NoError(t, err, "stage %q should accept 16x8", stage) {
+				assert.True(t, res.Valid)
+			}
+		}
+	})
+
+	t.Run("empty stage type skips the check", func(t *testing.T) {
+		ground := makeFullGround(4, 4)
+		res, err := ValidateAndApplyStage("", "full", doors, ground, 4, 4)
+		assert.NoError(t, err)
+		assert.True(t, res.Valid)
+	})
+}
+
+// makeFullGround returns a fully-walkable ground layer of the given size.
+func makeFullGround(width, height int) [][]int {
+	g := make([][]int, height)
+	for y := range g {
+		g[y] = make([]int, width)
+		for x := range g[y] {
+			g[y][x] = 1
+		}
+	}
+	return g
+}

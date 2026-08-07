@@ -179,10 +179,19 @@ internal/
 **Stage Rules**:
 - Teaching: DPS only (2-3)
 - Building: DPS (2-3) + Chaser (2-3)
-- Pressure: DPS (4-6) + Chaser (6-8) + Zoner (1) + MobAir (2-4), not bridge
-- Peak: DPS (6-12) + Chaser (6-8) + Zoner (2-3) + MobAir (2-4), full only
+- Pressure: DPS (4-6) + Chaser (6-8) + Zoner (1) + MobAir (2-4), not bridge, **min room 18×10**
+- Peak: DPS (6-12) + Chaser (6-8) + Zoner (2-3) + MobAir (2-4), full only, **min room 20×12**
 - Release: minimal or no enemies
 - Boss: requires 6×6 clear center area, restricted door configs
+
+**Stage minimum room size** (`StageConfig.MinWidth` / `MinHeight`, ORT-102): a room
+smaller than the stage minimum cannot fit that stage's enemy counts under the
+8-directional spacing constraint. The relaxed placement fallback would meet the
+counts by dropping that constraint, emitting adjacent same-category spawn tiles
+(which crash the game for Zoner — ORT-93). `ValidateAndApplyStage` therefore
+rejects undersized rooms up front with
+`stage <name> room size: requires a room of at least WxH, got WxH`.
+Stages with `MinWidth`/`MinHeight` of 0 are unconstrained.
 
 **Structure Validation**:
 - Dimensions: 4-200 for width/height

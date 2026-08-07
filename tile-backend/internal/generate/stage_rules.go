@@ -11,6 +11,8 @@ type StageConfig struct {
 	StageType        string
 	AllowedRoomTypes []string // empty = all allowed
 	DoorRestrictions *DoorRestriction
+	MinWidth         int    // 0 = no constraint
+	MinHeight        int    // 0 = no constraint
 	ChaserRange      [2]int // [min, max]
 	ZonerRange       [2]int
 	DPSRange         [2]int
@@ -117,6 +119,8 @@ type BossArenaInfo struct {
 type StageConfigJSON struct {
 	StageType        string   `json:"stageType"`
 	AllowedRoomTypes []string `json:"allowedRoomTypes"`
+	MinWidth         int      `json:"minWidth"`  // 0 = no constraint
+	MinHeight        int      `json:"minHeight"` // 0 = no constraint
 	ChaserRange      [2]int   `json:"chaserRange"`
 	ZonerRange       [2]int   `json:"zonerRange"`
 	DPSRange         [2]int   `json:"dpsRange"`
@@ -153,21 +157,31 @@ var stageConfigs = map[string]StageConfig{
 	model.StagePressure: {
 		StageType:        model.StagePressure,
 		AllowedRoomTypes: []string{"full", "platform"}, // not bridge
-		DPSRange:         [2]int{4, 6},
-		ChaserRange:      [2]int{6, 8},
-		ZonerRange:       [2]int{1, 1},
-		MobAirRange:      [2]int{2, 4},
-		PlacementRule:    "pressure",
+		// Below 18x10 the strict placement pass cannot satisfy the chaser/dps
+		// minimums, and the relaxed fallback meets them by dropping the
+		// 8-directional spacing constraint — which emits adjacent same-category
+		// spawn tiles (ORT-93). See ORT-102 for the measured thresholds.
+		MinWidth:      18,
+		MinHeight:     10,
+		DPSRange:      [2]int{4, 6},
+		ChaserRange:   [2]int{6, 8},
+		ZonerRange:    [2]int{1, 1},
+		MobAirRange:   [2]int{2, 4},
+		PlacementRule: "pressure",
 	},
 	model.StagePeak: {
 		StageType:        model.StagePeak,
 		AllowedRoomTypes: []string{"full"}, // only full
 		DoorRestrictions: &DoorRestriction{ForbidCornerPair: true},
-		DPSRange:         [2]int{6, 12},
-		ChaserRange:      [2]int{6, 8},
-		ZonerRange:       [2]int{2, 3},
-		MobAirRange:      [2]int{2, 4},
-		PlacementRule:    "peak",
+		// Peak carries the heaviest load, so it needs more room than pressure
+		// before the relaxed fallback stops firing. See ORT-102.
+		MinWidth:      20,
+		MinHeight:     12,
+		DPSRange:      [2]int{6, 12},
+		ChaserRange:   [2]int{6, 8},
+		ZonerRange:    [2]int{2, 3},
+		MobAirRange:   [2]int{2, 4},
+		PlacementRule: "peak",
 	},
 	model.StageRelease: {
 		StageType:     model.StageRelease,
@@ -211,6 +225,8 @@ func GetAllStageConfigs() []StageConfigJSON {
 		result = append(result, StageConfigJSON{
 			StageType:        cfg.StageType,
 			AllowedRoomTypes: cfg.AllowedRoomTypes,
+			MinWidth:         cfg.MinWidth,
+			MinHeight:        cfg.MinHeight,
 			ChaserRange:      cfg.ChaserRange,
 			ZonerRange:       cfg.ZonerRange,
 			DPSRange:         cfg.DPSRange,
@@ -244,6 +260,15 @@ func ValidateAndApplyStage(stageType, roomType string, doors []DoorPosition, gro
 		if !allowed {
 			return nil, fmt.Errorf("stage %s does not allow room type %s (allowed: %v)", stageType, roomType, cfg.AllowedRoomTypes)
 		}
+	}
+
+	// Validate room dimensions. A room smaller than the stage minimum cannot fit
+	// the stage's enemy counts under the 8-directional spacing constraint, and
+	// the relaxed placement fallback would meet the counts by dropping that
+	// constraint — producing adjacent same-category spawns (ORT-93). Fail loudly
+	// instead. See ORT-102.
+	if err := validateRoomDimensions(cfg, width, height); err != nil {
+		return nil, fmt.Errorf("stage %s room size: %w", stageType, err)
 	}
 
 	// Validate door restrictions
@@ -377,6 +402,19 @@ func splitCount(total, n int) []int {
 		}
 	}
 	return parts
+}
+
+// validateRoomDimensions checks the room against the stage's minimum size.
+// A zero MinWidth/MinHeight means that dimension is unconstrained.
+func validateRoomDimensions(cfg *StageConfig, width, height int) error {
+	if cfg.MinWidth <= 0 && cfg.MinHeight <= 0 {
+		return nil
+	}
+	if width < cfg.MinWidth || height < cfg.MinHeight {
+		return fmt.Errorf("requires a room of at least %dx%d, got %dx%d",
+			cfg.MinWidth, cfg.MinHeight, width, height)
+	}
+	return nil
 }
 
 // validateDoorRestrictions checks door configuration against stage restrictions

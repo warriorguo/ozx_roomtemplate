@@ -244,16 +244,32 @@ export const TileTemplateApp: React.FC = () => {
   const [mobAirCount, setMobAirCount] = useState<number>(10);
   const [advancedOptionsExpanded, setAdvancedOptionsExpanded] = useState(false);
 
-  // Stage config: recommended counts per stage type
-  const stageDefaults: Record<string, { chaser: [number, number]; zoner: [number, number]; dps: [number, number]; mobAir: [number, number] }> = {
+  // Stage config: recommended counts per stage type, plus the minimum room size
+  // the stage requires. Mirrors StageConfig in tile-backend/internal/generate/
+  // stage_rules.go — the backend is authoritative and rejects undersized rooms;
+  // these values only let the UI warn before the round-trip. See ORT-102.
+  const stageDefaults: Record<string, {
+    chaser: [number, number];
+    zoner: [number, number];
+    dps: [number, number];
+    mobAir: [number, number];
+    minSize?: [number, number];
+  }> = {
     start:    { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
     teaching: { chaser: [0, 0], zoner: [0, 0], dps: [2, 3], mobAir: [0, 0] },
     building: { chaser: [2, 3], zoner: [0, 0], dps: [2, 3], mobAir: [0, 0] },
-    pressure: { chaser: [6, 8], zoner: [1, 1], dps: [4, 6], mobAir: [2, 4] },
-    peak:     { chaser: [6, 8], zoner: [2, 3], dps: [6, 12], mobAir: [2, 4] },
+    pressure: { chaser: [6, 8], zoner: [1, 1], dps: [4, 6], mobAir: [2, 4], minSize: [18, 10] },
+    peak:     { chaser: [6, 8], zoner: [2, 3], dps: [6, 12], mobAir: [2, 4], minSize: [20, 12] },
     release:  { chaser: [0, 0], zoner: [0, 0], dps: [0, 3], mobAir: [0, 0] },
     boss:     { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
   };
+
+  // Non-null when the current stage needs a bigger room than the template has.
+  const stageMinSize = stageDefaults[template.stageType]?.minSize;
+  const roomTooSmallForStage =
+    stageMinSize && (template.width < stageMinSize[0] || template.height < stageMinSize[1])
+      ? `Stage "${template.stageType}" needs at least ${stageMinSize[0]}×${stageMinSize[1]}; this room is ${template.width}×${template.height}.`
+      : null;
 
   // Auto-fill counts when stage type changes
   const handleStageTypeChange = (stageType: string) => {
@@ -299,6 +315,13 @@ export const TileTemplateApp: React.FC = () => {
 
     if (doors.length < 2) {
       setGenerateError('Please select at least 2 doors to generate a room.');
+      return;
+    }
+
+    // The backend rejects undersized rooms for pressure/peak (ORT-102); catch it
+    // here so the user gets the answer without a round-trip.
+    if (roomTooSmallForStage) {
+      setGenerateError(roomTooSmallForStage);
       return;
     }
 
@@ -669,6 +692,20 @@ export const TileTemplateApp: React.FC = () => {
                       Zoner: {stageDefaults[template.stageType].zoner[0]}-{stageDefaults[template.stageType].zoner[1]} |
                       DPS: {stageDefaults[template.stageType].dps[0]}-{stageDefaults[template.stageType].dps[1]} |
                       MobAir: {stageDefaults[template.stageType].mobAir[0]}-{stageDefaults[template.stageType].mobAir[1]}
+                      {stageMinSize && <> | Min room: {stageMinSize[0]}×{stageMinSize[1]}</>}
+                    </div>
+                  )}
+                  {roomTooSmallForStage && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '6px 8px',
+                      backgroundColor: '#f8d7da',
+                      color: '#842029',
+                      borderRadius: '4px',
+                      fontSize: '11px',
+                      lineHeight: '1.5',
+                    }}>
+                      ⚠ {roomTooSmallForStage} Generation will be rejected until the room is enlarged.
                     </div>
                   )}
                 </div>

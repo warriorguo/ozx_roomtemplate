@@ -192,6 +192,31 @@ stageRanges = {
 
 If `stageType` is empty or not provided, skip this check.
 
+### 5b. Stage Minimum Room Size
+
+Some stages require a minimum room size; the generator rejects smaller rooms
+before building any layer, so a generate request that violates this returns an
+error rather than a template.
+
+```
+stageMinSize = {
+    "pressure": (18, 10),   # width, height
+    "peak":     (20, 12),
+}
+```
+
+All other stages are unconstrained.
+
+Rationale: below these dimensions the strict placement pass cannot satisfy the
+stage's enemy minimums, and the relaxed fallback meets them by dropping the
+8-directional spacing constraint — producing adjacent same-category spawn tiles
+that crash the game for Zoner (ORT-93). See ORT-102.
+
+**Testing this**: a `pressure` or `peak` generate request below the minimum must
+fail with HTTP 400 and a message matching
+`stage <name> room size: requires a room of at least WxH, got WxH`.
+Treat a 200 response for an undersized room as a regression.
+
 **Note**: Counts here are number of *spawner cells*, not enemy sprites. Each mob
 occupies one cell in its layer.
 
