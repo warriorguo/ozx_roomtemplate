@@ -44,9 +44,7 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 		for j := i + 1; j < len(doors); j++ {
 			path := findCenterBiasedPath(walkable, doors[i], doors[j], centerX, centerY, width, height)
 			if path != nil {
-				for _, p := range path {
-					onMainPath[p.Y][p.X] = true
-				}
+				markWidenedPath(onMainPath, walkable, path, width, height)
 				debug.PathSegments = append(debug.PathSegments,
 					fmt.Sprintf("(%d,%d)->(%d,%d) len=%d", doors[i].X, doors[i].Y, doors[j].X, doors[j].Y, len(path)))
 			} else {
@@ -96,6 +94,45 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 		WalkingDistance: walkingDist,
 		SquishyScore:    squishyScore,
 	}, debug
+}
+
+// mainPathWidth is how many tiles wide the main path corridor is. The A* trace
+// itself is a single cell thick; markWidenedPath thickens it to this width.
+const mainPathWidth = 2
+
+// markWidenedPath stamps a mainPathWidth-square block at every cell of a
+// 4-connected path, producing a corridor mainPathWidth tiles wide. Consecutive
+// stamps along a straight run overlap, so the run comes out exactly that wide
+// rather than accumulating; bends come out as a corridor-width elbow.
+//
+// Blocks extend toward +x/+y and flip to -x/-y only to stay inside the grid, so
+// the widened side is stable along a run instead of jittering cell to cell.
+// Cells that aren't walkable are skipped — the path stays thin where it hugs a
+// wall, since there is nothing to widen into.
+func markWidenedPath(onMainPath, walkable [][]bool, path []Point, width, height int) {
+	span := mainPathWidth - 1
+
+	for _, p := range path {
+		stepX, stepY := 1, 1
+		if p.X+span >= width {
+			stepX = -1
+		}
+		if p.Y+span >= height {
+			stepY = -1
+		}
+
+		for i := 0; i <= span; i++ {
+			for j := 0; j <= span; j++ {
+				x, y := p.X+i*stepX, p.Y+j*stepY
+				if x < 0 || x >= width || y < 0 || y >= height {
+					continue
+				}
+				if walkable[y][x] {
+					onMainPath[y][x] = true
+				}
+			}
+		}
+	}
 }
 
 // findCenterBiasedPath finds a path from start to end that prefers going through the center.
