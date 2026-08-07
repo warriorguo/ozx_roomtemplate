@@ -227,6 +227,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		req.ZonerCount = stageResult.ZonerCount
 		req.DPSCount = stageResult.DPSCount
 		req.MobAirCount = stageResult.MobAirCount
+		req.StaticCount = stageResult.StaticCount
 		hints = stageResult.PlacementHints
 	}
 

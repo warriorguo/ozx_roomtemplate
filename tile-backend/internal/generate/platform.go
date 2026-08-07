@@ -164,6 +164,7 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 		req.ZonerCount = stageResult.ZonerCount
 		req.DPSCount = stageResult.DPSCount
 		req.MobAirCount = stageResult.MobAirCount
+		req.StaticCount = stageResult.StaticCount
 	}
 
 	// Main path computation

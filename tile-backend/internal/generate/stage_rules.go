@@ -136,6 +136,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:      [2]int{0, 0},
 		ZonerRange:       [2]int{0, 0},
 		MobAirRange:      [2]int{0, 0},
+		StaticRange:      [2]int{0, 0},
 		PlacementRule:    "start",
 	},
 	model.StageTeaching: {
@@ -144,6 +145,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:   [2]int{2, 2},
 		ZonerRange:    [2]int{1, 1},
 		MobAirRange:   [2]int{6, 6},
+		StaticRange:   [2]int{6, 9},
 		PlacementRule: "teaching",
 	},
 	model.StageBuilding: {
@@ -152,6 +154,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:   [2]int{4, 6},
 		ZonerRange:    [2]int{1, 1},
 		MobAirRange:   [2]int{6, 6},
+		StaticRange:   [2]int{6, 9},
 		PlacementRule: "building",
 	},
 	model.StagePressure: {
@@ -167,6 +170,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:   [2]int{12, 16},
 		ZonerRange:    [2]int{2, 2},
 		MobAirRange:   [2]int{6, 12},
+		StaticRange:   [2]int{2, 3},
 		PlacementRule: "pressure",
 	},
 	model.StagePeak: {
@@ -181,6 +185,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:   [2]int{12, 16},
 		ZonerRange:    [2]int{4, 6},
 		MobAirRange:   [2]int{18, 18},
+		StaticRange:   [2]int{2, 3},
 		PlacementRule: "peak",
 	},
 	model.StageRelease: {
@@ -189,6 +194,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:   [2]int{2, 2},
 		ZonerRange:    [2]int{1, 1},
 		MobAirRange:   [2]int{6, 6},
+		StaticRange:   [2]int{6, 9},
 		PlacementRule: "teaching", // same as teaching
 	},
 	model.StageBoss: {
@@ -199,6 +205,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:      [2]int{0, 0},
 		ZonerRange:       [2]int{0, 0},
 		MobAirRange:      [2]int{0, 0},
+		StaticRange:      [2]int{0, 0},
 		BossArena:        true,
 		PlacementRule:    "boss",
 	},
@@ -283,6 +290,7 @@ func ValidateAndApplyStage(stageType, roomType string, doors []DoorPosition, gro
 	zonerCount := randRange(cfg.ZonerRange[0], cfg.ZonerRange[1])
 	dpsCount := randRange(cfg.DPSRange[0], cfg.DPSRange[1])
 	mobAirCount := randRange(cfg.MobAirRange[0], cfg.MobAirRange[1])
+	staticCount := randRange(cfg.StaticRange[0], cfg.StaticRange[1])
 
 	result := &StageValidationResult{
 		Valid:       true,
@@ -290,6 +298,7 @@ func ValidateAndApplyStage(stageType, roomType string, doors []DoorPosition, gro
 		ZonerCount:  zonerCount,
 		DPSCount:    dpsCount,
 		MobAirCount: mobAirCount,
+		StaticCount: staticCount,
 	}
 
 	// Build placement hints based on stage

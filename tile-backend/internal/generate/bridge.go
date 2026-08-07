@@ -110,6 +110,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 		req.ZonerCount = stageResult.ZonerCount
 		req.DPSCount = stageResult.DPSCount
 		req.MobAirCount = stageResult.MobAirCount
+		req.StaticCount = stageResult.StaticCount
 	}
 
 	// Main path computation

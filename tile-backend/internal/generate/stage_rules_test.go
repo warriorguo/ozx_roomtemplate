@@ -50,6 +50,115 @@ func TestStageRangeConfig(t *testing.T) {
 	}
 }
 
+func TestStageStaticRangeConfig(t *testing.T) {
+	tests := []struct {
+		stage string
+		want  [2]int
+	}{
+		{"start", [2]int{0, 0}},
+		{"teaching", [2]int{6, 9}},
+		{"building", [2]int{6, 9}},
+		{"pressure", [2]int{2, 3}},
+		{"peak", [2]int{2, 3}},
+		{"release", [2]int{6, 9}},
+		{"boss", [2]int{0, 0}},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.stage, func(t *testing.T) {
+			cfg := GetStageConfig(tt.stage)
+			require.NotNil(t, cfg)
+			assert.Equal(t, tt.want, cfg.StaticRange)
+		})
+	}
+}
+
+func TestValidateAndApplyStage_StaticCount(t *testing.T) {
+	tests := []struct {
+		stage   string
+		width   int
+		height  int
+		minimum int
+		maximum int
+	}{
+		{"teaching", 16, 8, 6, 9},
+		{"building", 16, 8, 6, 9},
+		{"release", 16, 8, 6, 9},
+		{"pressure", 18, 10, 2, 3},
+		{"peak", 20, 12, 2, 3},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.stage, func(t *testing.T) {
+			ground := makeFullGround(tt.width, tt.height)
+			for i := 0; i < 20; i++ {
+				result, err := ValidateAndApplyStage(tt.stage, "full", nil, ground, tt.width, tt.height)
+				require.NoError(t, err)
+				assert.GreaterOrEqual(t, result.StaticCount, tt.minimum)
+				assert.LessOrEqual(t, result.StaticCount, tt.maximum)
+			}
+		})
+	}
+}
+
+func TestGenerateFullRoom_StaticCountFollowsStage(t *testing.T) {
+	t.Run("stage overrides request", func(t *testing.T) {
+		resp, err := GenerateFullRoom(FullRoomGenerateRequest{
+			Width:       20,
+			Height:      12,
+			Doors:       []DoorPosition{DoorTop, DoorBottom},
+			StageType:   "pressure",
+			StaticCount: 99,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp.DebugInfo.Static)
+		assert.GreaterOrEqual(t, resp.DebugInfo.Static.TargetCount, 2)
+		assert.LessOrEqual(t, resp.DebugInfo.Static.TargetCount, 3)
+	})
+
+	t.Run("empty stage preserves request", func(t *testing.T) {
+		resp, err := GenerateFullRoom(FullRoomGenerateRequest{
+			Width:       20,
+			Height:      12,
+			Doors:       []DoorPosition{DoorTop, DoorBottom},
+			StaticCount: 5,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp.DebugInfo.Static)
+		assert.Equal(t, 5, resp.DebugInfo.Static.TargetCount)
+	})
+}
+
+func TestBridgeAndPlatform_StaticCountFollowsStage(t *testing.T) {
+	t.Run("bridge", func(t *testing.T) {
+		resp, err := GenerateBridgeRoom(BridgeGenerateRequest{
+			Width:       20,
+			Height:      12,
+			Doors:       []DoorPosition{DoorTop, DoorBottom},
+			StageType:   "teaching",
+			StaticCount: 99,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp.DebugInfo.Static)
+		assert.GreaterOrEqual(t, resp.DebugInfo.Static.TargetCount, 6)
+		assert.LessOrEqual(t, resp.DebugInfo.Static.TargetCount, 9)
+	})
+
+	t.Run("platform", func(t *testing.T) {
+		resp, err := GeneratePlatformRoom(PlatformGenerateRequest{
+			Width:       20,
+			Height:      12,
+			Doors:       []DoorPosition{DoorTop, DoorBottom},
+			StageType:   "teaching",
+			StaticCount: 99,
+		})
+		require.NoError(t, err)
+		require.NotNil(t, resp.DebugInfo.Static)
+		assert.GreaterOrEqual(t, resp.DebugInfo.Static.TargetCount, 6)
+		assert.LessOrEqual(t, resp.DebugInfo.Static.TargetCount, 9)
+	})
+}
+
 // TestReleaseStage_DPSCountInRange guards the release stage DPS count against
 // its configured range.
 //
