@@ -124,7 +124,9 @@
       "Bash(cp -R \"build/OZX Room Editor.app\" \"/Applications/OZX Room Editor.app\")",
       "Bash(xattr -dr com.apple.quarantine \"/Applications/OZX Room Editor.app\")",
       "Bash(codesign -dv \"/Applications/OZX Room Editor.app\")",
-      "Bash(pkill -f \"tile-backend/bin/ozx-roomeditor\")"
+      "Bash(pkill -f \"tile-backend/bin/ozx-roomeditor\")",
+      "Bash(pkill -f \"ozx-roomeditor\")",
+      "Bash(xargs -r kill -9)"
     ],
     "deny": []
   }
