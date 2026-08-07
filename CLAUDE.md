@@ -341,6 +341,13 @@ make test-unit           # Fast unit tests
 
 ### When Modifying Room Generation
 - Generation pipeline order: ground → softEdge → bridge → rail → **stageRules** → **mainPath** → static → zoner → chaser → dps → mobAir
+  - **All three generators follow this order** (ORT-98). Each layer may only be
+    constrained by layers earlier in the sequence, so anything reading stage
+    data — including stage-driven static behaviour — must sit after `stageRules`.
+  - The bridge layer is only produced by the **bridge** room type. `fullroom` and
+    `platform` deliberately skip it: both run `ensureGroundConnectivity`, so no
+    floating islands remain to span, and calling the bridge generator would
+    trigger its "force at least one bridge" fallback and emit spurious tiles.
 - `tile-backend/internal/generate/` contains all generation logic:
   - `fullroom.go`, `bridge.go`, `platform.go` — room type generators
   - `mainpath.go` — center-biased pathfinding + squishy score computation

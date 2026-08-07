@@ -151,19 +151,10 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 		}
 	}
 
-	// Step 4: Generate static layer
-	staticLayer := copyLayer(emptyLayer)
-	if req.StaticCount > 0 {
-		staticDebug := generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdgeLayer, bridgeLayer, railLayer, doorPositions, req.Width, req.Height, req.StaticCount)
-		debugInfo.Static = staticDebug
-	} else {
-		debugInfo.Static = &StaticDebugInfo{
-			Skipped:    true,
-			SkipReason: "staticCount is 0 or not specified",
-		}
-	}
-
-	// Apply stage rules
+	// Apply stage rules. This runs before the static layer so that stage-driven
+	// static behaviour has something to read, and so an invalid stage/room
+	// combination fails before any of the remaining layers are built. All three
+	// generators follow the same order — see CLAUDE.md. (ORT-98)
 	stageResult, stageErr := ValidateAndApplyStage(req.StageType, "platform", req.Doors, ground, req.Width, req.Height)
 	if stageErr != nil {
 		return nil, stageErr
@@ -178,6 +169,18 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	// Main path computation
 	mainPathData, mainPathDebug := ComputeMainPath(ground, bridgeLayer, doorPositions, req.Width, req.Height)
 	debugInfo.MainPath = mainPathDebug
+
+	// Step 4: Generate static layer
+	staticLayer := copyLayer(emptyLayer)
+	if req.StaticCount > 0 {
+		staticDebug := generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdgeLayer, bridgeLayer, railLayer, doorPositions, req.Width, req.Height, req.StaticCount)
+		debugInfo.Static = staticDebug
+	} else {
+		debugInfo.Static = &StaticDebugInfo{
+			Skipped:    true,
+			SkipReason: "staticCount is 0 or not specified",
+		}
+	}
 
 	// Step 5: Generate zoner layer
 	zonerLayer := copyLayer(emptyLayer)
