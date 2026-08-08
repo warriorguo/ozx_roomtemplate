@@ -148,6 +148,31 @@ Example with 2 left-right symmetric pits:
 █ = Ground
 ```
 
+### Step 3.5: Repair Ground Connectivity
+
+Corner erasing and pit carving can leave small isolated ground fragments — the
+per-step rollback only checks door connectivity, not fragmentation. Every
+disconnected island is L-pathed back to the largest island, so all ground ends
+up as a single 4-connected region.
+
+### Step 3.6: Re-open the Doorways (ORT-105)
+
+The rollback guard in steps 2 and 3 (`areAllDoorsConnected`) accepts a door
+whose **own cell is void** as long as one of its 4 neighbours is reachable, so a
+carve can seal the doorway itself; two erases on the same wall can even take out
+that wall's entire edge line. Step 3.5 does not repair it either — it joins the
+islands that exist, and a void door cell is not an island.
+
+So each requested door's anchor cell is set back to ground and the connectivity
+repair is rerun, which L-paths any newly isolated door cell back to the main
+region. **Post-condition: every requested door is walkable and reachable from
+every other door.** Bridge and platform generation apply the same step after
+their own ground pass.
+
+Without it, roughly 4–8% of full rooms sealed a door anchor and 1–1.5% lost a
+wall's whole edge line — in that case `ComputeMainPath` had nothing to aim at
+and drew a path between two interior cells that never crossed a doorway.
+
 ## Other Layers
 
 After ground generation, the following layers are generated using the same algorithms as bridge and platform rooms:

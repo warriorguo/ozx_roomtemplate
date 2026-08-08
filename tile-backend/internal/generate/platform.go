@@ -115,6 +115,9 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	// subsequent layers are built on top.
 	ensureGroundConnectivity(ground, req.Width, req.Height)
 
+	// Re-open any doorway the ground pass sealed and link it back to the room.
+	ensureDoorsWalkable(ground, doorPositions, req.Width, req.Height)
+
 	debugInfo.Ground = groundDebug
 
 	// Step 2: Generate soft edge layer

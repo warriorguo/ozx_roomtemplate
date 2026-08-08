@@ -179,6 +179,9 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	// connectivity, so small isolated chunks can still appear.
 	ensureGroundConnectivity(ground, req.Width, req.Height)
 
+	// Step 3.6: Re-open any doorway a carve sealed and link it back to the room.
+	ensureDoorsWalkable(ground, doorPositions, req.Width, req.Height)
+
 	debugInfo.Ground = groundDebug
 
 	// Generate other layers using shared functions

@@ -227,6 +227,17 @@ rejects undersized rooms up front with
 `stage <name> room size: requires a room of at least WxH, got WxH`.
 Stages with `MinWidth`/`MinHeight` of 0 are unconstrained.
 
+**Door walkability invariant** (`ensureDoorsWalkable`, ORT-105): the ground
+generators carve after they fill, and their rollback guard
+(`areAllDoorsConnected`) accepts a door whose own cell is void as long as one of
+its 4 neighbours is reachable — so a corner erase or center pit could seal the
+doorway, and two erases on the same wall could remove that wall's whole edge
+line. `ensureGroundConnectivity` does not repair it (a void door cell is not an
+island). All three generators therefore call `ensureDoorsWalkable` once their
+ground layer is final: it re-opens each door anchor and reruns the connectivity
+repair. **Post-condition: every requested door is walkable and reachable from
+every other door**, so anything downstream may assume it.
+
 **Structure Validation**:
 - Dimensions: 4-200 for width/height
 - Required layers: ground, static, chaser, zoner, dps, mobAir

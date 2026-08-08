@@ -55,6 +55,9 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	// All ground cells must form a single 4-connected region before other layers are built.
 	ensureGroundConnectivity(ground, req.Width, req.Height)
 
+	// Re-open any doorway the ground pass sealed and link it back to the room.
+	ensureDoorsWalkable(ground, doorPositions, req.Width, req.Height)
+
 	debugInfo.Ground = groundDebug
 
 	// Create empty layers for other layers

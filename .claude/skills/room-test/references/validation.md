@@ -73,6 +73,43 @@ def check_ground_connectivity(ground, width, height):
 **Note**: For bridge rooms, ground connectivity may be intentionally broken (floating islands).
 In that case, verify that every disconnected island has at least one adjacent bridge tile.
 
+### 2.1 Door Anchors Are Walkable (ORT-105)
+
+Every **enabled** door's anchor cell must be walkable and reachable from the
+other doors. The anchor is the midpoint of that wall:
+
+| Door | Anchor |
+|------|--------|
+| top | `(width // 2, 0)` |
+| bottom | `(width // 2, height - 1)` |
+| left | `(0, height // 2)` |
+| right | `(width - 1, height // 2)` |
+
+```python
+def check_doors_walkable(payload, width, height):
+    ground = payload['ground']
+    bridge = payload.get('bridge') or [[0] * width for _ in range(height)]
+    anchors = {
+        'top':    (width // 2, 0),
+        'bottom': (width // 2, height - 1),
+        'left':   (0, height // 2),
+        'right':  (width - 1, height // 2),
+    }
+    failures = []
+    for door, (x, y) in anchors.items():
+        if payload['doors'][door] != 1:
+            continue
+        if ground[y][x] != 1 and bridge[y][x] != 1:
+            failures.append(f"door {door} anchor ({x},{y}) is not walkable")
+    return failures
+```
+
+Combined with §2 (all ground is one component) this is enough: if every anchor
+is walkable and all walkable ground is connected, every door reaches every other
+door. Generation enforces this via `ensureDoorsWalkable`, and `ComputeMainPath`
+fails the request outright if it does not hold (ORT-106) — so a saved template
+that violates it came from hand editing, not the generator.
+
 ---
 
 ## 3. Bridge Validity

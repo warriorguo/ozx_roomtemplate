@@ -339,6 +339,30 @@ func ensureGroundConnectivity(ground [][]int, width, height int) {
 	// island, so the result is a single 4-connected region.
 }
 
+// ensureDoorsWalkable guarantees that every requested door's anchor cell is
+// ground and 4-connected to the rest of the room.
+//
+// The ground generators carve after they fill: fullroom erases corners and cuts
+// center pits, platform grows islands. Their rollback guard is
+// areAllDoorsConnected, which accepts a door whose own cell is void as long as
+// one of its 4 neighbours is reachable — so a carve is free to seal the doorway
+// itself. Two corner erases on the same wall can even take out that wall's whole
+// edge line, leaving no walkable cell for the main path to aim at (ORT-105).
+// ensureGroundConnectivity does not repair this either: it joins the islands
+// that exist, and a void door cell is not an island.
+//
+// So re-open each door cell explicitly and rerun the connectivity repair, which
+// L-paths any door cell that ended up isolated back to the main region.
+func ensureDoorsWalkable(ground [][]int, doorPositions map[DoorPosition]Point, width, height int) {
+	for _, p := range doorPositions {
+		if p.X < 0 || p.X >= width || p.Y < 0 || p.Y >= height {
+			continue
+		}
+		ground[p.Y][p.X] = 1
+	}
+	ensureGroundConnectivity(ground, width, height)
+}
+
 // selectByWeight selects a strategy index by weight
 func selectByWeight(strategies []Strategy) int {
 	if len(strategies) == 0 {
