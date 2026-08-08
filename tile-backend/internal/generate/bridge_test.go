@@ -1696,62 +1696,6 @@ func TestGenerateBridgeRoom_ZeroMobAirCount(t *testing.T) {
 	}
 }
 
-func TestCalculateGridDimensions(t *testing.T) {
-	tests := []struct {
-		name        string
-		targetCount int
-		width       int
-		height      int
-	}{
-		{"4 items in 20x20", 4, 20, 20},
-		{"9 items in 20x20", 9, 20, 20},
-		{"6 items in 30x20", 6, 30, 20},
-		{"1 item", 1, 20, 20},
-		{"0 items", 0, 20, 20},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cols, rows := calculateGridDimensions(tt.targetCount, tt.width, tt.height)
-
-			// Grid should have at least 1 row and 1 col
-			assert.GreaterOrEqual(t, cols, 1, "cols should be >= 1")
-			assert.GreaterOrEqual(t, rows, 1, "rows should be >= 1")
-
-			// Grid should have enough cells for target count (if targetCount > 0)
-			if tt.targetCount > 0 {
-				assert.GreaterOrEqual(t, cols*rows, tt.targetCount,
-					"grid should have enough cells: cols=%d, rows=%d, target=%d", cols, rows, tt.targetCount)
-			}
-
-			t.Logf("%s: cols=%d, rows=%d (for %d items)", tt.name, cols, rows, tt.targetCount)
-		})
-	}
-}
-
-func TestArrangeMobAirEvenlySpaced(t *testing.T) {
-	// Create a set of valid positions
-	validPositions := []Point{
-		{X: 0, Y: 0}, {X: 5, Y: 0}, {X: 10, Y: 0}, {X: 15, Y: 0},
-		{X: 0, Y: 5}, {X: 5, Y: 5}, {X: 10, Y: 5}, {X: 15, Y: 5},
-		{X: 0, Y: 10}, {X: 5, Y: 10}, {X: 10, Y: 10}, {X: 15, Y: 10},
-		{X: 0, Y: 15}, {X: 5, Y: 15}, {X: 10, Y: 15}, {X: 15, Y: 15},
-	}
-
-	// Select 4 positions
-	result := arrangeMobAirEvenlySpaced(validPositions, 4, 20, 20)
-
-	assert.LessOrEqual(t, len(result), 4)
-	assert.Greater(t, len(result), 0)
-
-	// All results should be unique
-	seen := make(map[Point]bool)
-	for _, pos := range result {
-		assert.False(t, seen[pos], "duplicate position in result")
-		seen[pos] = true
-	}
-}
-
 // ============================================================================
 // Debug Info Tests
 // ============================================================================

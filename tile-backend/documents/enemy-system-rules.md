@@ -95,7 +95,15 @@ const doorForbiddenRadius = 2
 ### MobAir（干扰）
 
 - 不需要 ground
-- 优先选择 Zoner/Chaser **密集**的区域
+- **分布方式：以房间中心为种子，向外均匀铺开**（ORT-104）
+  1. 第一只放在**最接近房间中心的合法格**；
+  2. 其余按一个锚定在合法区域上的网格铺开，网格槽位按距中心由近及远依次填充；
+  3. 每个槽位在**不超过 1/3 格宽**的范围内吸附到合法格。
+- Zoner/Chaser **密集**区域的偏好被降级为**同一槽位内的次级排序**：几何决定间距，
+  密集度只在同一个槽位可选的若干合法格之间做选择。原先由密集度主导的放置在
+  teaching 阶段的 Clark-Evans 离散指数只有 0.95（与随机撒点无异），
+  改为中心向外均匀分布后为 1.5+。
+- **确定性**：不再随机挑选策略，同一房间总是产出同一层。
 - 门距离 ≥ 4（曼哈顿距离）
 - 边缘距离 ≥ 2
 - 相邻约束：不能与其他 MobAir 8 方向相邻（距离 ≥ 1）
@@ -106,7 +114,14 @@ const doorForbiddenRadius = 2
 Zoner → Chaser → DPS → MobAir
 ```
 
-Zoner 先放置（占据高脆皮攻击度位置），然后 Chaser 填充近路径位置，DPS 在 Chaser/Static 附近，最后 MobAir 在密集区。
+Zoner 先放置（占据高脆皮攻击度位置），然后 Chaser 填充近路径位置，DPS 在 Chaser/Static 附近，
+最后 MobAir 由房间中心向外均匀铺开。
+
+MobAir 必须**最后**放置，且必须能看到**全部**已放置的地面敌人：它是管线中的最后一层，
+只能被排在它之前的层约束，而 Chaser/DPS 都不会检查 MobAir。fullroom 的分组放置
+（grouped placement）曾在每个分组内部依次放置 zoner/chaser/dps/mobAir，导致第 1 组的
+MobAir 早于第 2 组的 Chaser/DPS 落子，后者直接压在它上面。现已把 MobAir 提到分组循环
+之外，按各组数量之和一次性放置（ORT-104）。
 
 ## 阶段规则 (Stage Rules)
 

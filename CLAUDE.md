@@ -174,7 +174,7 @@ internal/
 - Chaser: 0-3 cells from main path, prefer low squishy score
 - Zoner: 2×2 block (1×1 fallback), 0-5 cells from main path, prefer high squishy score, no static blocking LOS
 - DPS: 0-4 cells from main path, prefers proximity to chaser/static
-- MobAir: prefers zoner/chaser dense areas, spacing >= 1
+- MobAir: centre-seeded, evenly distributed outward, spacing >= 1
 
 **Stage Rules**:
 - Teaching: DPS (4-6) + Chaser (2) + Zoner (1) + MobAir (6)
@@ -198,6 +198,16 @@ and then pick each next one by farthest-point selection, so cover ends up on the
 perimeter with the middle left open for the heavy enemy waves. The hints are
 built in `buildPlacementHints` and passed into
 `generateStaticLayerWithDebugAndRail` by all three generators.
+
+**MobAir centre-out distribution** (ORT-104): mobAir is seeded at the valid cell
+nearest the room centre, then fills a centre-anchored grid worked outward, each
+slot snapping within a third of a cell. Placement is **deterministic** — the old
+`rand.Intn(2)` strategy coin flip and its two strategies were dead code and are
+gone. The zoner/chaser density preference survives only as a tiebreak inside one
+slot; it no longer moves mobs across the room. Because mobAir is last in the
+pipeline and Chaser/DPS do not check it, fullroom's grouped placement now runs
+mobAir **once after the group loop** rather than inside it — the old order let
+group 1's air mobs be overwritten by group 2's ground enemies.
 
 **Zoner 2×2 footprint** (`zonerSize`, ORT-103): a zoner occupies a 2×2 block
 wherever a valid site exists and falls back to a single cell only when none

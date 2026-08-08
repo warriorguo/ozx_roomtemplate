@@ -249,6 +249,50 @@ All the hard constraints are unchanged by strategy: 8-directional non-contact,
 door forbidden diamond, no overlap with softEdge/bridge/rail, and door-to-door
 connectivity after placement.
 
+### 5a-3. MobAir Distribution (ORT-104)
+
+MobAir is placed **centre-seeded and evenly distributed**, deterministically —
+the same room always produces the same layer, so re-generating an identical
+request and getting a different `mobAir` is a regression.
+
+Two properties are worth checking:
+
+1. **The centre is occupied.** The valid cell closest to the room centre always
+   carries a mobAir. "Valid" here means the cell passes the §5a-4 constraints
+   below in an otherwise-empty mobAir layer.
+2. **Placements are dispersed, not clustered.** Measure with the Clark-Evans
+   nearest-neighbour index — observed mean nearest-neighbour distance divided by
+   the mean expected from scattering the same number of points at random over
+   the same placeable area:
+
+   ```python
+   expected = 0.5 * math.sqrt(placeable_area / len(points))
+   R = observed_mean_nn / expected     # <1 clustered, 1 random, >1 dispersed
+   ```
+
+   Expect **R > 1.25**; measured values run 1.4–1.9. Do **not** substitute a
+   plain variance-of-spacing check — a tight cluster has uniformly small
+   spacings and scores well on variance alone. The density-driven placement this
+   replaced measured R = 0.95 (indistinguishable from random) while scoring
+   *better* on raw variance.
+
+   Average over many trials; a single room is not a distribution.
+
+The old zoner/chaser "dense area" preference still exists, but only as a
+tiebreak between the cells one grid slot could snap to. It no longer moves mobs
+across the room, so do not expect mobAir to track enemy clusters.
+
+### 5a-4. MobAir Hard Constraints
+
+Unchanged by ORT-104, and worth asserting on every room:
+
+- door distance ≥ 4 (Manhattan), edge distance ≥ 2
+- no 8-directional adjacency between mobAir cells
+- no overlap with `chaser`, `zoner`, `dps`, `static` — mobAir runs last in the
+  pipeline, so any overlap means a later layer was placed on top of it, not the
+  reverse. This was a real defect in fullroom's grouped placement before ORT-104
+  (mobAir ran inside the per-group loop); treat any overlap as a regression.
+
 ### 5b. Stage Minimum Room Size
 
 Some stages require a minimum room size; the generator rejects smaller rooms

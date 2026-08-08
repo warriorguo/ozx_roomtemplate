@@ -255,6 +255,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 
 	if hints != nil && hints.GroupCount > 0 && len(hints.Groups) > 0 {
 		// Grouped placement — place enemies per region
+		groupedMobAir := 0
 		for _, group := range hints.Groups {
 			minY, maxY, minX, maxX := GetRegionBounds(group.Region, req.Width, req.Height)
 			regionFilter := &RegionFilter{MinY: minY, MaxY: maxY, MinX: minX, MaxX: maxX}
@@ -268,9 +269,18 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 			if group.DPSCount > 0 {
 				GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, group.DPSCount, regionFilter)
 			}
-			if group.MobAirCount > 0 {
-				GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, group.MobAirCount, nil)
-			}
+			groupedMobAir += group.MobAirCount
+		}
+
+		// MobAir is last in the pipeline and may only be constrained by layers
+		// before it, so it has to see every group's ground enemies. Running it
+		// inside the loop above placed group 1's air mobs before group 2's
+		// chaser/dps existed, and those later layers do not check mobAir — so
+		// they landed on top of it. The per-group calls were never region-scoped
+		// (they passed a nil filter), which makes one call for the summed count
+		// equivalent apart from the ordering fix, and better distributed besides.
+		if groupedMobAir > 0 {
+			GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, groupedMobAir, nil)
 		}
 
 		// Fallback: if grouped placement underplaced, fill remaining up to target
