@@ -232,6 +232,16 @@ still produces an adjacent same-category spawn pair in 6% of pressure rooms and
 16.5% of peak rooms. That residue belongs to ORT-93 — placement should never
 violate spacing whatever it is asked for — rather than to a size limit.
 
+**Placement shortfalls are reported** (`PlacementShortfall`, ORT-110): placement
+is best-effort — the strict pass keeps the 8-directional spacing constraint and
+stops when a room runs out of legal sites, and mobAir has no relaxed fallback at
+all. All three generate responses therefore carry an optional
+`warnings: [{layer, requested, placed, message}]`, built by
+`collectPlacementShortfalls` from the per-layer debug counts and **absent when
+every layer met its target**. Counts are spawns, not cells. A 200 response is
+not by itself evidence the stage's counts were met; this is how an undersized
+room announces itself now that ORT-109 no longer refuses one.
+
 **Door walkability invariant** (`ensureDoorsWalkable`, ORT-105): the ground
 generators carve after they fill, and their rollback guard
 (`areAllDoorsConnected`) accepts a door whose own cell is void as long as one of

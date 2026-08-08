@@ -620,9 +620,21 @@ export interface GenerateDebugInfo {
   mobAir?: MobAirDebugInfo;
 }
 
+// A layer that placed fewer spawns than the stage asked for (ORT-110). Counts
+// are spawns, not cells — a zoner is a 2x2 block (ORT-103). The room is valid,
+// just lighter than the stage nominally calls for; small rooms are the usual
+// cause now that stages no longer constrain room size (ORT-109).
+export interface PlacementShortfall {
+  layer: string;
+  requested: number;
+  placed: number;
+  message: string;
+}
+
 export interface BridgeGenerateResponse {
   payload: BackendTemplatePayload;
   debugInfo?: GenerateDebugInfo;
+  warnings?: PlacementShortfall[];
 }
 
 // Platform generation types
@@ -677,6 +689,7 @@ export interface PlatformDebugInfo {
 export interface PlatformGenerateResponse {
   payload: BackendTemplatePayload;
   debugInfo?: PlatformDebugInfo;
+  warnings?: PlacementShortfall[];
 }
 
 // Full room generation types
@@ -770,6 +783,7 @@ export interface FullRoomDebugInfo {
 export interface FullRoomGenerateResponse {
   payload: BackendTemplatePayload;
   debugInfo?: FullRoomDebugInfo;
+  warnings?: PlacementShortfall[];
 }
 
 // Create singleton instance

@@ -7,7 +7,7 @@ import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
 import { ROOM_TYPES, ROOM_CATEGORIES } from '../../types/newTemplate';
 import { getInvalidDoorSelections } from '../../utils/newTemplateUtils';
-import { templateApi, ApiError, type DoorPosition } from '../../services/api';
+import { templateApi, ApiError, type DoorPosition, type PlacementShortfall } from '../../services/api';
 
 const layerConfigs: Array<{
   layer: LayerType;
@@ -213,6 +213,10 @@ export const TileTemplateApp: React.FC = () => {
   const invalidDoors = getInvalidDoorSelections(template);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  // Layers the generator could not fill (ORT-110). Stages no longer refuse an
+  // undersized room (ORT-109), so this is how the user learns the room is too
+  // small for the stage they picked.
+  const [generateWarnings, setGenerateWarnings] = useState<PlacementShortfall[]>([]);
   // Which editor grid is on screen. Composite is the default landing view.
   const [activeTab, setActiveTab] = useState<EditorTab>('composite');
   const [selectedDoors, setSelectedDoors] = useState<{ top: boolean; right: boolean; bottom: boolean; left: boolean }>({
@@ -329,6 +333,7 @@ export const TileTemplateApp: React.FC = () => {
 
     setIsGenerating(true);
     setGenerateError(null);
+    setGenerateWarnings([]);
 
     try {
       // Call the appropriate API based on room type
@@ -352,6 +357,8 @@ export const TileTemplateApp: React.FC = () => {
         : template.roomType === 'full'
         ? await templateApi.generateFullRoom(generateRequest)
         : await templateApi.generateBridge(generateRequest);
+
+      setGenerateWarnings(response.warnings ?? []);
 
       // Load the generated template
       await loadTemplateFromJSON({
@@ -1308,6 +1315,31 @@ export const TileTemplateApp: React.FC = () => {
                           color: '#721c24',
                         }}>
                           {generateError}
+                        </div>
+                      )}
+
+                      {generateWarnings.length > 0 && (
+                        <div style={{
+                          marginBottom: '10px',
+                          padding: '8px',
+                          backgroundColor: '#fff3cd',
+                          border: '1px solid #ffeeba',
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          color: '#856404',
+                          lineHeight: '1.5',
+                        }}>
+                          <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                            ⚠ The room could not hold everything this stage asks for
+                          </div>
+                          {generateWarnings.map(w => (
+                            <div key={w.layer}>
+                              {w.layer}: placed {w.placed} of {w.requested}
+                            </div>
+                          ))}
+                          <div style={{ marginTop: '4px', fontSize: '11px' }}>
+                            The room is still valid — enlarge it if you want the full count.
+                          </div>
                         </div>
                       )}
 

@@ -33,6 +33,9 @@ type BridgeGenerateResponse struct {
 	Payload    model.TemplatePayload `json:"payload"`
 	DebugInfo  *GenerateDebugInfo    `json:"debugInfo,omitempty"`
 	Difficulty *DifficultyScore      `json:"difficulty,omitempty"`
+	// Layers that placed fewer spawns than asked for (ORT-110). Absent when
+	// everything met its target.
+	Warnings []PlacementShortfall `json:"warnings,omitempty"`
 }
 
 // GenerateDebugInfo contains debug information about the generation process
@@ -152,6 +155,25 @@ type MobAirDebugInfo struct {
 	Strategy    string      `json:"strategy"`
 	Placements  []PlaceInfo `json:"placements"`
 	Misses      []MissInfo  `json:"misses,omitempty"`
+}
+
+// PlacementShortfall reports a layer that placed fewer spawns than were asked
+// for. Placement is best-effort: the strict pass keeps the 8-directional
+// spacing constraint (ORT-93) and simply stops when a room runs out of legal
+// sites, and mobAir has no relaxed fallback at all. The room is still valid —
+// it is just lighter than its stage nominally calls for.
+//
+// Before ORT-110 that was invisible: the counts lived in debugInfo, the API
+// returned 200, and a 16x8 peak room looked like a peak room and played like a
+// teaching one. It mattered more once ORT-109 removed the minimum room sizes
+// that used to refuse those rooms outright.
+//
+// Counts are spawns, not cells — a zoner is a 2x2 block (ORT-103).
+type PlacementShortfall struct {
+	Layer     string `json:"layer"`
+	Requested int    `json:"requested"`
+	Placed    int    `json:"placed"`
+	Message   string `json:"message"`
 }
 
 // PlaceInfo describes a single placement

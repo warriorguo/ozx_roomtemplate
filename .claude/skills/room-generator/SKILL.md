@@ -142,6 +142,9 @@ Extract and display key debug info from the response:
 - Zoner: target vs placed count
 - DPS: target vs placed count
 - MobAir: target vs placed count
+- **Warnings**: if `warnings` is present, list each shortfall (`layer: placed N of M`)
+  and say the room is under-populated for its stage. Do not treat a 200 response
+  as proof the stage's counts were met — see "Placement Shortfalls" below.
 
 ### Step 5: Save the result
 
@@ -248,9 +251,33 @@ The API returns this JSON structure:
     "zoner": { "skipped": false, "targetCount": 2, "placedCount": 2, ... },
     "dps": { "skipped": false, "targetCount": 4, "placedCount": 4, ... },
     "mobAir": { "skipped": false, "targetCount": 10, "placedCount": 10, ... }
-  }
+  },
+  "warnings": [                 // optional; absent when every layer met its target
+    {
+      "layer": "mobAir",
+      "requested": 14,
+      "placed": 7,
+      "message": "mobAir: placed 7 of 14 spawns — the room ran out of legal sites under the spacing constraint"
+    }
+  ]
 }
 ```
+
+### Placement Shortfalls (`warnings`)
+
+Placement is best-effort. The strict pass keeps the 8-directional spacing
+constraint (ORT-93) and stops when a room runs out of legal sites, and mobAir
+has no relaxed fallback at all — so a room smaller than its stage wants comes
+back lighter than requested. `warnings` reports each such layer with requested
+vs placed; it is **absent entirely** when everything met its target.
+
+Counts are spawns, not cells — a zoner is a 2×2 block (ORT-103).
+
+This matters most since ORT-109 removed the per-stage minimum room sizes: a
+16×8 peak room is now generated rather than refused, and `warnings` is how the
+caller learns it is under-populated. **Report warnings to the user when
+present** — a 200 response is not by itself evidence the room got what the
+stage asked for. The room is still valid and saveable.
 
 ### Layer Rules
 

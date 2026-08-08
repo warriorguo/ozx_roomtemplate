@@ -27,6 +27,9 @@ type FullRoomGenerateResponse struct {
 	Payload    model.TemplatePayload `json:"payload"`
 	DebugInfo  *FullRoomDebugInfo    `json:"debugInfo,omitempty"`
 	Difficulty *DifficultyScore      `json:"difficulty,omitempty"`
+	// Layers that placed fewer spawns than asked for (ORT-110). Absent when
+	// everything met its target.
+	Warnings []PlacementShortfall `json:"warnings,omitempty"`
 }
 
 // FullRoomDebugInfo contains debug information about the full room generation process
@@ -445,6 +448,8 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		Payload:    payload,
 		DebugInfo:  debugInfo,
 		Difficulty: difficulty,
+		Warnings: collectPlacementShortfalls(debugInfo.Static, debugInfo.Zoner,
+			debugInfo.Chaser, debugInfo.DPS, debugInfo.MobAir),
 	}, nil
 }
 

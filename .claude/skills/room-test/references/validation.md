@@ -358,6 +358,24 @@ spawn pair (the ORT-93 crash condition) is:
 So §4.3 (spacing) is worth checking especially closely on small rooms, and a
 violation there is an ORT-93 finding rather than a size-limit one.
 
+Small rooms also under-place: the generate response carries a `warnings` array
+listing every layer that fell short (ORT-110). Treat it as **expected
+information, not a failure** — but a count outside its stage range with **no**
+corresponding warning *is* a failure, because it means the shortfall went
+unreported.
+
+```python
+def check_shortfall_reporting(response, payload, stage_ranges, stage):
+    """A count below its stage minimum must be explained by a warning."""
+    warned = {w['layer'] for w in response.get('warnings') or []}
+    failures = []
+    for layer, (lo, _hi) in stage_ranges.get(stage, {}).items():
+        placed = count_zoner_units(payload) if layer == 'zoner' else count_cells(payload[layer])
+        if placed < lo and layer not in warned:
+            failures.append(f"{layer} placed {placed} (stage min {lo}) with no warning")
+    return failures
+```
+
 **Note**: Counts here are number of *spawners*, not enemy sprites. `chaser`,
 `dps` and `mobAir` occupy one cell per spawner; `zoner` occupies a 2×2 block per
 spawner (see §5c).

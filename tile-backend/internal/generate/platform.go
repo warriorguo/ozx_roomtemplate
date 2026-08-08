@@ -27,6 +27,9 @@ type PlatformGenerateResponse struct {
 	Payload    model.TemplatePayload `json:"payload"`
 	DebugInfo  *PlatformDebugInfo    `json:"debugInfo,omitempty"`
 	Difficulty *DifficultyScore      `json:"difficulty,omitempty"`
+	// Layers that placed fewer spawns than asked for (ORT-110). Absent when
+	// everything met its target.
+	Warnings []PlacementShortfall `json:"warnings,omitempty"`
 }
 
 // PlatformDebugInfo contains debug information about the platform generation process
@@ -304,6 +307,8 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 		Payload:    payload,
 		DebugInfo:  debugInfo,
 		Difficulty: difficulty,
+		Warnings: collectPlacementShortfalls(debugInfo.Static, debugInfo.Zoner,
+			debugInfo.Chaser, debugInfo.DPS, debugInfo.MobAir),
 	}, nil
 }
 
