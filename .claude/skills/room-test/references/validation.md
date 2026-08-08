@@ -177,7 +177,8 @@ for layer_name, forbidden in overlap_rules.items():
 
 For each `stageType`, validate that actual entity counts match expected ranges.
 
-Count entities by summing all 1s in each layer.
+Count entities by summing all 1s in each layer — **except `zoner`**, which is
+counted in 2×2 blocks. See §5c.
 
 ```
 stageRanges = {
@@ -273,8 +274,64 @@ fail with HTTP 400 and a message matching
 `stage <name> room size: requires a room of at least WxH, got WxH`.
 Treat a 200 response for an undersized room as a regression.
 
-**Note**: Counts here are number of *spawner cells*, not enemy sprites. Each mob
-occupies one cell in its layer.
+**Note**: Counts here are number of *spawners*, not enemy sprites. `chaser`,
+`dps` and `mobAir` occupy one cell per spawner; `zoner` occupies a 2×2 block per
+spawner (see §5c).
+
+---
+
+### 5c. Zoner Footprint (ORT-103)
+
+A zoner occupies a **2×2 block**, falling back to **1×1** only where no 2×2 site
+fits. The game collapses a connected block into a single spawn, so one zoner is
+four cells — summing 1s in the `zoner` layer over-counts by 4×.
+
+Count zoner spawners as **8-connected groups**, and validate the shape of each:
+
+```python
+def zoner_groups(layer, width, height):
+    seen, groups = set(), []
+    for y in range(height):
+        for x in range(width):
+            if layer[y][x] != 1 or (x, y) in seen:
+                continue
+            group, queue = [(x, y)], [(x, y)]
+            seen.add((x, y))
+            while queue:
+                cx, cy = queue.pop()
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        nx, ny = cx + dx, cy + dy
+                        if 0 <= nx < width and 0 <= ny < height \
+                                and layer[ny][nx] == 1 and (nx, ny) not in seen:
+                            seen.add((nx, ny))
+                            group.append((nx, ny))
+                            queue.append((nx, ny))
+            groups.append(group)
+    return groups
+
+groups = zoner_groups(payload['zoner'], width, height)
+
+# Count: this is the number the stage range in §5 applies to.
+zoner_count = len(groups)
+
+# Shape: every group is a solid 2x2 block or a lone fallback cell. Anything
+# else means two zoners are touching — the ORT-93 spacing violation, which
+# shows up here because touching blocks merge into one group.
+for g in groups:
+    xs, ys = [p[0] for p in g], [p[1] for p in g]
+    is_1x1 = len(g) == 1
+    is_2x2 = len(g) == 4 and max(xs) - min(xs) == 1 and max(ys) - min(ys) == 1
+    if not (is_1x1 or is_2x2):
+        FAIL: f"zoner group of {len(g)} cells at {min(xs)},{min(ys)} is neither 2x2 nor 1x1"
+```
+
+Every cell of a block must independently satisfy the per-cell zoner rules in §3
+and §4 (ground, overlap, door forbidden zone) — check them cell-by-cell as usual.
+
+1×1 fallbacks are rare in practice (measured under 1% of spawns at every stage
+minimum); a room where most zoners are 1×1 signals the 2×2 search is failing and
+is worth investigating even though it is technically legal.
 
 ---
 
@@ -354,6 +411,28 @@ For batch agents, here's a compact validator to embed in the agent prompt:
 
 ```python
 import json
+
+def zoner_groups(layer, width, height):
+    """8-connected groups of zoner cells. One group = one zoner spawn (ORT-103)."""
+    seen, groups = set(), []
+    for y in range(height):
+        for x in range(width):
+            if layer[y][x] != 1 or (x, y) in seen:
+                continue
+            group, queue = [(x, y)], [(x, y)]
+            seen.add((x, y))
+            while queue:
+                cx, cy = queue.pop()
+                for dy in (-1, 0, 1):
+                    for dx in (-1, 0, 1):
+                        nx, ny = cx + dx, cy + dy
+                        if 0 <= nx < width and 0 <= ny < height \
+                                and layer[ny][nx] == 1 and (nx, ny) not in seen:
+                            seen.add((nx, ny))
+                            group.append((nx, ny))
+                            queue.append((nx, ny))
+            groups.append(group)
+    return groups
 
 def validate(payload, expected_stage=None):
     w, h = payload['meta']['width'], payload['meta']['height']
@@ -447,9 +526,24 @@ def validate(payload, expected_stage=None):
     st = expected_stage or (payload.get('stageType') or '')
     if st and st in stage_ranges:
         for ename, (lo, hi) in stage_ranges[st].items():
-            count = sum(payload[ename][y][x] for y in range(h) for x in range(w))
+            if ename == 'zoner':
+                # A zoner is a 2x2 block collapsed into one spawn (ORT-103),
+                # so count 8-connected groups rather than cells.
+                count = len(zoner_groups(payload['zoner'], w, h))
+            else:
+                count = sum(payload[ename][y][x] for y in range(h) for x in range(w))
             if not (lo <= count <= hi):
                 failures.append(f"Stage {st}: {ename} count={count}, expected [{lo},{hi}]")
+
+    # 5c. Zoner footprint: every group is a solid 2x2 block or a lone fallback
+    # cell. Any other shape means two zoners touch (ORT-93 spacing violation).
+    for g in zoner_groups(payload['zoner'], w, h):
+        xs, ys = [p[0] for p in g], [p[1] for p in g]
+        is_1x1 = len(g) == 1
+        is_2x2 = len(g) == 4 and max(xs)-min(xs) == 1 and max(ys)-min(ys) == 1
+        if not (is_1x1 or is_2x2):
+            failures.append(
+                f"zoner group of {len(g)} cells at ({min(xs)},{min(ys)}) is neither 2x2 nor 1x1")
 
     # 6. Door forbidden zone
     door_pos = {'top':(10,0),'bottom':(10,11),'left':(0,6),'right':(19,6)}

@@ -280,15 +280,9 @@ func TestGenerateFullRoom_PressureStageZonerCount(t *testing.T) {
 		require.NoError(t, err, "iteration %d", i)
 		require.NotNil(t, resp, "iteration %d", i)
 
-		// Count actual zoner cells placed
-		zonerCount := 0
-		for y := 0; y < req.Height; y++ {
-			for x := 0; x < req.Width; x++ {
-				if resp.Payload.Zoner[y][x] == 1 {
-					zonerCount++
-				}
-			}
-		}
+		// Count actual zoners placed. A zoner is a 2x2 block collapsed into one
+		// spawn (ORT-103), so count groups rather than cells.
+		zonerCount := countZonerUnits(resp.Payload.Zoner)
 		// The regression this guards is the grouped placement path dropping zoners
 		// entirely, so assert against the configured range rather than a pinned
 		// number — that way the test follows stage range changes (ORT-101).

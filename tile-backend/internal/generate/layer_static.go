@@ -472,20 +472,10 @@ func distanceFromEdge(pos Point, width, height int) int {
 
 // placeStatic places a 2x2 static at the given top-left corner
 func placeStatic(staticLayer [][]int, pos Point) {
-	for dy := 0; dy < staticSize; dy++ {
-		for dx := 0; dx < staticSize; dx++ {
-			staticLayer[pos.Y+dy][pos.X+dx] = 1
-		}
-	}
+	placeBlock(staticLayer, pos, staticSize)
 }
 
 // filterTouchingPositions removes positions that would touch the newly placed static
 func filterTouchingPositions(positions []Point, placedPos Point) []Point {
-	var filtered []Point
-	for _, pos := range positions {
-		if !wouldTouch(pos, placedPos) {
-			filtered = append(filtered, pos)
-		}
-	}
-	return filtered
+	return filterTouchingBlocks(positions, placedPos, staticSize)
 }

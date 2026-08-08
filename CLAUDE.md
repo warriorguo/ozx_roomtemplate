@@ -172,7 +172,7 @@ internal/
 **Enemy Placement (Generation)**:
 - Door forbidden zone: radius 2 (Manhattan distance) from all doors
 - Chaser: 0-3 cells from main path, prefer low squishy score
-- Zoner: 0-5 cells from main path, prefer high squishy score, no static blocking LOS
+- Zoner: 2×2 block (1×1 fallback), 0-5 cells from main path, prefer high squishy score, no static blocking LOS
 - DPS: 0-4 cells from main path, prefers proximity to chaser/static
 - MobAir: prefers zoner/chaser dense areas, spacing >= 1
 
@@ -198,6 +198,15 @@ and then pick each next one by farthest-point selection, so cover ends up on the
 perimeter with the middle left open for the heavy enemy waves. The hints are
 built in `buildPlacementHints` and passed into
 `generateStaticLayerWithDebugAndRail` by all three generators.
+
+**Zoner 2×2 footprint** (`zonerSize`, ORT-103): a zoner occupies a 2×2 block
+wherever a valid site exists and falls back to a single cell only when none
+does. Every cell of the block satisfies the same per-cell constraints the 1×1
+path checks, and distinct blocks never touch in any of the 8 directions. The
+game collapses a connected block into one spawn, so **`zonerCount` counts
+spawns, not cells** — count 8-connected groups (`countZonerUnits`), not `1`s,
+whenever comparing against a stage range. Measured 1×1 fallback rate is under 1%
+of spawns at every stage minimum, so the ORT-102 minimums are unchanged.
 
 **Stage minimum room size** (`StageConfig.MinWidth` / `MinHeight`, ORT-102): a room
 smaller than the stage minimum cannot fit that stage's enemy counts under the

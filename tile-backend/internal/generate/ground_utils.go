@@ -180,6 +180,54 @@ func countCells(layer [][]int) int {
 	return count
 }
 
+// countZonerUnits counts zoner spawns rather than zoner cells. A zoner occupies
+// a 2x2 block (ORT-103) that the game collapses into a single spawn, so each
+// 8-connected group of zoner cells is one enemy. Placement guarantees every
+// group is either a 2x2 block or a lone fallback cell.
+func countZonerUnits(layer [][]int) int {
+	height := len(layer)
+	if height == 0 {
+		return 0
+	}
+	width := len(layer[0])
+
+	seen := make([][]bool, height)
+	for y := range seen {
+		seen[y] = make([]bool, width)
+	}
+
+	units := 0
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if layer[y][x] != 1 || seen[y][x] {
+				continue
+			}
+			units++
+			// Flood fill the group so it is only counted once.
+			queue := []Point{{X: x, Y: y}}
+			seen[y][x] = true
+			for len(queue) > 0 {
+				curr := queue[0]
+				queue = queue[1:]
+				for dy := -1; dy <= 1; dy++ {
+					for dx := -1; dx <= 1; dx++ {
+						nx, ny := curr.X+dx, curr.Y+dy
+						if nx < 0 || nx >= width || ny < 0 || ny >= height {
+							continue
+						}
+						if layer[ny][nx] != 1 || seen[ny][nx] {
+							continue
+						}
+						seen[ny][nx] = true
+						queue = append(queue, Point{X: nx, Y: ny})
+					}
+				}
+			}
+		}
+	}
+	return units
+}
+
 // countLayerDebug creates a simple debug info by counting placed cells
 func countLayerDebug(layer [][]int, target int, name string) *EnemyLayerDebugInfo {
 	placed := countCells(layer)
@@ -187,6 +235,16 @@ func countLayerDebug(layer [][]int, target int, name string) *EnemyLayerDebugInf
 		TargetCount: target,
 		PlacedCount: placed,
 		Placements:  []PlaceInfo{{Reason: fmt.Sprintf("grouped placement for %s", name)}},
+	}
+}
+
+// countZonerLayerDebug is countLayerDebug for the zoner layer, which is measured
+// in spawns rather than cells (ORT-103).
+func countZonerLayerDebug(layer [][]int, target int) *EnemyLayerDebugInfo {
+	return &EnemyLayerDebugInfo{
+		TargetCount: target,
+		PlacedCount: countZonerUnits(layer),
+		Placements:  []PlaceInfo{{Reason: "grouped placement for zoner"}},
 	}
 }
 

@@ -294,7 +294,7 @@ func TestReleaseStage_EnemyMix(t *testing.T) {
 			rng   [2]int
 		}{
 			{"chaser", countCells(resp.Payload.Chaser), cfg.ChaserRange},
-			{"zoner", countCells(resp.Payload.Zoner), cfg.ZonerRange},
+			{"zoner", countZonerUnits(resp.Payload.Zoner), cfg.ZonerRange},
 			{"dps", countCells(resp.Payload.DPS), cfg.DPSRange},
 			{"mobAir", countCells(resp.Payload.MobAir), cfg.MobAirRange},
 		} {
@@ -456,11 +456,18 @@ func TestStageCountsPlaceableAtMinRoomSize(t *testing.T) {
 					t.Fatalf("trial %d: %v", i, err)
 				}
 				p := resp.Payload
-				for _, layer := range [][][]int{p.Chaser, p.DPS, p.Zoner} {
+				// Zoner is checked by group shape rather than raw adjacency: it
+				// occupies a 2x2 block (ORT-103), so cells inside one spawn are
+				// legitimately adjacent and only touching *blocks* violate ORT-93.
+				bad := hasInvalidZonerGroup(p.Zoner, w, h)
+				for _, layer := range [][][]int{p.Chaser, p.DPS} {
 					if hasSameLayerAdjacency(layer, w, h) {
-						adjacent++
+						bad = true
 						break
 					}
+				}
+				if bad {
+					adjacent++
 				}
 				if layersOverlap(p.DPS, p.Chaser, w, h) {
 					overlapping++
@@ -484,6 +491,67 @@ func TestStageCountsPlaceableAtMinRoomSize(t *testing.T) {
 				stage, w, h, overlapping, trials)
 		})
 	}
+}
+
+// hasInvalidZonerGroup reports whether any 8-connected group of zoner cells is
+// something other than a lone cell or an exact 2x2 block.
+//
+// A zoner occupies a 2x2 block that the game collapses into a single spawn
+// (ORT-103), so adjacency *within* a block is expected and hasSameLayerAdjacency
+// would flag every healthy room. What ORT-93 forbids is two distinct zoner
+// spawns touching — and because touching blocks merge into one connected group,
+// that always surfaces here as a group of the wrong size or shape.
+func hasInvalidZonerGroup(layer [][]int, width, height int) bool {
+	seen := make([][]bool, height)
+	for y := range seen {
+		seen[y] = make([]bool, width)
+	}
+
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if layer[y][x] != 1 || seen[y][x] {
+				continue
+			}
+
+			// Flood fill the group 8-directionally.
+			group := []Point{{X: x, Y: y}}
+			seen[y][x] = true
+			for i := 0; i < len(group); i++ {
+				curr := group[i]
+				for dy := -1; dy <= 1; dy++ {
+					for dx := -1; dx <= 1; dx++ {
+						nx, ny := curr.X+dx, curr.Y+dy
+						if nx < 0 || nx >= width || ny < 0 || ny >= height {
+							continue
+						}
+						if layer[ny][nx] != 1 || seen[ny][nx] {
+							continue
+						}
+						seen[ny][nx] = true
+						group = append(group, Point{X: nx, Y: ny})
+					}
+				}
+			}
+
+			if len(group) == 1 {
+				continue
+			}
+			if len(group) != zonerSize*zonerSize {
+				return true
+			}
+			// Right cell count — verify it is a solid square, not an L or a
+			// diagonal chain that happens to be four cells long.
+			minX, maxX, minY, maxY := group[0].X, group[0].X, group[0].Y, group[0].Y
+			for _, p := range group {
+				minX, maxX = min(minX, p.X), max(maxX, p.X)
+				minY, maxY = min(minY, p.Y), max(maxY, p.Y)
+			}
+			if maxX-minX != zonerSize-1 || maxY-minY != zonerSize-1 {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // hasSameLayerAdjacency reports whether any cell in the layer has an
@@ -593,7 +661,8 @@ func TestAllGeneratorsApplyStageRules(t *testing.T) {
 			// Each layer must respect the stage maximum, not the absurd request.
 			assert.LessOrEqualf(t, countCells(chaser), cfg.ChaserRange[1],
 				"chaser count ignored the stage range (request asked for %d)", absurd)
-			assert.LessOrEqualf(t, countCells(zoner), cfg.ZonerRange[1],
+			// Zoner is measured in spawns: a 2x2 block is one enemy (ORT-103).
+			assert.LessOrEqualf(t, countZonerUnits(zoner), cfg.ZonerRange[1],
 				"zoner count ignored the stage range (request asked for %d)", absurd)
 			assert.LessOrEqualf(t, countCells(dps), cfg.DPSRange[1],
 				"dps count ignored the stage range (request asked for %d)", absurd)

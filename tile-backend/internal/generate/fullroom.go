@@ -282,7 +282,8 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		//   1. Strict pass (respects 8-dir spacing) — preserves ideal spread.
 		//   2. Relaxed pass (drops spacing) — only used when strict pass still falls short,
 		//      guaranteeing the minimum is always met.
-		if remaining := req.ZonerCount - countCells(zonerLayer); remaining > 0 {
+		// Zoner is counted in spawns, not cells — a 2x2 block is one enemy (ORT-103).
+		if remaining := req.ZonerCount - countZonerUnits(zonerLayer); remaining > 0 {
 			GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
 		}
 		if remaining := req.ChaserCount - countCells(chaserLayer); remaining > 0 {
@@ -304,7 +305,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		}
 
 		// Count placed for debug
-		debugInfo.Zoner = countLayerDebug(zonerLayer, req.ZonerCount, "zoner")
+		debugInfo.Zoner = countZonerLayerDebug(zonerLayer, req.ZonerCount)
 		debugInfo.Chaser = countLayerDebug(chaserLayer, req.ChaserCount, "chaser")
 		debugInfo.DPS = countLayerDebug(dpsLayer, req.DPSCount, "dps")
 		debugInfo.MobAir = &MobAirDebugInfo{TargetCount: req.MobAirCount, PlacedCount: countCells(mobAirLayer), Strategy: "grouped"}

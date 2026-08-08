@@ -24,7 +24,7 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `railEnabled` | bool | `true` | Whether to generate a rail loop on the ground |
 | `staticCount` | int | `8` | Number of 2x2 static obstacle blocks. **Ignored when `stageType` is set** — the stage supplies it: teaching/building/release 6–9, pressure/peak 2–3, start/boss 0. |
 | `chaserCount` | int | `4` | Number of chaser placements (melee enemies near main path) |
-| `zonerCount` | int | `2` | Number of zoner placements (area control enemies) |
+| `zonerCount` | int | `2` | Number of zoner placements (area control enemies). Counted in **spawns, not cells** — each zoner occupies a 2x2 block, so `zonerCount: 2` produces 8 cells. |
 | `dpsCount` | int | `4` | Number of DPS placements (ranged damage enemies) |
 | `mobAirCount` | int | `10` | Number of air mob spawn points |
 | `outputPath` | string | *(ask user)* | File path to save the full JSON response. If not provided, ask the user where to save it. |
@@ -260,7 +260,7 @@ The API returns this JSON structure:
 - **rail**: Closed loop on ground/bridge. Requires solid area >= 6x6. Cannot overlap other layers.
 - **static**: 2x2 blocks on ground. Min 5x5 forbidden zone around doors. Blocks cannot touch each other. Must preserve door connectivity.
 - **chaser**: Melee enemies. 0-3 cells from main path, prefer low squishy score. Cannot overlap static/bridge/rail/zoner.
-- **zoner**: Area control enemies. 0-5 cells from main path, prefer high squishy score. Cannot overlap static/bridge/rail/chaser.
+- **zoner**: Area control enemies. **2x2 blocks** (1x1 only as a fallback where no 2x2 site fits), so one zoner = 4 cells. 0-5 cells from main path, prefer high squishy score. Every cell of a block must satisfy the constraints; cannot overlap static/bridge/rail/chaser. Distinct blocks cannot touch in any of the 8 directions.
 - **dps**: Ranged damage enemies. 0-4 cells from main path, prefers proximity to chaser/static. Cannot overlap bridge/rail/zoner.
 - **mobAir**: Air mobs. No ground requirement. Prefers zoner/chaser dense areas, spacing >= 1. Cannot overlap other entity layers.
 

@@ -66,7 +66,7 @@ func ComputeDifficulty(ground, softEdge, staticLayer, chaserLayer, zonerLayer, d
 
 	// === Enemy factors ===
 	details.ChaserCount = countCells(chaserLayer)
-	details.ZonerCount = countCells(zonerLayer)
+	details.ZonerCount = countZonerUnits(zonerLayer) // spawns, not cells (ORT-103)
 	details.DPSCount = countCells(dpsLayer)
 	details.MobAirCount = countCells(mobAirLayer)
 

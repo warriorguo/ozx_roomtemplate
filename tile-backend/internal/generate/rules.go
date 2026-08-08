@@ -35,6 +35,11 @@ func ValidateRoomCategory(category string) error {
 // Static placement size (fixed 2x2)
 const staticSize = 2
 
+// Zoner placement size. A zoner occupies a 2x2 block wherever one fits and
+// falls back to a single cell otherwise (ORT-103). The game collapses a
+// connected block into one spawn, so a block is one enemy, not four.
+const zonerSize = 2
+
 // Unified door forbidden radius
 const doorForbiddenRadius = 2
 
@@ -140,15 +145,20 @@ func touchesExistingStatic(pos Point, staticLayer [][]int, width, height int) bo
 
 // wouldTouch checks if two 2x2 statics would touch (including diagonals)
 func wouldTouch(pos1, pos2 Point) bool {
-	// Two 2x2 squares touch if their bounding boxes (expanded by 1) overlap
-	// pos1 occupies [pos1.X, pos1.X+1] x [pos1.Y, pos1.Y+1]
-	// pos2 occupies [pos2.X, pos2.X+1] x [pos2.Y, pos2.Y+1]
-	// They touch if the gap between them is <= 1 in both dimensions
+	return blocksWouldTouch(pos1, pos2, staticSize)
+}
 
+// blocksWouldTouch reports whether two size x size blocks anchored at these
+// top-left corners would touch, including diagonally.
+//
+// pos1 occupies [pos1.X, pos1.X+size-1] x [pos1.Y, pos1.Y+size-1], so the two
+// are clear of each other only when at least one full cell of gap separates
+// them on an axis — i.e. pos1.X+size+1 <= pos2.X.
+func blocksWouldTouch(pos1, pos2 Point, size int) bool {
 	// Check X overlap with 1 cell buffer
-	xOverlap := !(pos1.X+staticSize+1 <= pos2.X || pos2.X+staticSize+1 <= pos1.X)
+	xOverlap := !(pos1.X+size+1 <= pos2.X || pos2.X+size+1 <= pos1.X)
 	// Check Y overlap with 1 cell buffer
-	yOverlap := !(pos1.Y+staticSize+1 <= pos2.Y || pos2.Y+staticSize+1 <= pos1.Y)
+	yOverlap := !(pos1.Y+size+1 <= pos2.Y || pos2.Y+size+1 <= pos1.Y)
 
 	return xOverlap && yOverlap
 }
@@ -1374,6 +1384,41 @@ func filterAdjacent(candidates []Point, pos Point) []Point {
 		result = append(result, c)
 	}
 	return result
+}
+
+// blockTouchesLayer is the block-shaped counterpart of touchesLayer: it reports
+// whether a size x size block anchored at pos overlaps, or 8-directionally
+// touches, any non-zero cell of layer.
+func blockTouchesLayer(pos Point, size int, layer [][]int, width, height int) bool {
+	for y := pos.Y - 1; y <= pos.Y+size; y++ {
+		for x := pos.X - 1; x <= pos.X+size; x++ {
+			if x >= 0 && x < width && y >= 0 && y < height && layer[y][x] != 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// placeBlock fills a size x size block anchored at the given top-left corner.
+func placeBlock(layer [][]int, pos Point, size int) {
+	for dy := 0; dy < size; dy++ {
+		for dx := 0; dx < size; dx++ {
+			layer[pos.Y+dy][pos.X+dx] = 1
+		}
+	}
+}
+
+// filterTouchingBlocks removes candidate anchors whose size x size block would
+// touch the block just placed at placedPos.
+func filterTouchingBlocks(candidates []Point, placedPos Point, size int) []Point {
+	var filtered []Point
+	for _, pos := range candidates {
+		if !blocksWouldTouch(pos, placedPos, size) {
+			filtered = append(filtered, pos)
+		}
+	}
+	return filtered
 }
 
 // touchesLayer checks if a position has any 8-directional neighbor with value != 0
