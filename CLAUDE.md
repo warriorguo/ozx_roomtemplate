@@ -238,6 +238,17 @@ ground layer is final: it re-opens each door anchor and reruns the connectivity
 repair. **Post-condition: every requested door is walkable and reachable from
 every other door**, so anything downstream may assume it.
 
+**MainPath is a hard requirement** (ORT-106): `ComputeMainPath` returns an
+`error` — a door with no walkable cell on its wall, or a door pair with no route
+between them, fails the whole generation (surfaced as `400 Generation failed`
+with a `main path: ...` reason). Both used to be recorded as debug misses only,
+so an untraversable room was returned as a success; worse, `findCenterBiasedPath`
+snaps an unwalkable endpoint to the nearest walkable cell, so the room came back
+with a plausible-looking path between two interior cells that never crossed a
+doorway. Doors are visited in a fixed order (`doorOrder`) rather than by map
+iteration, so pairing and error text are deterministic. A single-door room is
+still legal and yields an empty main path.
+
 **Structure Validation**:
 - Dimensions: 4-200 for width/height
 - Required layers: ground, static, chaser, zoner, dps, mobAir

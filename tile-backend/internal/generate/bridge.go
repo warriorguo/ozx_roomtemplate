@@ -119,8 +119,11 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	}
 
 	// Main path computation
-	mainPathData, mainPathDebug := ComputeMainPath(ground, bridgeLayer, doorPositions, req.Width, req.Height)
+	mainPathData, mainPathDebug, err := ComputeMainPath(ground, bridgeLayer, doorPositions, req.Width, req.Height)
 	debugInfo.MainPath = mainPathDebug
+	if err != nil {
+		return nil, fmt.Errorf("main path: %w", err)
+	}
 
 	// Step 4: Generate static layer if requested
 	staticLayer := copyLayer(emptyLayer)

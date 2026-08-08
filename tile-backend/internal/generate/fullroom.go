@@ -235,8 +235,11 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	}
 
 	// Main path computation
-	mainPathData, mainPathDebug := ComputeMainPath(ground, bridgeLayer, doorPositions, req.Width, req.Height)
+	mainPathData, mainPathDebug, err := ComputeMainPath(ground, bridgeLayer, doorPositions, req.Width, req.Height)
 	debugInfo.MainPath = mainPathDebug
+	if err != nil {
+		return nil, fmt.Errorf("main path: %w", err)
+	}
 
 	// Static layer
 	staticLayer := copyLayer(emptyLayer)

@@ -5,9 +5,22 @@ import (
 	"math"
 )
 
+// doorOrder fixes the order doors are visited in, so the pairs are walked and
+// reported the same way every run. Ranging over the doorPositions map directly
+// would randomize both the widening order and the text of any error.
+var doorOrder = []DoorPosition{DoorTop, DoorRight, DoorBottom, DoorLeft}
+
 // ComputeMainPath finds paths through the room center connecting all required doors,
 // then computes per-cell distance metrics for enemy placement.
-func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Point, width, height int) (*MainPathData, *MainPathDebugInfo) {
+//
+// It fails when a room's doors cannot actually be connected: a door with no
+// walkable cell on its wall, or a pair of doors with no route between them.
+// Both used to be recorded as debug misses and nothing more, so a room the
+// player could not traverse was returned as a successful generation — the room
+// even looked plausible, because findCenterBiasedPath snaps an unwalkable
+// endpoint to the nearest walkable cell and drew a path between two interior
+// cells instead (ORT-106).
+func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Point, width, height int) (*MainPathData, *MainPathDebugInfo, error) {
 	debug := &MainPathDebugInfo{}
 
 	// Build walkable grid (ground or bridge)
@@ -21,14 +34,27 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 
 	// Collect door positions, anchored onto the door's own edge line so the
 	// path actually crosses the doorway (see snapDoorToEdge).
-	doors := make([]Point, 0, len(doorPositions))
-	for side, pos := range doorPositions {
-		doors = append(doors, snapDoorToEdge(walkable, side, pos, width, height))
+	type doorAnchor struct {
+		side DoorPosition
+		pos  Point
+	}
+	doors := make([]doorAnchor, 0, len(doorPositions))
+	for _, side := range doorOrder {
+		pos, ok := doorPositions[side]
+		if !ok {
+			continue
+		}
+		anchor := snapDoorToEdge(walkable, side, pos, width, height)
+		if !walkable[anchor.Y][anchor.X] {
+			return nil, debug, fmt.Errorf("door %s at (%d,%d): no walkable cell on that wall, the doorway is sealed",
+				side, pos.X, pos.Y)
+		}
+		doors = append(doors, doorAnchor{side: side, pos: anchor})
 	}
 
 	if len(doors) < 2 {
 		debug.Misses = append(debug.Misses, "fewer than 2 doors, no main path")
-		return emptyMainPathData(width, height), debug
+		return emptyMainPathData(width, height), debug, nil
 	}
 
 	// Find center of room
@@ -43,15 +69,15 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 	// Connect all doors through center using center-biased A*
 	for i := 0; i < len(doors); i++ {
 		for j := i + 1; j < len(doors); j++ {
-			path := findCenterBiasedPath(walkable, doors[i], doors[j], centerX, centerY, width, height)
-			if path != nil {
-				markWidenedPath(onMainPath, walkable, path, centerX, centerY, width, height)
-				debug.PathSegments = append(debug.PathSegments,
-					fmt.Sprintf("(%d,%d)->(%d,%d) len=%d", doors[i].X, doors[i].Y, doors[j].X, doors[j].Y, len(path)))
-			} else {
-				debug.Misses = append(debug.Misses,
-					fmt.Sprintf("no path found (%d,%d)->(%d,%d)", doors[i].X, doors[i].Y, doors[j].X, doors[j].Y))
+			a, b := doors[i], doors[j]
+			path := findCenterBiasedPath(walkable, a.pos, b.pos, centerX, centerY, width, height)
+			if path == nil {
+				return nil, debug, fmt.Errorf("doors %s (%d,%d) and %s (%d,%d) are not connected by walkable ground",
+					a.side, a.pos.X, a.pos.Y, b.side, b.pos.X, b.pos.Y)
 			}
+			markWidenedPath(onMainPath, walkable, path, centerX, centerY, width, height)
+			debug.PathSegments = append(debug.PathSegments,
+				fmt.Sprintf("(%d,%d)->(%d,%d) len=%d", a.pos.X, a.pos.Y, b.pos.X, b.pos.Y, len(path)))
 		}
 	}
 
@@ -94,7 +120,7 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 		DirectDistance:  directDist,
 		WalkingDistance: walkingDist,
 		SquishyScore:    squishyScore,
-	}, debug
+	}, debug, nil
 }
 
 // mainPathWidth is how many tiles wide the main path corridor is. The A* trace

@@ -33,7 +33,8 @@ func newZonerFixture(t *testing.T, ground [][]int, width, height int, doors []Do
 	t.Helper()
 	doorPositions := getDoorCenterPositions(width, height, doors)
 	bridge := createEmptyLayer(width, height)
-	mainPath, _ := ComputeMainPath(ground, bridge, doorPositions, width, height)
+	mainPath, _, err := ComputeMainPath(ground, bridge, doorPositions, width, height)
+	require.NoError(t, err, "main path should be computable for the fixture room")
 	require.NotNil(t, mainPath, "main path should be computable for the fixture room")
 	return &zonerFixture{
 		width: width, height: height,

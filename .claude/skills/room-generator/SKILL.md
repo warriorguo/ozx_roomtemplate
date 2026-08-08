@@ -281,3 +281,17 @@ The API returns this JSON structure:
 If the API returns an error:
 - Show the HTTP status and error message
 - Common issues: backend not running (connection refused), room too small for requested features, fewer than 2 doors, invalid roomCategory
+
+Generation failures are `400 Generation failed` with the reason in the body.
+A `main path: ...` reason means the room's doors could not be connected
+(ORT-106) — either a doorway with no walkable cell on its wall, or two doors
+with no walkable route between them:
+
+```
+main path: door left at (0,5): no walkable cell on that wall, the doorway is sealed
+main path: doors left (0,5) and right (19,5) are not connected by walkable ground
+```
+
+These should never occur in normal operation — `ensureDoorsWalkable` guarantees
+the invariant. Treat one as a generator bug worth reporting, not a bad request;
+retrying the same parameters is not a fix.
