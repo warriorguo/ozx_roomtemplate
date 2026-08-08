@@ -166,14 +166,13 @@ var stageConfigs = map[string]StageConfig{
 	model.StagePressure: {
 		StageType:        model.StagePressure,
 		AllowedRoomTypes: []string{"full", "platform"}, // not bridge
-		// Below 18x10 the strict placement pass cannot satisfy the chaser/dps
-		// minimums, and the relaxed fallback meets them by dropping the
-		// 8-directional spacing constraint — which emits adjacent same-category
-		// spawn tiles (ORT-93). See ORT-102 for the measured thresholds.
+		// Chaser was cut 12-16 -> 8-10 in ORT-108: it was the count driving
+		// pressure's minimum room size, and at 16x8 it put a crash-triggering
+		// spawn pair (ORT-93) in 21.5% of rooms against 6% at 8-10.
 		MinWidth:      18,
 		MinHeight:     10,
 		DPSRange:      [2]int{8, 12},
-		ChaserRange:   [2]int{12, 16},
+		ChaserRange:   [2]int{8, 10},
 		ZonerRange:    [2]int{2, 2},
 		MobAirRange:   [2]int{6, 12},
 		StaticRange:   [2]int{2, 3},
@@ -183,14 +182,16 @@ var stageConfigs = map[string]StageConfig{
 		StageType:        model.StagePeak,
 		AllowedRoomTypes: []string{"full"}, // only full
 		DoorRestrictions: &DoorRestriction{ForbidCornerPair: true},
-		// Peak carries the heaviest load, so it needs more room than pressure
-		// before the relaxed fallback stops firing. See ORT-102.
+		// Counts were cut back in ORT-108 (dps 12-24 -> 8-12, chaser 12-16 ->
+		// 8-10, zoner 4-6 -> 2-3, mobAir 18 -> 12-18) so peak stops engaging the
+		// relaxed fallback in small rooms — the prerequisite for dropping the
+		// minimum room size in ORT-109.
 		MinWidth:      20,
 		MinHeight:     12,
-		DPSRange:      [2]int{12, 24},
-		ChaserRange:   [2]int{12, 16},
-		ZonerRange:    [2]int{4, 6},
-		MobAirRange:   [2]int{18, 18},
+		DPSRange:      [2]int{8, 12},
+		ChaserRange:   [2]int{8, 10},
+		ZonerRange:    [2]int{2, 3},
+		MobAirRange:   [2]int{12, 18},
 		StaticRange:   [2]int{2, 3},
 		PlacementRule: "peak",
 	},

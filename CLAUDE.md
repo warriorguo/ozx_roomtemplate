@@ -179,8 +179,8 @@ internal/
 **Stage Rules**:
 - Teaching: DPS (4-6) + Chaser (2) + Zoner (1) + MobAir (6)
 - Building: DPS (4-6) + Chaser (4-6) + Zoner (1) + MobAir (6)
-- Pressure: DPS (8-12) + Chaser (12-16) + Zoner (2) + MobAir (6-12), not bridge, **min room 18×10**
-- Peak: DPS (12-24) + Chaser (12-16) + Zoner (4-6) + MobAir (18), full only, **min room 20×12**
+- Pressure: DPS (8-12) + Chaser (8-10) + Zoner (2) + MobAir (6-12), not bridge, **min room 18×10**
+- Peak: DPS (8-12) + Chaser (8-10) + Zoner (2-3) + MobAir (12-18), full only, **min room 20×12**
 - Release: light mix — DPS (2-4) + Chaser (2) + Zoner (1) + MobAir (6)
 - Boss: requires 6×6 clear center area, restricted door configs
 

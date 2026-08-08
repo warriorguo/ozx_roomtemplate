@@ -221,8 +221,8 @@ counted in 2×2 blocks. See §5c.
 stageRanges = {
     "teaching":  { dps: (4,6),   chaser: (2,2),   zoner: (1,1),  mobAir: (6,6)  },
     "building":  { dps: (4,6),   chaser: (4,6),   zoner: (1,1),  mobAir: (6,6)  },
-    "pressure":  { dps: (8,12),  chaser: (12,16), zoner: (2,2),  mobAir: (6,12) },
-    "peak":      { dps: (12,24), chaser: (12,16), zoner: (4,6),  mobAir: (18,18)},
+    "pressure":  { dps: (8,12),  chaser: (8,10),  zoner: (2,2),  mobAir: (6,12) },
+    "peak":      { dps: (8,12),  chaser: (8,10),  zoner: (2,3),  mobAir: (12,18)},
     "release":   { dps: (2,4),   chaser: (2,2),   zoner: (1,1),  mobAir: (6,6)  },
     "boss":      { dps: (0,0),  chaser: (0,0),  zoner: (0,0),  mobAir: (0,0) },
 }
@@ -599,8 +599,8 @@ def validate(payload, expected_stage=None):
     stage_ranges = {
         'teaching': {'dps':(4,6),'chaser':(2,2),'zoner':(1,1),'mobAir':(6,6)},
         'building': {'dps':(4,6),'chaser':(4,6),'zoner':(1,1),'mobAir':(6,6)},
-        'pressure': {'dps':(8,12),'chaser':(12,16),'zoner':(2,2),'mobAir':(6,12)},
-        'peak':     {'dps':(12,24),'chaser':(12,16),'zoner':(4,6),'mobAir':(18,18)},
+        'pressure': {'dps':(8,12),'chaser':(8,10),'zoner':(2,2),'mobAir':(6,12)},
+        'peak':     {'dps':(8,12),'chaser':(8,10),'zoner':(2,3),'mobAir':(12,18)},
         'release':  {'dps':(2,4),'chaser':(2,2),'zoner':(1,1),'mobAir':(6,6)},
         'boss':     {'dps':(0,0),'chaser':(0,0),'zoner':(0,0),'mobAir':(0,0)},
     }

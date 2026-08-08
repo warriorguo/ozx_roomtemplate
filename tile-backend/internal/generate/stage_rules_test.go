@@ -24,10 +24,14 @@ func TestStageRangeConfig(t *testing.T) {
 	}{
 		// ORT-101: zoner floor 1, chaser/dps floor 2, mobAir floor 6; existing
 		// non-zero ranges doubled (mobAir tripled, peak mobAir set to 18).
+		//
+		// ORT-108 then cut the two heavy stages back so they place cleanly in
+		// small rooms: peak dps 12-24 -> 8-12, chaser 12-16 -> 8-10, zoner 4-6 ->
+		// 2-3, mobAir 18 -> 12-18; pressure chaser 12-16 -> 8-10.
 		{"teaching", 4, 6, 2, 2, 1, 1, 6, 6},
 		{"building", 4, 6, 4, 6, 1, 1, 6, 6},
-		{"pressure", 8, 12, 12, 16, 2, 2, 6, 12},
-		{"peak", 12, 24, 12, 16, 4, 6, 18, 18},
+		{"pressure", 8, 12, 8, 10, 2, 2, 6, 12},
+		{"peak", 8, 12, 8, 10, 2, 3, 12, 18},
 		{"release", 2, 4, 2, 2, 1, 1, 6, 6},
 		{"boss", 0, 0, 0, 0, 0, 0, 0, 0},
 	}
