@@ -41,7 +41,9 @@ func fixture(name string) model.Template {
 			StageType:    &stage,
 			RoomCategory: &category,
 			OpenDoors:    &openDoors,
-			Meta:         model.TemplateMeta{Name: name, Version: 1, Width: 4, Height: 4},
+			// Same doors as the mask above, in data space: top|right.
+			Doors: &model.DoorStates{Top: 1, Right: 1},
+			Meta:  model.TemplateMeta{Name: name, Version: 1, Width: 4, Height: 4},
 		},
 	}
 }
@@ -551,27 +553,70 @@ func TestRotateMaskToVisual(t *testing.T) {
 	}
 }
 
-func TestCreate_LeavesPayloadOpenDoorsInDataSpace(t *testing.T) {
+// The file is an OZX artifact: its door metadata is in visual space, matching
+// what room-sync writes and what the game's DeriveOpenDoors produces. The
+// filename mask agrees with it. See ORT-113.
+func TestCreate_WritesDoorMetadataInVisualSpace(t *testing.T) {
 	s := newTestStore(t)
 	created, err := s.Create(context.Background(), fixture("alpha"))
 	if err != nil {
 		t.Fatalf("Create: %v", err)
-	}
-	// The name rotated (3 -> 9) but the payload the game reads must not.
-	if created.Payload.OpenDoors == nil || *created.Payload.OpenDoors != 3 {
-		t.Errorf("payload openDoors = %v, want 3 (data space, unrotated)", created.Payload.OpenDoors)
 	}
 	raw, err := os.ReadFile(created.Path)
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
 	var onDisk struct {
-		OpenDoors int `json:"openDoors"`
+		OpenDoors int               `json:"openDoors"`
+		Doors     model.DoorStates  `json:"doors"`
+		Ground    [][]int           `json:"ground"`
+		Overrides *model.DoorStates `json:"doorOverrides"`
 	}
 	if err := json.Unmarshal(raw, &onDisk); err != nil {
 		t.Fatalf("unmarshal: %v", err)
 	}
-	if onDisk.OpenDoors != 3 {
-		t.Errorf("on-disk openDoors = %d, want 3 (data space, unrotated)", onDisk.OpenDoors)
+	// Fixture is data-space top|right = 3, which rotates to left|top = 9.
+	if onDisk.OpenDoors != 9 {
+		t.Errorf("on-disk openDoors = %d, want 9 (visual space)", onDisk.OpenDoors)
+	}
+	// data top -> visual left, data right -> visual top.
+	if onDisk.Doors.Left != 1 || onDisk.Doors.Top != 1 {
+		t.Errorf("on-disk doors = %+v, want left=1 top=1 (visual space)", onDisk.Doors)
+	}
+	if onDisk.Doors.Right != 0 || onDisk.Doors.Bottom != 0 {
+		t.Errorf("on-disk doors = %+v, want right=0 bottom=0", onDisk.Doors)
+	}
+	// The filename mask and the body must agree, both visual.
+	if !strings.Contains(created.Path, "all_boss_9_") {
+		t.Errorf("filename %q should carry the same visual mask as the body", created.Path)
+	}
+	// The grid is NOT transposed — the game rotates it at render time.
+	if len(onDisk.Ground) != 4 || len(onDisk.Ground[0]) != 4 {
+		t.Errorf("ground should be written unrotated, got %dx%d", len(onDisk.Ground), len(onDisk.Ground[0]))
+	}
+}
+
+// Reading rotates back, so everything above the store — the API, the
+// converters, the editor — keeps working in data space.
+func TestCreateGet_DoorMetadataRoundTripsToDataSpace(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	created, err := s.Create(ctx, fixture("alpha"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if created.Payload.OpenDoors == nil || *created.Payload.OpenDoors != 3 {
+		t.Errorf("returned openDoors = %v, want 3 (data space)", created.Payload.OpenDoors)
+	}
+	got, err := s.Get(ctx, created.ID.String())
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Payload.OpenDoors == nil || *got.Payload.OpenDoors != 3 {
+		t.Errorf("round-tripped openDoors = %v, want 3 (data space)", got.Payload.OpenDoors)
+	}
+	d := got.Payload.Doors
+	if d == nil || d.Top != 1 || d.Right != 1 || d.Bottom != 0 || d.Left != 0 {
+		t.Errorf("round-tripped doors = %+v, want top=1 right=1 (data space)", d)
 	}
 }

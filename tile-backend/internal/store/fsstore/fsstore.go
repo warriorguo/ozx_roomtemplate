@@ -575,24 +575,86 @@ const (
 	doorBitLeft   = 8
 )
 
+// rotateDoorFields rotates a payload's door metadata between data space and
+// the OZX space used on disk, applying side to each side name.
+//
+// Only `doors` and `openDoors` move — the same two fields the room-sync export
+// remaps (see the room-sync skill's remap_doors), so both writers now produce
+// byte-compatible files. The grid layers are NOT transposed: the game applies
+// that rotation itself when it renders, so `ground` stays in data-space row
+// order on disk exactly as before. `doorOverrides` is an editor-only whitelist
+// the game never reads and sync never remaps, so it stays data-space too.
+//
+// The payload is modified in place; callers writing to disk must pass a copy.
+func rotateDoorFields(p *model.TemplatePayload, side func(string) string) {
+	if p.Doors != nil {
+		src := *p.Doors
+		rotated := model.DoorStates{}
+		for name, v := range map[string]int{"top": src.Top, "right": src.Right, "bottom": src.Bottom, "left": src.Left} {
+			switch side(name) {
+			case "top":
+				rotated.Top = v
+			case "right":
+				rotated.Right = v
+			case "bottom":
+				rotated.Bottom = v
+			case "left":
+				rotated.Left = v
+			}
+		}
+		p.Doors = &rotated
+	}
+	if p.OpenDoors != nil {
+		mask := rotateMask(*p.OpenDoors, side)
+		p.OpenDoors = &mask
+	}
+}
+
+// dataToVisualSide / visualToDataSide are the two directions of the ORT-111
+// rotation, named the same way as dataToVisual / visualToData on the frontend.
+func dataToVisualSide(s string) string {
+	switch s {
+	case "top":
+		return "left"
+	case "right":
+		return "top"
+	case "bottom":
+		return "right"
+	case "left":
+		return "bottom"
+	}
+	return s
+}
+
+func visualToDataSide(s string) string {
+	switch s {
+	case "left":
+		return "top"
+	case "top":
+		return "right"
+	case "right":
+		return "bottom"
+	case "bottom":
+		return "left"
+	}
+	return s
+}
+
+// rotateMask applies a side mapping to a door bitmask.
+func rotateMask(mask int, side func(string) string) int {
+	bits := map[string]int{"top": doorBitTop, "right": doorBitRight, "bottom": doorBitBottom, "left": doorBitLeft}
+	out := 0
+	for name, bit := range bits {
+		if mask&bit != 0 {
+			out |= bits[side(name)]
+		}
+	}
+	return out
+}
+
 // rotateMaskToVisual maps a data-space door bitmask to the visual space the
 // editor renders in: data top→left, right→top, bottom→right, left→bottom.
-func rotateMaskToVisual(mask int) int {
-	visual := 0
-	if mask&doorBitTop != 0 {
-		visual |= doorBitLeft
-	}
-	if mask&doorBitRight != 0 {
-		visual |= doorBitTop
-	}
-	if mask&doorBitBottom != 0 {
-		visual |= doorBitRight
-	}
-	if mask&doorBitLeft != 0 {
-		visual |= doorBitBottom
-	}
-	return visual
-}
+func rotateMaskToVisual(mask int) int { return rotateMask(mask, dataToVisualSide) }
 
 // summaryOf projects a Template into a TemplateSummary (drops the heavy
 // payload blob, keeps the indexed/displayed fields).
@@ -706,12 +768,15 @@ func readPayload(path string) (*model.TemplatePayload, error) {
 	if err := json.Unmarshal(data, &p); err != nil {
 		return nil, fmt.Errorf("fsstore: parse %s: %w", path, err)
 	}
+	rotateDoorFields(&p, visualToDataSide)
 	return &p, nil
 }
 
 // writePayload writes the bare payload via tmp + rename.
 func writePayload(path string, payload *model.TemplatePayload) error {
-	data, err := json.Marshal(payload)
+	onDisk := *payload
+	rotateDoorFields(&onDisk, dataToVisualSide)
+	data, err := json.Marshal(&onDisk)
 	if err != nil {
 		return fmt.Errorf("fsstore: marshal: %w", err)
 	}
