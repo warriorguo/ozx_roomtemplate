@@ -14,6 +14,65 @@ import { calculateAllTileProperties } from './tilePropertiesCalculator';
 const DOOR_SIDES = ['top', 'right', 'bottom', 'left'] as const;
 
 /**
+ * Door sides live in two spaces and the editor has to speak both (ORT-111).
+ *
+ * **Data space** is the stored grid: `doors{}`, `doorOverrides{}`, the
+ * `openDoors` bitmask, the derived filename, everything the backend and the OZX
+ * importer read. `template.ground[0]` is the data top edge.
+ *
+ * **Visual space** is what the canvas draws. ORT-76 renders the grid rotated 90°
+ * CCW — the same transpose + Y-flip OZX applies — so the room on screen matches
+ * the room in game:
+ *
+ * | data   | visual |
+ * |--------|--------|
+ * | top    | left   |
+ * | right  | top    |
+ * | bottom | right  |
+ * | left   | bottom |
+ *
+ * Before ORT-111 only the *canvas* was rotated; every label stayed in data
+ * space, so the opening drawn at the visual top was reported and saved as
+ * "Right" and the door controls were unusable without doing the rotation in
+ * your head.
+ *
+ * The fix is display-only: labels and controls are visual, storage stays data.
+ * These two functions are the **only** place the rotation is written down —
+ * `LayerEditor.getDoorBorderSide` calls `dataToVisual` for exactly that reason.
+ * Anything crossing the view boundary goes through here rather than open-coding
+ * a mapping that can drift.
+ */
+const DATA_TO_VISUAL: Record<DoorSide, DoorSide> = {
+  top: 'left',
+  right: 'top',
+  bottom: 'right',
+  left: 'bottom',
+};
+
+const VISUAL_TO_DATA: Record<DoorSide, DoorSide> = {
+  left: 'top',
+  top: 'right',
+  right: 'bottom',
+  bottom: 'left',
+};
+
+/** Stored side → the canvas edge it is drawn on. */
+export function dataToVisual(side: DoorSide): DoorSide {
+  return DATA_TO_VISUAL[side];
+}
+
+/** Canvas edge the user pointed at → the stored side it means. */
+export function visualToData(side: DoorSide): DoorSide {
+  return VISUAL_TO_DATA[side];
+}
+
+/**
+ * Visual sides in reading order, for iterating door UI. Use this instead of
+ * DOOR_SIDES wherever the list is rendered to the user.
+ */
+export const VISUAL_DOOR_SIDES: readonly DoorSide[] = ['top', 'right', 'bottom', 'left'];
+
+/**
  * 根据 ground 连通性检测每个门是否“物理上”开通：
  * 门对应的两个中间格子在 ground 层都为 1 则视为连通。
  */

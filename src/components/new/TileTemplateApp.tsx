@@ -6,7 +6,8 @@ import { HeatmapLayerEditor } from './HeatmapLayerEditor';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
 import type { LayerType } from '../../types/newTemplate';
 import { ROOM_TYPES, ROOM_CATEGORIES } from '../../types/newTemplate';
-import { getInvalidDoorSelections } from '../../utils/newTemplateUtils';
+import type { DoorSide } from '../../types/newTemplate';
+import { getInvalidDoorSelections, dataToVisual, visualToData, VISUAL_DOOR_SIDES } from '../../utils/newTemplateUtils';
 import { templateApi, ApiError, type DoorPosition, type PlacementShortfall } from '../../services/api';
 
 const layerConfigs: Array<{
@@ -219,6 +220,8 @@ export const TileTemplateApp: React.FC = () => {
   const [generateWarnings, setGenerateWarnings] = useState<PlacementShortfall[]>([]);
   // Which editor grid is on screen. Composite is the default landing view.
   const [activeTab, setActiveTab] = useState<EditorTab>('composite');
+  // Keyed by VISUAL side — the edge the user sees on the canvas (ORT-111).
+  // Mapped through visualToData at every point it reaches storage or the API.
   const [selectedDoors, setSelectedDoors] = useState<{ top: boolean; right: boolean; bottom: boolean; left: boolean }>({
     top: false,
     right: false,
@@ -238,10 +241,10 @@ export const TileTemplateApp: React.FC = () => {
     // clear the very door selection the user just generated with, so keep it.
     if (!loadedId) return;
     setSelectedDoors({
-      top: template.doors.top === 1,
-      right: template.doors.right === 1,
-      bottom: template.doors.bottom === 1,
-      left: template.doors.left === 1,
+      top: template.doors[visualToData('top')] === 1,
+      right: template.doors[visualToData('right')] === 1,
+      bottom: template.doors[visualToData('bottom')] === 1,
+      left: template.doors[visualToData('left')] === 1,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loadedId]);
@@ -290,10 +293,12 @@ export const TileTemplateApp: React.FC = () => {
   // Toggle a door in the "Select Doors to Connect" panel. This is the single
   // authoritative open-door selector: it feeds room generation AND drives the
   // saved open-door whitelist (template.doorOverrides). See ORT-91.
-  const toggleDoorSelection = (door: 'top' | 'right' | 'bottom' | 'left') => {
+  // `door` is the visual edge the user clicked; the stored whitelist is data
+  // space, so rotate on the way out (ORT-111).
+  const toggleDoorSelection = (door: DoorSide) => {
     const next = { ...selectedDoors, [door]: !selectedDoors[door] };
     setSelectedDoors(next);
-    setDoorWhitelist((['top', 'right', 'bottom', 'left'] as const).filter(s => next[s]));
+    setDoorWhitelist(VISUAL_DOOR_SIDES.filter(s => next[s]).map(visualToData));
   };
 
   // Check if ground layer has data
@@ -310,11 +315,10 @@ export const TileTemplateApp: React.FC = () => {
 
   // Handle room generation
   const handleGenerateRoom = async () => {
-    const doors: DoorPosition[] = [];
-    if (selectedDoors.top) doors.push('top');
-    if (selectedDoors.right) doors.push('right');
-    if (selectedDoors.bottom) doors.push('bottom');
-    if (selectedDoors.left) doors.push('left');
+    // The generator speaks data space; the checkboxes are visual (ORT-111).
+    const doors: DoorPosition[] = VISUAL_DOOR_SIDES
+      .filter(side => selectedDoors[side])
+      .map(side => visualToData(side) as DoorPosition);
 
     if (doors.length < 2) {
       setGenerateError('Please select at least 2 doors to generate a room.');
@@ -747,9 +751,12 @@ export const TileTemplateApp: React.FC = () => {
                     gridTemplateColumns: '1fr 1fr',
                     gap: '8px'
                   }}>
-                    {(['top', 'right', 'bottom', 'left'] as const).map((side) => {
-                      const isOpen = template.doors[side] === 1;
-                      const invalid = invalidDoors.includes(side);
+                    {VISUAL_DOOR_SIDES.map((side) => {
+                      // Labels are the edge on screen; the state behind them is
+                      // stored per data side (ORT-111).
+                      const dataSide = visualToData(side);
+                      const isOpen = template.doors[dataSide] === 1;
+                      const invalid = invalidDoors.includes(dataSide);
                       const label = side.charAt(0).toUpperCase() + side.slice(1);
                       return (
                         <div
@@ -789,7 +796,10 @@ export const TileTemplateApp: React.FC = () => {
                       borderRadius: '4px',
                       fontSize: '11px',
                     }}>
-                      ⚠ {invalidDoors.map((s) => s.charAt(0).toUpperCase() + s.slice(1)).join(', ')}{' '}
+                      ⚠ {invalidDoors.map((s) => {
+                        const v = dataToVisual(s);
+                        return v.charAt(0).toUpperCase() + v.slice(1);
+                      }).join(', ')}{' '}
                       selected open but not connected in the ground layer — saving is blocked until fixed.
                     </div>
                   )}
@@ -989,7 +999,7 @@ export const TileTemplateApp: React.FC = () => {
                         gap: '8px',
                         marginBottom: '12px',
                       }}>
-                        {(['top', 'right', 'bottom', 'left'] as const).map(door => (
+                        {VISUAL_DOOR_SIDES.map(door => (
                           <label
                             key={door}
                             style={{
@@ -1432,10 +1442,22 @@ export const TileTemplateApp: React.FC = () => {
 
                           <div style={{ marginTop: '4px' }}>
                             <strong>Door Distances (BFS):</strong><br/>
-                            &nbsp;&nbsp;Top: {props.distToTopDoor ?? '-'}<br/>
-                            &nbsp;&nbsp;Bottom: {props.distToBottomDoor ?? '-'}<br/>
-                            &nbsp;&nbsp;Left: {props.distToLeftDoor ?? '-'}<br/>
-                            &nbsp;&nbsp;Right: {props.distToRightDoor ?? '-'}
+                            {/* Distances are computed per data side; label each
+                                by the edge it is drawn on (ORT-111). */}
+                            {VISUAL_DOOR_SIDES.map((side) => {
+                              const byDataSide = {
+                                top: props.distToTopDoor,
+                                right: props.distToRightDoor,
+                                bottom: props.distToBottomDoor,
+                                left: props.distToLeftDoor,
+                              };
+                              const label = side.charAt(0).toUpperCase() + side.slice(1);
+                              return (
+                                <span key={side}>
+                                  &nbsp;&nbsp;{label}: {byDataSide[visualToData(side)] ?? '-'}<br/>
+                                </span>
+                              );
+                            })}
                           </div>
 
                           <div style={{ marginTop: '4px' }}>

@@ -8,7 +8,7 @@ import type {
   BackendTemplatePayload,
   BackendCreateRequest
 } from './api';
-import { calculateDoorStates } from '../utils/newTemplateUtils';
+import { calculateDoorStates, visualToData, VISUAL_DOOR_SIDES } from '../utils/newTemplateUtils';
 import { calculateAllTileProperties } from '../utils/tilePropertiesCalculator';
 import { extractLineSegments, hasAnyCells } from '../utils/lineExtractor';
 
@@ -203,12 +203,14 @@ export function generateDefaultTemplateName(): string {
 export function formatOpenDoors(mask: number | null | undefined): string {
   if (mask == null) return '?';
   if (mask === 0) return '—';
-  const parts: string[] = [];
-  if (mask & 1) parts.push('T');
-  if (mask & 2) parts.push('R');
-  if (mask & 4) parts.push('B');
-  if (mask & 8) parts.push('L');
-  return parts.join(' ');
+  // The mask is a file value in DATA space (Top=1, Right=2, Bottom=4, Left=8),
+  // but this string is a label in the sidebar, so it names the edge each door is
+  // drawn on — the same vocabulary as every other door surface (ORT-111).
+  const bitByDataSide = { top: 1, right: 2, bottom: 4, left: 8 } as const;
+  return VISUAL_DOOR_SIDES
+    .filter((side) => (mask & bitByDataSide[visualToData(side)]) !== 0)
+    .map((side) => side.charAt(0).toUpperCase())
+    .join(' ');
 }
 
 /**

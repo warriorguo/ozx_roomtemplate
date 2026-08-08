@@ -293,6 +293,36 @@ lands in ORT-66.
 
 ## Key Implementation Details
 
+### Door Sides Live in Two Spaces (ORT-111)
+
+**Data space** is the stored grid — `doors{}`, `doorOverrides{}`, the `openDoors`
+bitmask, the derived filename, and everything the Go backend and the OZX
+importer read. `ground[0]` is the data top edge. **Visual space** is what the
+canvas draws: ORT-76 renders the grid rotated 90° CCW, the same transpose +
+Y-flip OZX applies, so the editor shows the room the way the game will.
+
+| data | visual |
+|------|--------|
+| top | left |
+| right | top |
+| bottom | right |
+| left | bottom |
+
+ORT-76 rotated only the canvas; every label stayed in data space, so an opening
+drawn at the visual top was reported and saved as "Right" and the door controls
+were 90° off from what the user was looking at. ORT-111 rotated **the labels**,
+not the storage: nothing on disk changed, so existing templates and the OZX
+importer are unaffected.
+
+`dataToVisual` / `visualToData` / `VISUAL_DOOR_SIDES` in
+`src/utils/newTemplateUtils.ts` are the **only** place the rotation is written
+down — `LayerEditor.getDoorBorderSide` calls `dataToVisual` for exactly that
+reason. Every UI surface that names a door side (status panel, generator
+checkboxes, BFS tooltip, sidebar filters and row labels) goes through them.
+Never open-code the mapping; the store, the converters, `detectDoorConnectivity`
+and the whole backend stay data-space. The rotation lives at the view boundary
+only.
+
 ### Frontend State Management
 - **Zustand store** is the single source of truth for template data
 - All cell edits go through `setCellValue()` which triggers validation

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNewTemplateStore } from '../../store/newTemplateStore';
-import type { LayerType, CellValue } from '../../types/newTemplate';
+import type { LayerType, CellValue, DoorSide } from '../../types/newTemplate';
+import { dataToVisual } from '../../utils/newTemplateUtils';
 
 interface LayerEditorProps {
   layer: LayerType;
@@ -64,10 +65,10 @@ const Cell: React.FC<CellProps> = ({
   const { template } = useNewTemplateStore();
 
   // Decides which CSS edge of a cell to paint with the door-marker colour.
-  // The grid is rendered 90° CCW (ORT-76, updated): data top/bottom stay on
-  // the visual left/right respectively, but data left/right now appear on the
-  // visual bottom/top — the inverse of the prior transpose.
-  const getDoorBorderSide = (): 'top' | 'bottom' | 'left' | 'right' | null => {
+  // The cell is located in data space, then the edge it sits on is rotated into
+  // the visual space the grid is drawn in (ORT-76). dataToVisual owns that
+  // rotation — see its docs in newTemplateUtils (ORT-111).
+  const getDoorBorderSide = (): DoorSide | null => {
     // 只在 ground 层显示门标记
     if (layer !== 'ground') return null;
 
@@ -78,24 +79,17 @@ const Cell: React.FC<CellProps> = ({
     const midWidth = Math.floor(width / 2);
     const midHeight = Math.floor(height / 2);
 
-    // Data top edge → visual LEFT (unchanged).
     if (y === 0 && (x === midWidth - 1 || x === midWidth)) {
-      return 'left';
+      return dataToVisual('top');
     }
-
-    // Data bottom edge → visual RIGHT (unchanged).
     if (y === height - 1 && (x === midWidth - 1 || x === midWidth)) {
-      return 'right';
+      return dataToVisual('bottom');
     }
-
-    // Data left edge → visual BOTTOM (flipped from transpose).
     if (x === 0 && (y === midHeight - 1 || y === midHeight)) {
-      return 'bottom';
+      return dataToVisual('left');
     }
-
-    // Data right edge → visual TOP (flipped from transpose).
     if (x === width - 1 && (y === midHeight - 1 || y === midHeight)) {
-      return 'top';
+      return dataToVisual('right');
     }
 
     return null;

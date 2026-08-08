@@ -3,6 +3,7 @@ import { useNewTemplateStore } from '../../store/newTemplateStore';
 import { templateApi, type BackendListResponse, type ListTemplatesParams, type TemplateSummary, ApiError } from '../../services/api';
 import { LazyThumbnail } from './LazyThumbnail';
 import { formatTemplateInfo, generateDefaultTemplateName } from '../../services/templateConverter';
+import { visualToData, VISUAL_DOOR_SIDES } from '../../utils/newTemplateUtils';
 
 interface SaveLoadPanelProps {
   isOpen: boolean;
@@ -229,17 +230,19 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
     const doors = item.doors_connected;
     if (bitmask == null && !doors) return null;
 
-    const doorIcons = bitmask != null ? [
-      { key: 'top', label: 'T', connected: (bitmask & 1) !== 0 },
-      { key: 'right', label: 'R', connected: (bitmask & 2) !== 0 },
-      { key: 'bottom', label: 'B', connected: (bitmask & 4) !== 0 },
-      { key: 'left', label: 'L', connected: (bitmask & 8) !== 0 },
-    ] : [
-      { key: 'top', label: 'T', connected: doors!.top },
-      { key: 'right', label: 'R', connected: doors!.right },
-      { key: 'bottom', label: 'B', connected: doors!.bottom },
-      { key: 'left', label: 'L', connected: doors!.left },
-    ];
+    // open_doors and doors_connected are wire/file values in DATA space; the
+    // badge letters name the edge the room is drawn on (ORT-111).
+    const bitByDataSide = { top: 1, right: 2, bottom: 4, left: 8 } as const;
+    const doorIcons = VISUAL_DOOR_SIDES.map((side) => {
+      const dataSide = visualToData(side);
+      return {
+        key: side,
+        label: side.charAt(0).toUpperCase(),
+        connected: bitmask != null
+          ? (bitmask & bitByDataSide[dataSide]) !== 0
+          : doors![dataSide],
+      };
+    });
 
     return (
       <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
@@ -554,12 +557,16 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                       <div>
                         <div style={{ fontWeight: 'bold', fontSize: '13px', marginBottom: '8px', color: '#555' }}>Door Connectivity</div>
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px' }}>
-                          {(['top', 'right', 'bottom', 'left'] as const).map(door => {
+                          {/* filters.doors stays keyed by DATA side so it maps
+                              1:1 onto the *_door_connected query params; only
+                              the label rotates (ORT-111). */}
+                          {VISUAL_DOOR_SIDES.map(visualSide => {
+                            const door = visualToData(visualSide);
                             const doorValue = filters.doors[door] === 'any' ? null : filters.doors[door] === 'connected';
                             return (
                               <TriStateCheckbox
-                                key={door}
-                                label={door.charAt(0).toUpperCase() + door.slice(1)}
+                                key={visualSide}
+                                label={visualSide.charAt(0).toUpperCase() + visualSide.slice(1)}
                                 value={doorValue}
                                 onChange={(val) => setFilters({
                                   ...filters,
