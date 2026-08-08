@@ -152,7 +152,6 @@ MobAir 早于第 2 组的 Chaser/DPS 落子，后者直接压在它上面。现�
 
 #### 压力期 (pressure)
 - **房间限制**：不能是 bridge
-- **最小房间尺寸**：18×10
 - DPS：8-12
 - Chaser：8-10
 - Zoner：2
@@ -161,7 +160,6 @@ MobAir 早于第 2 组的 Chaser/DPS 落子，后者直接压在它上面。现�
 #### 峰值期 (peak)
 - **房间限制**：只能是 full
 - **门限制**：不能是 2 开门的对角组合（左上/左下/右上/右下）
-- **最小房间尺寸**：20×12
 - DPS：8-12
 - Chaser：8-10
 - Zoner：2-3
@@ -182,17 +180,17 @@ MobAir 早于第 2 组的 Chaser/DPS 落子，后者直接压在它上面。现�
 ### 阶段验证流程
 
 1. 检查 roomType 是否在 allowedRoomTypes 中
-2. 检查房间尺寸是否满足 MinWidth / MinHeight
-3. 检查门配置是否满足 DoorRestrictions
-4. 随机生成范围内的敌人数量
-5. Boss 阶段额外检查 6×6 空地
+2. 检查门配置是否满足 DoorRestrictions
+3. 随机生成范围内的敌人数量
+4. Boss 阶段额外检查 6×6 空地
 
-**最小房间尺寸**（ORT-102）：房间小于该尺寸时，严格放置无法在 8 邻域间距约束下放下
-该阶段的敌人数量；放宽兜底会通过丢弃间距来凑数，从而产生同类相邻的刷怪格（Zoner
-会导致游戏崩溃，见 ORT-93）。`ValidateAndApplyStage` 因此在生成任何图层之前就直接
-拒绝过小的房间，错误信息为
-`stage <名称> room size: requires a room of at least WxH, got WxH`。
-`MinWidth` / `MinHeight` 为 0 表示该阶段不限制尺寸。
+**房间尺寸不再受限**（ORT-109）：ORT-102 曾为 pressure/peak 设置最小房间尺寸并直接
+拒绝过小的房间。ORT-108 改为下调这两个阶段的敌人数量，因此该限制已整体移除——任意
+尺寸的房间都可以搭配任意阶段。
+
+小房间仍不保证放置干净：按 ORT-108 的数量测得，16×8 仍有 6%（pressure）和
+16.5%（peak）的房间出现同类相邻的刷怪格。这属于放置逻辑需要解决的问题（ORT-93），
+而不该由尺寸限制来回避。
 
 ## API 参数
 

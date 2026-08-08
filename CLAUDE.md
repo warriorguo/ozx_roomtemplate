@@ -179,8 +179,8 @@ internal/
 **Stage Rules**:
 - Teaching: DPS (4-6) + Chaser (2) + Zoner (1) + MobAir (6)
 - Building: DPS (4-6) + Chaser (4-6) + Zoner (1) + MobAir (6)
-- Pressure: DPS (8-12) + Chaser (8-10) + Zoner (2) + MobAir (6-12), not bridge, **min room 18×10**
-- Peak: DPS (8-12) + Chaser (8-10) + Zoner (2-3) + MobAir (12-18), full only, **min room 20×12**
+- Pressure: DPS (8-12) + Chaser (8-10) + Zoner (2) + MobAir (6-12), not bridge
+- Peak: DPS (8-12) + Chaser (8-10) + Zoner (2-3) + MobAir (12-18), full only
 - Release: light mix — DPS (2-4) + Chaser (2) + Zoner (1) + MobAir (6)
 - Boss: requires 6×6 clear center area, restricted door configs
 
@@ -216,16 +216,21 @@ path checks, and distinct blocks never touch in any of the 8 directions. The
 game collapses a connected block into one spawn, so **`zonerCount` counts
 spawns, not cells** — count 8-connected groups (`countZonerUnits`), not `1`s,
 whenever comparing against a stage range. Measured 1×1 fallback rate is under 1%
-of spawns at every stage minimum, so the ORT-102 minimums are unchanged.
+of spawns at every stage minimum.
 
-**Stage minimum room size** (`StageConfig.MinWidth` / `MinHeight`, ORT-102): a room
-smaller than the stage minimum cannot fit that stage's enemy counts under the
-8-directional spacing constraint. The relaxed placement fallback would meet the
-counts by dropping that constraint, emitting adjacent same-category spawn tiles
-(which crash the game for Zoner — ORT-93). `ValidateAndApplyStage` therefore
-rejects undersized rooms up front with
-`stage <name> room size: requires a room of at least WxH, got WxH`.
-Stages with `MinWidth`/`MinHeight` of 0 are unconstrained.
+**No stage constrains room size** (ORT-109): ORT-102 gave pressure an 18×10
+minimum and peak a 20×12 one, rejecting smaller rooms up front — an undersized
+room cannot fit the stage's counts under the 8-directional spacing constraint,
+and the relaxed placement fallback met them by dropping that constraint,
+emitting adjacent same-category spawn tiles (which crash the game for Zoner —
+ORT-93). ORT-108 cut those two stages' counts back instead, and the minimums,
+`StageConfig.MinWidth`/`MinHeight`, and the `minWidth`/`minHeight` fields on
+`/stage-configs` are all gone. Any room size may be paired with any stage.
+
+Small rooms are permitted but not guaranteed clean: at ORT-108's counts, 16×8
+still produces an adjacent same-category spawn pair in 6% of pressure rooms and
+16.5% of peak rooms. That residue belongs to ORT-93 — placement should never
+violate spacing whatever it is asked for — rather than to a size limit.
 
 **Door walkability invariant** (`ensureDoorsWalkable`, ORT-105): the ground
 generators carve after they fill, and their rollback guard

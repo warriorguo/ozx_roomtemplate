@@ -11,8 +11,6 @@ type StageConfig struct {
 	StageType        string
 	AllowedRoomTypes []string // empty = all allowed
 	DoorRestrictions *DoorRestriction
-	MinWidth         int    // 0 = no constraint
-	MinHeight        int    // 0 = no constraint
 	ChaserRange      [2]int // [min, max]
 	ZonerRange       [2]int
 	DPSRange         [2]int
@@ -125,8 +123,6 @@ type BossArenaInfo struct {
 type StageConfigJSON struct {
 	StageType        string   `json:"stageType"`
 	AllowedRoomTypes []string `json:"allowedRoomTypes"`
-	MinWidth         int      `json:"minWidth"`  // 0 = no constraint
-	MinHeight        int      `json:"minHeight"` // 0 = no constraint
 	ChaserRange      [2]int   `json:"chaserRange"`
 	ZonerRange       [2]int   `json:"zonerRange"`
 	DPSRange         [2]int   `json:"dpsRange"`
@@ -166,11 +162,9 @@ var stageConfigs = map[string]StageConfig{
 	model.StagePressure: {
 		StageType:        model.StagePressure,
 		AllowedRoomTypes: []string{"full", "platform"}, // not bridge
-		// Chaser was cut 12-16 -> 8-10 in ORT-108: it was the count driving
-		// pressure's minimum room size, and at 16x8 it put a crash-triggering
-		// spawn pair (ORT-93) in 21.5% of rooms against 6% at 8-10.
-		MinWidth:      18,
-		MinHeight:     10,
+		// Chaser was cut 12-16 -> 8-10 in ORT-108: at 16x8 the old range put a
+		// crash-triggering spawn pair (ORT-93) in 21.5% of rooms against 6% at
+		// 8-10.
 		DPSRange:      [2]int{8, 12},
 		ChaserRange:   [2]int{8, 10},
 		ZonerRange:    [2]int{2, 2},
@@ -184,10 +178,7 @@ var stageConfigs = map[string]StageConfig{
 		DoorRestrictions: &DoorRestriction{ForbidCornerPair: true},
 		// Counts were cut back in ORT-108 (dps 12-24 -> 8-12, chaser 12-16 ->
 		// 8-10, zoner 4-6 -> 2-3, mobAir 18 -> 12-18) so peak stops engaging the
-		// relaxed fallback in small rooms — the prerequisite for dropping the
-		// minimum room size in ORT-109.
-		MinWidth:      20,
-		MinHeight:     12,
+		// relaxed fallback in small rooms.
 		DPSRange:      [2]int{8, 12},
 		ChaserRange:   [2]int{8, 10},
 		ZonerRange:    [2]int{2, 3},
@@ -239,8 +230,6 @@ func GetAllStageConfigs() []StageConfigJSON {
 		result = append(result, StageConfigJSON{
 			StageType:        cfg.StageType,
 			AllowedRoomTypes: cfg.AllowedRoomTypes,
-			MinWidth:         cfg.MinWidth,
-			MinHeight:        cfg.MinHeight,
 			ChaserRange:      cfg.ChaserRange,
 			ZonerRange:       cfg.ZonerRange,
 			DPSRange:         cfg.DPSRange,
@@ -274,15 +263,6 @@ func ValidateAndApplyStage(stageType, roomType string, doors []DoorPosition, gro
 		if !allowed {
 			return nil, fmt.Errorf("stage %s does not allow room type %s (allowed: %v)", stageType, roomType, cfg.AllowedRoomTypes)
 		}
-	}
-
-	// Validate room dimensions. A room smaller than the stage minimum cannot fit
-	// the stage's enemy counts under the 8-directional spacing constraint, and
-	// the relaxed placement fallback would meet the counts by dropping that
-	// constraint — producing adjacent same-category spawns (ORT-93). Fail loudly
-	// instead. See ORT-102.
-	if err := validateRoomDimensions(cfg, width, height); err != nil {
-		return nil, fmt.Errorf("stage %s room size: %w", stageType, err)
 	}
 
 	// Validate door restrictions
@@ -420,19 +400,6 @@ func splitCount(total, n int) []int {
 		}
 	}
 	return parts
-}
-
-// validateRoomDimensions checks the room against the stage's minimum size.
-// A zero MinWidth/MinHeight means that dimension is unconstrained.
-func validateRoomDimensions(cfg *StageConfig, width, height int) error {
-	if cfg.MinWidth <= 0 && cfg.MinHeight <= 0 {
-		return nil
-	}
-	if width < cfg.MinWidth || height < cfg.MinHeight {
-		return fmt.Errorf("requires a room of at least %dx%d, got %dx%d",
-			cfg.MinWidth, cfg.MinHeight, width, height)
-	}
-	return nil
 }
 
 // validateDoorRestrictions checks door configuration against stage restrictions

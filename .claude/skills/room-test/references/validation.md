@@ -330,30 +330,33 @@ Unchanged by ORT-104, and worth asserting on every room:
   reverse. This was a real defect in fullroom's grouped placement before ORT-104
   (mobAir ran inside the per-group loop); treat any overlap as a regression.
 
-### 5b. Stage Minimum Room Size
+### 5b. Room Size Is Unconstrained (ORT-109)
 
-Some stages require a minimum room size; the generator rejects smaller rooms
-before building any layer, so a generate request that violates this returns an
-error rather than a template.
+No stage constrains room dimensions. Any room size may be paired with any stage,
+and a generate request is never rejected for being too small.
 
-```
-stageMinSize = {
-    "pressure": (18, 10),   # width, height
-    "peak":     (20, 12),
-}
-```
+ORT-102 previously gave `pressure` an 18×10 minimum and `peak` a 20×12 one.
+ORT-108 cut those two stages' counts back instead (pressure chaser 12-16 → 8-10;
+peak dps 12-24 → 8-12, chaser 12-16 → 8-10, zoner 4-6 → 2-3, mobAir 18 → 12-18),
+and the limits were removed.
 
-All other stages are unconstrained.
+**Testing this**: a `pressure` or `peak` generate request at 16×8 must return
+200 with a template. Treat a 400 mentioning `room size` as a regression.
 
-Rationale: below these dimensions the strict placement pass cannot satisfy the
-stage's enemy minimums, and the relaxed fallback meets them by dropping the
-8-directional spacing constraint — producing adjacent same-category spawn tiles
-that crash the game for Zoner (ORT-93). See ORT-102.
+**Small rooms are permitted, not guaranteed clean.** Measured at ORT-108's
+counts over 200 rooms per size, the share containing an adjacent same-category
+spawn pair (the ORT-93 crash condition) is:
 
-**Testing this**: a `pressure` or `peak` generate request below the minimum must
-fail with HTTP 400 and a message matching
-`stage <name> room size: requires a room of at least WxH, got WxH`.
-Treat a 200 response for an undersized room as a regression.
+| Room | pressure | peak |
+|------|----------|------|
+| 16×8 | 6.0% | 16.5% |
+| 16×10 | 0.5% | 4.5% |
+| 18×10 | 0.0% | 2.5% |
+| 20×12 | 0.0% | 0.5% |
+| 24×14 | 0.0% | 0.0% |
+
+So §4.3 (spacing) is worth checking especially closely on small rooms, and a
+violation there is an ORT-93 finding rather than a size-limit one.
 
 **Note**: Counts here are number of *spawners*, not enemy sprites. `chaser`,
 `dps` and `mobAir` occupy one cell per spawner; `zoner` occupies a 2×2 block per

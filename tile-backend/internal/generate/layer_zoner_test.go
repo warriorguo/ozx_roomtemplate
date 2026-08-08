@@ -116,10 +116,9 @@ func TestZonerBlocksSatisfyPerCellConstraints(t *testing.T) {
 	for _, stage := range []string{"teaching", "building", "pressure", "peak", "release"} {
 		cfg := GetStageConfig(stage)
 		require.NotNilf(t, cfg, "stage %q not found", stage)
-		w, h := cfg.MinWidth, cfg.MinHeight
-		if w == 0 || h == 0 {
-			w, h = 20, 12
-		}
+		// Stages no longer carry a minimum room size (ORT-109); 20x12 is a
+		// reference size comfortably above every stage's count.
+		const w, h = 20, 12
 
 		t.Run(fmt.Sprintf("%s_%dx%d", stage, w, h), func(t *testing.T) {
 			for trial := 0; trial < 25; trial++ {

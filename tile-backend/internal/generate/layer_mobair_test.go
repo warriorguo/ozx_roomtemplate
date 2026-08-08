@@ -211,10 +211,9 @@ func TestGenerateMobAirLayer_ConstraintsHold(t *testing.T) {
 		t.Run(stage, func(t *testing.T) {
 			cfg := GetStageConfig(stage)
 			require.NotNil(t, cfg)
-			w, h := cfg.MinWidth, cfg.MinHeight
-			if w == 0 || h == 0 {
-				w, h = 20, 12
-			}
+			// Stages no longer carry a minimum room size (ORT-109); 20x12 is a
+			// reference size comfortably above every stage's count.
+			const w, h = 20, 12
 
 			for trial := 0; trial < 20; trial++ {
 				resp, err := GenerateFullRoom(FullRoomGenerateRequest{
