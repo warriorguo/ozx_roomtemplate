@@ -544,7 +544,19 @@ func stageOf(t *model.Template) string {
 }
 
 // doorsOf returns the openDoors bitmask used in the file name.
+//
+// The filename mask is in VISUAL space — it names the edge each door is drawn
+// on in the editor — while the payload's openDoors stays in data space, which
+// is what the game reads (RoomTilemapData.OpenDoors). The two therefore differ
+// by the 90° CCW rotation the editor renders with: a room stored as
+// `openDoors: 2` (data right) is named `_1_` (visual top). See ORT-111 for the
+// rotation and why the payload is deliberately left alone.
 func doorsOf(t *model.Template) int {
+	return rotateMaskToVisual(openDoorsOf(t))
+}
+
+// openDoorsOf returns the payload's data-space openDoors bitmask.
+func openDoorsOf(t *model.Template) int {
 	if t.Payload.OpenDoors != nil {
 		return *t.Payload.OpenDoors
 	}
@@ -552,6 +564,34 @@ func doorsOf(t *model.Template) int {
 		return *t.OpenDoors
 	}
 	return 0
+}
+
+// Bitmask values shared by the payload and the filename: Top=1, Right=2,
+// Bottom=4, Left=8. Only the space they are read in differs.
+const (
+	doorBitTop    = 1
+	doorBitRight  = 2
+	doorBitBottom = 4
+	doorBitLeft   = 8
+)
+
+// rotateMaskToVisual maps a data-space door bitmask to the visual space the
+// editor renders in: data top→left, right→top, bottom→right, left→bottom.
+func rotateMaskToVisual(mask int) int {
+	visual := 0
+	if mask&doorBitTop != 0 {
+		visual |= doorBitLeft
+	}
+	if mask&doorBitRight != 0 {
+		visual |= doorBitTop
+	}
+	if mask&doorBitBottom != 0 {
+		visual |= doorBitRight
+	}
+	if mask&doorBitLeft != 0 {
+		visual |= doorBitBottom
+	}
+	return visual
 }
 
 // summaryOf projects a Template into a TemplateSummary (drops the heavy

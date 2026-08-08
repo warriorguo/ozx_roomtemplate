@@ -16,6 +16,10 @@ import (
 
 // fixture builds a 4x4 template with the metadata the OZX filename pattern
 // needs (shape, stage, openDoors, category).
+//
+// openDoors 3 is data-space top|right, which the filename reports rotated into
+// visual space as left|top = 9 — hence the all_boss_9_NN names expected below.
+// See doorsOf / rotateMaskToVisual and ORT-111.
 func fixture(name string) model.Template {
 	shape := "all"
 	stage := "boss"
@@ -66,7 +70,7 @@ func TestCreate_AllocatesOZXFilename(t *testing.T) {
 		t.Fatalf("Create: %v", err)
 	}
 
-	want := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	want := filepath.Join(s.RootDir(), "normal", "all_boss_9_01.json")
 	if _, err := os.Stat(want); err != nil {
 		t.Errorf("expected file at %s: %v", want, err)
 	}
@@ -85,7 +89,7 @@ func TestCreate_SequencesWithinCategory(t *testing.T) {
 		}
 	}
 	for i := 1; i <= 3; i++ {
-		want := filepath.Join(s.RootDir(), "normal", "all_boss_3_"+twoDigits(i)+".json")
+		want := filepath.Join(s.RootDir(), "normal", "all_boss_9_"+twoDigits(i)+".json")
 		if _, err := os.Stat(want); err != nil {
 			t.Errorf("seq %d missing at %s", i, want)
 		}
@@ -101,7 +105,7 @@ func TestCreate_FillsGapsInSequence(t *testing.T) {
 		}
 	}
 	// Delete the middle one; next Create should reuse the freed seq.
-	mid := filepath.Join(s.RootDir(), "normal", "all_boss_3_02.json")
+	mid := filepath.Join(s.RootDir(), "normal", "all_boss_9_02.json")
 	if err := os.Remove(mid); err != nil {
 		t.Fatalf("remove: %v", err)
 	}
@@ -166,7 +170,7 @@ func TestGet_AcceptsBothIDForms(t *testing.T) {
 	}
 
 	// Form 2: the path-derived canonical id works too.
-	id := "normal" + idSeparator + "all_boss_3_01"
+	id := "normal" + idSeparator + "all_boss_9_01"
 	got, err = s.Get(ctx, id)
 	if err != nil {
 		t.Fatalf("Get by path id: %v", err)
@@ -182,7 +186,7 @@ func TestGet_OnDiskFileIsBarePayload(t *testing.T) {
 	if _, err := s.Create(ctx, fixture("alpha")); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	path := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	path := filepath.Join(s.RootDir(), "normal", "all_boss_9_01.json")
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read: %v", err)
@@ -217,7 +221,7 @@ func TestUpdate_OverwritesButKeepsFilename(t *testing.T) {
 	ctx := context.Background()
 
 	saved, _ := s.Create(ctx, fixture("alpha"))
-	id := "normal" + idSeparator + "all_boss_3_01"
+	id := "normal" + idSeparator + "all_boss_9_01"
 
 	revised := fixture("alpha-v2")
 	revised.Width = 8
@@ -234,7 +238,7 @@ func TestUpdate_OverwritesButKeepsFilename(t *testing.T) {
 		t.Errorf("payload not updated: %+v", updated.Payload.Meta)
 	}
 	// Filename should be unchanged.
-	if _, err := os.Stat(filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")); err != nil {
+	if _, err := os.Stat(filepath.Join(s.RootDir(), "normal", "all_boss_9_01.json")); err != nil {
 		t.Errorf("filename should be stable across updates: %v", err)
 	}
 	// The synthesised ID is path-derived, so it should match the original.
@@ -248,10 +252,10 @@ func TestUpdate_RelocatesOnCategoryChange(t *testing.T) {
 	ctx := context.Background()
 
 	s.Create(ctx, fixture("alpha"))
-	id := "normal" + idSeparator + "all_boss_3_01"
+	id := "normal" + idSeparator + "all_boss_9_01"
 
 	// Drop a Unity .meta sidecar so we can assert it moves with the file.
-	oldJSON := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	oldJSON := filepath.Join(s.RootDir(), "normal", "all_boss_9_01.json")
 	if err := os.WriteFile(oldJSON+metaSuffix, []byte("guid: abc123"), 0o644); err != nil {
 		t.Fatalf("seed meta: %v", err)
 	}
@@ -266,7 +270,7 @@ func TestUpdate_RelocatesOnCategoryChange(t *testing.T) {
 	}
 
 	// New file lives under basement/, old normal/ file is gone.
-	newJSON := filepath.Join(s.RootDir(), "basement", "all_boss_3_01.json")
+	newJSON := filepath.Join(s.RootDir(), "basement", "all_boss_9_01.json")
 	if _, err := os.Stat(newJSON); err != nil {
 		t.Errorf("expected relocated file at %s: %v", newJSON, err)
 	}
@@ -284,7 +288,7 @@ func TestUpdate_RelocatesOnCategoryChange(t *testing.T) {
 	if updated.RoomCategory == nil || *updated.RoomCategory != "basement" {
 		t.Errorf("RoomCategory not basement: %+v", updated.RoomCategory)
 	}
-	if want := filepath.Join(s.RootDir(), "basement", "all_boss_3_01.json"); updated.Path != want {
+	if want := filepath.Join(s.RootDir(), "basement", "all_boss_9_01.json"); updated.Path != want {
 		t.Errorf("Path = %q, want %q", updated.Path, want)
 	}
 }
@@ -294,15 +298,15 @@ func TestUpdate_RenamesOnAttributeChange(t *testing.T) {
 	ctx := context.Background()
 
 	s.Create(ctx, fixture("alpha"))
-	id := "normal" + idSeparator + "all_boss_3_01"
+	id := "normal" + idSeparator + "all_boss_9_01"
 
-	oldJSON := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	oldJSON := filepath.Join(s.RootDir(), "normal", "all_boss_9_01.json")
 	if err := os.WriteFile(oldJSON+metaSuffix, []byte("guid: def456"), 0o644); err != nil {
 		t.Fatalf("seed meta: %v", err)
 	}
 
 	// Change only the stage; category stays "normal" but the derived basename
-	// prefix becomes all_teaching_3_.
+	// prefix becomes all_teaching_9_.
 	revised := fixture("alpha")
 	teaching := "teaching"
 	revised.Payload.StageType = &teaching
@@ -312,7 +316,7 @@ func TestUpdate_RenamesOnAttributeChange(t *testing.T) {
 		t.Fatalf("Update: %v", err)
 	}
 
-	newJSON := filepath.Join(s.RootDir(), "normal", "all_teaching_3_01.json")
+	newJSON := filepath.Join(s.RootDir(), "normal", "all_teaching_9_01.json")
 	if _, err := os.Stat(newJSON); err != nil {
 		t.Errorf("expected renamed file at %s: %v", newJSON, err)
 	}
@@ -344,13 +348,13 @@ func TestDelete_RemovesJSONAndMeta(t *testing.T) {
 	if _, err := s.Create(ctx, fixture("alpha")); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
-	jsonPath := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	jsonPath := filepath.Join(s.RootDir(), "normal", "all_boss_9_01.json")
 	metaPath := jsonPath + ".meta"
 	if err := os.WriteFile(metaPath, []byte("fileFormatVersion: 2"), 0o644); err != nil {
 		t.Fatalf("write meta: %v", err)
 	}
 
-	if err := s.Delete(ctx, "normal"+idSeparator+"all_boss_3_01"); err != nil {
+	if err := s.Delete(ctx, "normal"+idSeparator+"all_boss_9_01"); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}
 	if _, err := os.Stat(jsonPath); !errors.Is(err, os.ErrNotExist) {
@@ -377,17 +381,17 @@ func TestList_SkipsMetaAndCorrupted(t *testing.T) {
 	}
 
 	// Pretend a Unity meta file is sitting next to our template.
-	jsonPath := filepath.Join(s.RootDir(), "normal", "all_boss_3_01.json")
+	jsonPath := filepath.Join(s.RootDir(), "normal", "all_boss_9_01.json")
 	if err := os.WriteFile(jsonPath+".meta", []byte("yaml"), 0o644); err != nil {
 		t.Fatalf("write meta: %v", err)
 	}
 	// Corrupt JSON should not derail the listing.
-	bad := filepath.Join(s.RootDir(), "normal", "all_boss_3_02.json")
+	bad := filepath.Join(s.RootDir(), "normal", "all_boss_9_02.json")
 	if err := os.WriteFile(bad, []byte("not json"), 0o644); err != nil {
 		t.Fatalf("write bad: %v", err)
 	}
 	// Stray .tmp from an interrupted prior write.
-	tmp := filepath.Join(s.RootDir(), "normal", "all_boss_3_99.json.tmp")
+	tmp := filepath.Join(s.RootDir(), "normal", "all_boss_9_99.json.tmp")
 	if err := os.WriteFile(tmp, []byte("{}"), 0o644); err != nil {
 		t.Fatalf("write tmp: %v", err)
 	}
@@ -520,4 +524,54 @@ func twoDigits(n int) string {
 		return "0" + string(rune('0'+n))
 	}
 	return string(rune('0'+n/10)) + string(rune('0'+n%10))
+}
+
+// The filename's door mask is in visual space while the payload's openDoors
+// stays in data space — the game reads the payload, the name is a label. See
+// ORT-111.
+func TestRotateMaskToVisual(t *testing.T) {
+	cases := []struct {
+		name string
+		data int
+		want int
+	}{
+		{"none", 0, 0},
+		{"data top -> visual left", 1, 8},
+		{"data right -> visual top", 2, 1},
+		{"data bottom -> visual right", 4, 2},
+		{"data left -> visual bottom", 8, 4},
+		{"data right|left -> visual top|bottom", 10, 5},
+		{"data top|right -> visual left|top", 3, 9},
+		{"all doors are unchanged", 15, 15},
+	}
+	for _, c := range cases {
+		if got := rotateMaskToVisual(c.data); got != c.want {
+			t.Errorf("%s: rotateMaskToVisual(%d) = %d, want %d", c.name, c.data, got, c.want)
+		}
+	}
+}
+
+func TestCreate_LeavesPayloadOpenDoorsInDataSpace(t *testing.T) {
+	s := newTestStore(t)
+	created, err := s.Create(context.Background(), fixture("alpha"))
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	// The name rotated (3 -> 9) but the payload the game reads must not.
+	if created.Payload.OpenDoors == nil || *created.Payload.OpenDoors != 3 {
+		t.Errorf("payload openDoors = %v, want 3 (data space, unrotated)", created.Payload.OpenDoors)
+	}
+	raw, err := os.ReadFile(created.Path)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	var onDisk struct {
+		OpenDoors int `json:"openDoors"`
+	}
+	if err := json.Unmarshal(raw, &onDisk); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if onDisk.OpenDoors != 3 {
+		t.Errorf("on-disk openDoors = %d, want 3 (data space, unrotated)", onDisk.OpenDoors)
+	}
 }

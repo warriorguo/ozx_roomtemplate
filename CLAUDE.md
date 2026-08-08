@@ -296,10 +296,10 @@ lands in ORT-66.
 ### Door Sides Live in Two Spaces (ORT-111)
 
 **Data space** is the stored grid — `doors{}`, `doorOverrides{}`, the `openDoors`
-bitmask, the derived filename, and everything the Go backend and the OZX
-importer read. `ground[0]` is the data top edge. **Visual space** is what the
-canvas draws: ORT-76 renders the grid rotated 90° CCW, the same transpose +
-Y-flip OZX applies, so the editor shows the room the way the game will.
+bitmask, and everything the Go backend and the OZX importer read. `ground[0]` is
+the data top edge. **Visual space** is what the canvas draws: ORT-76 renders the
+grid rotated 90° CCW, the same transpose + Y-flip OZX applies, so the editor
+shows the room the way the game will.
 
 | data | visual |
 |------|--------|
@@ -322,6 +322,18 @@ checkboxes, BFS tooltip, sidebar filters and row labels) goes through them.
 Never open-code the mapping; the store, the converters, `detectDoorConnectivity`
 and the whole backend stay data-space. The rotation lives at the view boundary
 only.
+
+**The filename is the one exception (ORT-112).** `fsstore.doorsOf` derives the
+`<shape>_<stage>_<doors>_<NN>` mask through `rotateMaskToVisual`, so the name
+reports the edge each door is **drawn** on and matches the sidebar's `doors=T B`.
+That function is the Go-side counterpart to `dataToVisual` — the only place the
+rotation is written down in the backend. The payload is untouched, so **the name
+and the body disagree by design**: `platform_start_1_01.json` contains
+`"openDoors": 2`. The body is the contract with the game — OZX reads
+`RoomTilemapData.OpenDoors` from the JSON and discovers rooms with
+`Directory.GetFiles(folder, "*.json", AllDirectories)`, never parsing the name —
+while the name is a label for humans browsing the folder. Renaming files by hand
+does not stick: `Create`/`Update` re-derive the name from `openDoors`.
 
 ### Frontend State Management
 - **Zustand store** is the single source of truth for template data
