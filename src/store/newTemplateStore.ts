@@ -42,6 +42,26 @@ export interface ApiState {
   };
 }
 
+/**
+ * `apiState.lastSaved` is the identity of the template *currently in the
+ * editor*: `saveTemplate` updates that stored template in place when it is set,
+ * and creates a new one when it is not (ORT-83).
+ *
+ * So any action that swaps the editor's content for something that did not come
+ * from the store must drop it — otherwise the next save writes the new room over
+ * the previous room's record, and because fsstore.Update relocates on a changed
+ * derived name (ORT-87), the old file is renamed away and deleted rather than
+ * merely rewritten. That was ORT-107: New, Generate Room, paste and import all
+ * left a stale id behind.
+ *
+ * Only loadTemplateFromBackend and a successful save may set it.
+ */
+const withoutSaveIdentity = (apiState: ApiState): ApiState => ({
+  ...apiState,
+  error: null,
+  lastSaved: undefined,
+});
+
 interface NewTemplateStore {
   template: Template;
   uiState: UIState;
@@ -148,25 +168,27 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
   createNewTemplate: (width: number, height: number) => {
     const newTemplate = createEmptyTemplate(width, height);
     const validation = validateTemplate(newTemplate);
-    
+
     set({
       template: newTemplate,
       uiState: {
         ...get().uiState,
         validationResult: validation,
       },
+      apiState: withoutSaveIdentity(get().apiState),
     });
   },
 
   loadTemplate: (template: Template) => {
     const validation = validateTemplate(template);
-    
+
     set({
       template,
       uiState: {
         ...get().uiState,
         validationResult: validation,
       },
+      apiState: withoutSaveIdentity(get().apiState),
     });
   },
 
@@ -957,10 +979,9 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
           ...get().uiState,
           validationResult: validation,
         },
-        apiState: {
-          ...get().apiState,
-          error: null,
-        },
+        // Generate Room, paste and import all land here with a room that has no
+        // stored counterpart, so the previous room's save identity must go.
+        apiState: withoutSaveIdentity(get().apiState),
       });
     } catch (error) {
       const errorMessage = error instanceof Error 

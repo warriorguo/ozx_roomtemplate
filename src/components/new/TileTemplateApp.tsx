@@ -228,6 +228,11 @@ export const TileTemplateApp: React.FC = () => {
   // authoring don't clobber the user's manual selection. See ORT-90.
   const loadedId = apiState.lastSaved?.id;
   useEffect(() => {
+    // No loaded id means the editor holds a room with no stored counterpart —
+    // New, a generated room, a paste (ORT-107 clears the save identity for all
+    // three). There is nothing to mirror, and mirroring an empty room would
+    // clear the very door selection the user just generated with, so keep it.
+    if (!loadedId) return;
     setSelectedDoors({
       top: template.doors.top === 1,
       right: template.doors.right === 1,

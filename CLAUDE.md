@@ -283,6 +283,15 @@ lands in ORT-66.
 - All cell edits go through `setCellValue()` which triggers validation
 - Drag operations track mode (set/clear) based on first clicked cell
 - Validation runs after every edit and updates UI state
+- `apiState.lastSaved` is the **save identity of the template currently in the
+  editor**: `saveTemplate` updates that stored template in place when it is set
+  and creates a new one when it is not (ORT-83). Only `loadTemplateFromBackend`
+  and a successful save may set it; every action that swaps the editor's content
+  for something with no stored counterpart — `createNewTemplate`,
+  `loadTemplate`, `loadTemplateFromJSON` (Generate Room, paste, import) — must
+  clear it via `withoutSaveIdentity`, or the next save overwrites the previous
+  room (ORT-107). Because `fsstore.Update` relocates on a changed derived name
+  (ORT-87), that overwrite deletes the old file rather than just rewriting it.
 
 ### Backend Request Processing
 1. Request received by chi router
