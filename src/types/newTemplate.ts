@@ -28,8 +28,12 @@ export type RoomType = 'full' | 'bridge' | 'platform';
 export type RoomCategory = 'normal' | 'basement' | 'test' | 'cave';
 
 // Dimensions a fresh template starts at, and what the "New" dialog prefills.
+// Data space, so this is a 10-wide, 16-high room in the game — OZX derives the
+// room size from the ground array's shape, which is the transpose of ours
+// (ORT-114). Keep in sync with DefaultRoomWidth/DefaultRoomHeight in
+// tile-backend/internal/generate/rules.go.
 export const DEFAULT_ROOM_WIDTH = 16;
-export const DEFAULT_ROOM_HEIGHT = 8;
+export const DEFAULT_ROOM_HEIGHT = 10;
 
 export const ROOM_CATEGORIES: { value: RoomCategory; label: string }[] = [
   { value: 'normal', label: 'Normal (普通)' },

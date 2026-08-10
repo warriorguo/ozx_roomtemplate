@@ -82,6 +82,8 @@ const (
 
 // GeneratePlatformRoom generates a platform-type room
 func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateResponse, error) {
+	applyDefaultDimensions(&req.Width, &req.Height)
+
 	// Validate input
 	if req.Width < 10 || req.Width > 200 {
 		return nil, fmt.Errorf("width must be between 10 and 200")

@@ -8,6 +8,8 @@ import (
 
 // GenerateBridgeRoom generates a bridge-type room template
 func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, error) {
+	applyDefaultDimensions(&req.Width, &req.Height)
+
 	// Validate input
 	if req.Width < 4 || req.Width > 200 || req.Height < 4 || req.Height > 200 {
 		return nil, fmt.Errorf("invalid dimensions: width and height must be between 4 and 200")

@@ -135,6 +135,8 @@ var cornerCombos = []cornerCombo{
 
 // GenerateFullRoom generates a full-type room
 func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, error) {
+	applyDefaultDimensions(&req.Width, &req.Height)
+
 	// Validate input
 	if req.Width < 4 || req.Width > 200 {
 		return nil, fmt.Errorf("width must be between 4 and 200")

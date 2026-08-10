@@ -232,6 +232,34 @@ still produces an adjacent same-category spawn pair in 6% of pressure rooms and
 16.5% of peak rooms. That residue belongs to ORT-93 — placement should never
 violate spacing whatever it is asked for — rather than to a size limit.
 
+**The default room size is 16×10 in data space** (`DefaultRoomWidth` /
+`DefaultRoomHeight` in `generate/rules.go`, ORT-114): a generate request that
+omits `width` or `height` — or sends `0` — gets these; a *negative* value is
+still rejected, so a malformed request cannot be silently rewritten into a valid
+room. `DEFAULT_ROOM_WIDTH` / `DEFAULT_ROOM_HEIGHT` in `src/types/newTemplate.ts`
+carry the same pair for a fresh template and the "New" dialog, and must be kept
+in sync.
+
+The numbers look transposed on purpose. OZX **ignores the payload's `meta`
+block** (`RoomTilemapData` has no `meta` field) and derives the room size from
+the shape of the `ground` array — **outer array = X, inner = Y**
+(`RoomInstanceView.ComputeRoomSize`) — which is the transpose of this repo's
+data space. So data-space 16 wide × 10 high is a **10-wide, 16-high** room in
+the game, the size the fixed camera (x=5) is framed for. This is the same
+data/OZX split as the door sides in ORT-111/112/113, except that no code applies
+it: the array shape *is* the rotation.
+
+Not every stage fits the default cleanly. Measured over 500 rooms per
+combination, at 16×10 vs. the previous 16×8 default (shortfall = a room emitting
+at least one ORT-110 warning): fullroom teaching 62 vs. 77, building 29 vs. 75,
+pressure 1 vs. 205, peak 241 vs. 500, release 31 vs. 71 — 16×10 is a strict
+improvement everywhere. Bridge and platform still fall short on `static` in
+~90%+ of rooms at both sizes (a corridor room has nowhere to put 6–9 2×2
+blocks), and boss cannot generate at either size at all: it needs a 6×6 area
+more than 3 cells from every edge, which needs height ≥ 14. Those are ORT-108's
+count ranges meeting small rooms, not a regression from the size change — pass
+explicit dimensions for boss and for dense bridge/platform rooms.
+
 **Placement shortfalls are reported** (`PlacementShortfall`, ORT-110): placement
 is best-effort — the strict pass keeps the 8-directional spacing constraint and
 stops when a room runs out of legal sites, and mobAir has no relaxed fallback at

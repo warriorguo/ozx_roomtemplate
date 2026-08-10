@@ -6,8 +6,8 @@ This document describes the auto-generation algorithm for full-type rooms.
 
 | Parameter | Description |
 |-----------|-------------|
-| `width` | Room width (4-200) |
-| `height` | Room height (4-200) |
+| `width` | Room width (4-200). Omit or send `0` for the default **16** (ORT-114) |
+| `height` | Room height (4-200). Omit or send `0` for the default **10** (ORT-114) |
 | `doors` | Doors to connect (at least 2 required: top, right, bottom, left) |
 | `softEdgeCount` | Suggested number of soft edges to place (optional, default 0) |
 | `staticCount` | Suggested number of statics to place (optional, default 0) |

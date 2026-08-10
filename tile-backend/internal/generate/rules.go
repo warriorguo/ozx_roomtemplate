@@ -29,6 +29,37 @@ func ValidateRoomCategory(category string) error {
 }
 
 // ============================================================================
+// Default room size
+// ============================================================================
+
+// Default room dimensions in data space, applied when a generate request omits
+// width or height (ORT-114). OZX ignores the payload's meta block entirely and
+// derives the room size from the shape of the ground array — outer array = X,
+// inner = Y (RoomInstanceView.ComputeRoomSize) — which is the transpose of this
+// package's data space. So DefaultRoomWidth x DefaultRoomHeight = 16 rows of 10
+// on disk is a **10-wide, 16-high** room in the game, matching the size OZX
+// settled on for normal rooms (camera fixed at x=5).
+//
+// Same data/visual split as the door sides in ORT-111/112/113: nothing here is
+// in OZX space, only the game's reading of the array shape is.
+const (
+	DefaultRoomWidth  = 16
+	DefaultRoomHeight = 10
+)
+
+// applyDefaultDimensions fills in the default room size for a request that left
+// width or height at zero. A negative value is left alone so it still fails
+// validation rather than being silently rewritten.
+func applyDefaultDimensions(width, height *int) {
+	if *width == 0 {
+		*width = DefaultRoomWidth
+	}
+	if *height == 0 {
+		*height = DefaultRoomHeight
+	}
+}
+
+// ============================================================================
 // Validation constants
 // ============================================================================
 
