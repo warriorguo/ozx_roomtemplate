@@ -220,7 +220,8 @@ export function setCellValue(
 export function validateCellRules(
   template: Template,
   x: number,
-  y: number
+  y: number,
+  softEdgeSupport?: boolean[][]
 ): Record<LayerType, boolean> {
   const ground = template.ground[y][x];
   const bridge = template.bridge[y][x];
@@ -234,7 +235,7 @@ export function validateCellRules(
 
   return {
     ground: true, // Ground has no constraints
-    softEdge: validateSoftEdgeCell(template, x, y),
+    softEdge: validateSoftEdgeCell(template, x, y, softEdgeSupport ?? computeSoftEdgeSupport(template)),
     bridge: validateBridgeCell(template, x, y),
     // Pipeline: must be on ground, cannot be on bridge
     pipeline: pipeline === 0 || (ground === 1 && bridge === 0),
@@ -253,37 +254,99 @@ export function validateCellRules(
   };
 }
 
-// Validate soft edge placement: must be adjacent to ground but not overlap with ground
-function validateSoftEdgeCell(template: Template, x: number, y: number): boolean {
-  const softEdge = template.softEdge[y][x];
-  if (softEdge === 0) return true; // Empty soft edge cells are always valid
-  
-  const ground = template.ground[y][x];
-  
-  // Soft edge cannot overlap with ground
-  if (ground === 1) return false;
-  
-  // Check if soft edge is adjacent to at least one ground tile
-  const directions = [
-    { dx: -1, dy: 0 }, // left
-    { dx: 1, dy: 0 },  // right
-    { dx: 0, dy: -1 }, // up
-    { dx: 0, dy: 1 }   // down
-  ];
-  
-  for (const dir of directions) {
+const ORTHOGONAL_DIRECTIONS = [
+  { dx: -1, dy: 0 }, // left
+  { dx: 1, dy: 0 },  // right
+  { dx: 0, dy: -1 }, // up
+  { dx: 0, dy: 1 },  // down
+];
+
+// Check whether a cell touches at least one ground tile orthogonally
+function isAdjacentToGround(template: Template, x: number, y: number): boolean {
+  return ORTHOGONAL_DIRECTIONS.some(dir => {
     const nx = x + dir.dx;
     const ny = y + dir.dy;
-    
-    // Check bounds
-    if (nx >= 0 && nx < template.width && ny >= 0 && ny < template.height) {
-      if (template.ground[ny][nx] === 1) {
-        return true; // Found adjacent ground tile
+    if (nx < 0 || nx >= template.width || ny < 0 || ny >= template.height) return false;
+    return template.ground[ny][nx] === 1;
+  });
+}
+
+// Compute, for every cell, whether its soft edge is anchored to the ground (ORT-116).
+// Support is a least fixpoint over the softEdge layer:
+//
+//   base       — the cell is orthogonally adjacent to a ground tile
+//   right+down — the cells at (x+1,y) and (x,y+1) are both supported
+//   left+up    — the cells at (x-1,y) and (x,y-1) are both supported
+//
+// The two propagation rules borrow support only from cells that are themselves
+// supported, so a soft edge patch floating in the void with no ground anchor
+// anywhere stays unsupported however large it is. Cells with softEdge === 0 are
+// never supported and never lend support.
+//
+// Mirrors computeSoftEdgeSupport in tile-backend/internal/validate/validate.go.
+export function computeSoftEdgeSupport(template: Template): boolean[][] {
+  const supported: boolean[][] = [];
+  for (let y = 0; y < template.height; y++) {
+    supported[y] = new Array<boolean>(template.width).fill(false);
+  }
+
+  const queue: Array<{ x: number; y: number }> = [];
+
+  // Seed: every soft edge cell that touches ground directly
+  for (let y = 0; y < template.height; y++) {
+    for (let x = 0; x < template.width; x++) {
+      if (template.softEdge[y][x] !== 1) continue;
+      if (isAdjacentToGround(template, x, y)) {
+        supported[y][x] = true;
+        queue.push({ x, y });
       }
     }
   }
-  
-  return false; // No adjacent ground tile found
+
+  const isSupported = (x: number, y: number): boolean => {
+    if (x < 0 || x >= template.width || y < 0 || y >= template.height) return false;
+    return supported[y][x];
+  };
+
+  const canBorrow = (x: number, y: number): boolean => {
+    if (template.softEdge[y][x] !== 1) return false;
+    return (isSupported(x + 1, y) && isSupported(x, y + 1))
+      || (isSupported(x - 1, y) && isSupported(x, y - 1));
+  };
+
+  // Relax: a newly supported cell can only unlock the four neighbours that name
+  // it in one of the two rules
+  while (queue.length > 0) {
+    const cell = queue.pop()!;
+    const neighbours = [
+      { x: cell.x - 1, y: cell.y }, { x: cell.x, y: cell.y - 1 }, // reach us through right+down
+      { x: cell.x + 1, y: cell.y }, { x: cell.x, y: cell.y + 1 }, // reach us through left+up
+    ];
+    for (const n of neighbours) {
+      if (n.x < 0 || n.x >= template.width || n.y < 0 || n.y >= template.height) continue;
+      if (supported[n.y][n.x] || !canBorrow(n.x, n.y)) continue;
+      supported[n.y][n.x] = true;
+      queue.push(n);
+    }
+  }
+
+  return supported;
+}
+
+// Validate soft edge placement: must be anchored to ground but not overlap with ground
+function validateSoftEdgeCell(
+  template: Template,
+  x: number,
+  y: number,
+  softEdgeSupport: boolean[][]
+): boolean {
+  const softEdge = template.softEdge[y][x];
+  if (softEdge === 0) return true; // Empty soft edge cells are always valid
+
+  // Soft edge cannot overlap with ground
+  if (template.ground[y][x] === 1) return false;
+
+  return softEdgeSupport[y][x];
 }
 
 // Count adjacent rail cells for a given position
@@ -369,6 +432,9 @@ function isWalkable(template: Template, x: number, y: number): boolean {
 
 export function validateTemplate(template: Template): ValidationResult {
   const errors: ValidationError[] = [];
+  // Soft edge support is a property of the whole layer, not of a single cell
+  // (ORT-116), so it is computed once here rather than inside the loop.
+  const softEdgeSupport = computeSoftEdgeSupport(template);
   const layerValidation: LayerValidation = {
     ground: [],
     softEdge: [],
@@ -398,7 +464,7 @@ export function validateTemplate(template: Template): ValidationResult {
     layerValidation.mobAir[y] = [];
 
     for (let x = 0; x < template.width; x++) {
-      const cellValidation = validateCellRules(template, x, y);
+      const cellValidation = validateCellRules(template, x, y, softEdgeSupport);
 
       // Store validation results
       layerValidation.ground[y][x] = cellValidation.ground;
@@ -453,7 +519,7 @@ function getValidationErrorReason(
   switch (layer) {
     case 'softEdge':
       if (ground === 1) return 'Soft edge cannot overlap with ground';
-      return 'Soft edge must be adjacent to ground';
+      return 'Soft edge has no ground anchor';
     case 'bridge':
       if (ground === 1) return 'Bridge cannot be placed on walkable ground';
       return 'Bridge must connect walkable areas';

@@ -112,6 +112,75 @@ that violates it came from hand editing, not the generator.
 
 ---
 
+## 2a. SoftEdge Anchoring (ORT-116)
+
+For every cell where `softEdge[y][x] == 1`:
+
+1. `ground[y][x]` must be `0` — a soft edge never overlaps ground.
+2. The cell must be **anchored** to the ground. Anchoring is a least fixpoint
+   over the whole softEdge layer, not a per-cell adjacency test:
+   - **base** — the cell is orthogonally adjacent to a `ground == 1` tile
+   - **right+down** — `(x+1,y)` and `(x,y+1)` are *both* anchored
+   - **left+up** — `(x-1,y)` and `(x,y-1)` are *both* anchored
+
+The propagation rules borrow only from cells that are themselves anchored, so a
+soft edge patch floating in void with no ground contact anywhere stays
+unanchored however large it is. Cells with `softEdge == 0` never lend support,
+and a diagonal neighbour alone is never enough.
+
+This lets a soft edge patch be thicker than one cell as long as its outer
+boundary reaches ground. Generation only ever emits ground-adjacent 1xN / Nx1
+strips, so generated rooms only exercise the base rule — the propagation rules
+matter for hand-edited rooms.
+
+```python
+def compute_softedge_support(ground, soft_edge, width, height):
+    """Return a [height][width] grid of booleans: is this soft edge anchored?"""
+    supported = [[False] * width for _ in range(height)]
+    queue = []
+
+    def adjacent_to_ground(x, y):
+        for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+            nx, ny = x + dx, y + dy
+            if 0 <= nx < width and 0 <= ny < height and ground[ny][nx] == 1:
+                return True
+        return False
+
+    # Seed with the base rule
+    for y in range(height):
+        for x in range(width):
+            if soft_edge[y][x] == 1 and adjacent_to_ground(x, y):
+                supported[y][x] = True
+                queue.append((x, y))
+
+    def is_supported(x, y):
+        return 0 <= x < width and 0 <= y < height and supported[y][x]
+
+    def can_borrow(x, y):
+        if soft_edge[y][x] != 1:
+            return False
+        return ((is_supported(x + 1, y) and is_supported(x, y + 1))
+                or (is_supported(x - 1, y) and is_supported(x, y - 1)))
+
+    # Relax until the fixpoint is reached
+    while queue:
+        cx, cy = queue.pop()
+        for nx, ny in ((cx - 1, cy), (cx, cy - 1), (cx + 1, cy), (cx, cy + 1)):
+            if not (0 <= nx < width and 0 <= ny < height):
+                continue
+            if supported[ny][nx] or not can_borrow(nx, ny):
+                continue
+            supported[ny][nx] = True
+            queue.append((nx, ny))
+
+    return supported
+```
+
+**Failure messages**: `"soft edge cannot overlap with ground"` ·
+`"soft edge has no ground anchor"`
+
+---
+
 ## 3. Bridge Validity
 
 For every cell where `bridge[y][x] == 1`, the 2×2 block starting at the top-left of the

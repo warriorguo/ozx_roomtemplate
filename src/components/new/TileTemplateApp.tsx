@@ -29,7 +29,7 @@ const layerConfigs: Array<{
     title: 'Soft Edge (软边缘)',
     short: 'SoftEdge',
     color: '#808080',
-    description: 'Soft edge tiles - must be adjacent to ground but not overlap'
+    description: 'Soft edge tiles - must be anchored to ground but not overlap'
   },
   {
     layer: 'bridge',

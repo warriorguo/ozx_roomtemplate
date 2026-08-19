@@ -188,6 +188,10 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 	width := payload.Meta.Width
 	height := payload.Meta.Height
 
+	// Soft edge support is a property of the whole layer, not of a single cell
+	// (ORT-116), so it is computed once here rather than inside the loop.
+	softEdgeSupport := computeSoftEdgeSupport(payload, width, height)
+
 	for y := 0; y < height; y++ {
 		for x := 0; x < width; x++ {
 			ground := payload.Ground[y][x]
@@ -233,13 +237,15 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 					})
 				}
 
-				// Rule: softEdge must be adjacent to at least one ground tile
-				if !isAdjacentToGround(payload, x, y, width, height) {
+				// Rule: softEdge must be anchored to ground — either directly
+				// adjacent to it, or supported through neighbouring soft edges
+				// that are themselves anchored (ORT-116).
+				if !softEdgeSupport[y][x] {
 					errors = append(errors, model.ValidationError{
 						Layer:  "softEdge",
 						X:      x,
 						Y:      y,
-						Reason: "soft edge must be adjacent to ground",
+						Reason: "soft edge has no ground anchor",
 					})
 				}
 			}
@@ -459,6 +465,15 @@ func countRailNeighbors(payload *model.TemplatePayload, x, y, width, height int)
 	return count
 }
 
+// softEdgeCell reads the softEdge layer defensively — it is optional, so a
+// short or absent grid reads as 0.
+func softEdgeCell(payload *model.TemplatePayload, x, y int) int {
+	if payload.SoftEdge == nil || len(payload.SoftEdge) <= y || len(payload.SoftEdge[y]) <= x {
+		return 0
+	}
+	return payload.SoftEdge[y][x]
+}
+
 // isAdjacentToGround checks if a position is adjacent to at least one ground tile
 func isAdjacentToGround(payload *model.TemplatePayload, x, y, width, height int) bool {
 	// Check all four directions
@@ -479,4 +494,83 @@ func isAdjacentToGround(payload *model.TemplatePayload, x, y, width, height int)
 	}
 
 	return false // No adjacent ground tile found
+}
+
+// computeSoftEdgeSupport returns, for every cell, whether its soft edge is
+// anchored to the ground (ORT-116). Support is a least fixpoint over the
+// softEdge layer:
+//
+//	base       — the cell is 4-adjacent to a ground tile
+//	right+down — the cells at (x+1,y) and (x,y+1) are both supported
+//	left+up    — the cells at (x-1,y) and (x,y-1) are both supported
+//
+// The two propagation rules borrow support only from cells that are themselves
+// supported, so a soft edge patch floating in the void with no ground anchor
+// anywhere stays unsupported however large it is. Cells with softEdge == 0 are
+// never supported and never lend support.
+//
+// Seeded with the base cells and relaxed with a worklist, so it is O(cells).
+func computeSoftEdgeSupport(payload *model.TemplatePayload, width, height int) [][]bool {
+	supported := make([][]bool, height)
+	for y := range supported {
+		supported[y] = make([]bool, width)
+	}
+
+	type point struct{ x, y int }
+	var queue []point
+
+	// Seed: every soft edge cell that touches ground directly.
+	for y := 0; y < height; y++ {
+		for x := 0; x < width; x++ {
+			if softEdgeCell(payload, x, y) != 1 {
+				continue
+			}
+			if isAdjacentToGround(payload, x, y, width, height) {
+				supported[y][x] = true
+				queue = append(queue, point{x, y})
+			}
+		}
+	}
+
+	// isSupported reports support with an out-of-bounds guard, so a cell on the
+	// room border cannot borrow support from outside the grid.
+	isSupported := func(x, y int) bool {
+		if x < 0 || x >= width || y < 0 || y >= height {
+			return false
+		}
+		return supported[y][x]
+	}
+
+	// canBorrow applies the two propagation rules to a single cell.
+	canBorrow := func(x, y int) bool {
+		if softEdgeCell(payload, x, y) != 1 {
+			return false
+		}
+		return (isSupported(x+1, y) && isSupported(x, y+1)) ||
+			(isSupported(x-1, y) && isSupported(x, y-1))
+	}
+
+	// Relax: a newly supported cell can only unlock the four neighbours that
+	// name it in one of the two rules.
+	for len(queue) > 0 {
+		p := queue[len(queue)-1]
+		queue = queue[:len(queue)-1]
+
+		neighbours := []point{
+			{p.x - 1, p.y}, {p.x, p.y - 1}, // reach us through right+down
+			{p.x + 1, p.y}, {p.x, p.y + 1}, // reach us through left+up
+		}
+		for _, n := range neighbours {
+			if n.x < 0 || n.x >= width || n.y < 0 || n.y >= height {
+				continue
+			}
+			if supported[n.y][n.x] || !canBorrow(n.x, n.y) {
+				continue
+			}
+			supported[n.y][n.x] = true
+			queue = append(queue, n)
+		}
+	}
+
+	return supported
 }

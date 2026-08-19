@@ -163,11 +163,31 @@ internal/
 ### Validation Rules
 
 **Layer Constraints** (enforced in strict mode):
-1. **Static layer**: `static==1` requires `ground==1`
-2. **Chaser layer**: `chaser==1` requires `ground==1`, cannot overlap static/bridge/rail/zoner
-3. **Zoner layer**: `zoner==1` requires `ground==1`, cannot overlap static/bridge/rail/chaser
-4. **DPS layer**: `dps==1` requires `ground==1`, cannot overlap bridge/rail/zoner
-5. **MobAir layer**: No ground requirement, cannot overlap other entity layers
+1. **SoftEdge layer**: `softEdge==1` requires `ground==0` and an anchor to
+   ground — see "SoftEdge anchoring" below
+2. **Static layer**: `static==1` requires `ground==1`
+3. **Chaser layer**: `chaser==1` requires `ground==1`, cannot overlap static/bridge/rail/zoner
+4. **Zoner layer**: `zoner==1` requires `ground==1`, cannot overlap static/bridge/rail/chaser
+5. **DPS layer**: `dps==1` requires `ground==1`, cannot overlap bridge/rail/zoner
+6. **MobAir layer**: No ground requirement, cannot overlap other entity layers
+
+**SoftEdge anchoring** (`computeSoftEdgeSupport`, ORT-116): a soft edge cell is
+valid when it is *anchored* to ground, which is a least fixpoint over the whole
+`softEdge` layer rather than a per-cell adjacency test: the **base** rule anchors
+a cell orthogonally adjacent to `ground==1`, and a cell then borrows anchoring
+when **both** `(x+1,y)` and `(x,y+1)` are anchored, or **both** `(x-1,y)` and
+`(x,y-1)` are. Support is borrowed only from cells that are themselves anchored,
+so a patch floating in void with no ground contact anywhere stays invalid however
+large it is, and a diagonal neighbour alone never suffices. The effect is that a
+soft edge patch may be thicker than the 1-cell rim the old adjacency rule allowed,
+as long as its outer boundary reaches ground.
+
+This is a pure relaxation — every payload that validated before still validates.
+Generation is untouched: `layer_softedge.go` only ever emits 1xN / Nx1 strips in
+concave notches, which are ground-adjacent by construction and satisfy the base
+rule. The propagation rules exist for hand-edited rooms. `computeSoftEdgeSupport`
+in `validate/validate.go` and the one in `src/utils/newTemplateUtils.ts` are
+mirrors of each other and must stay in sync.
 
 **Enemy Placement (Generation)**:
 - Door forbidden zone: radius 2 (Manhattan distance) from all doors
