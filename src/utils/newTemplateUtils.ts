@@ -275,8 +275,17 @@ function isAdjacentToGround(template: Template, x: number, y: number): boolean {
 // Support is a least fixpoint over the softEdge layer:
 //
 //   base       — the cell is orthogonally adjacent to a ground tile
-//   right+down — the cells at (x+1,y) and (x,y+1) are both supported
-//   left+up    — the cells at (x-1,y) and (x,y-1) are both supported
+//   right+down — the cells to the visual right and below are both supported
+//   left+up    — the cells to the visual left and above are both supported
+//
+// The propagation rules are stated in VISUAL space, the frame the canvas draws
+// and the rule was specified in. The grid renders rotated 90° CCW (ORT-111), so
+// in the data space this function walks:
+//
+//   visual right+down -> data (x, y+1) and (x-1, y)
+//   visual left+up    -> data (x, y-1) and (x+1, y)
+//
+// Getting this backwards inverts the rule into its mirror image (ORT-117).
 //
 // The two propagation rules borrow support only from cells that are themselves
 // supported, so a soft edge patch floating in the void with no ground anchor
@@ -308,19 +317,23 @@ export function computeSoftEdgeSupport(template: Template): boolean[][] {
     return supported[y][x];
   };
 
+  // The offsets are the data-space spelling of "visual right and below" /
+  // "visual left and above" — see the rotation note above.
   const canBorrow = (x: number, y: number): boolean => {
     if (template.softEdge[y][x] !== 1) return false;
-    return (isSupported(x + 1, y) && isSupported(x, y + 1))
-      || (isSupported(x - 1, y) && isSupported(x, y - 1));
+    return (isSupported(x, y + 1) && isSupported(x - 1, y))
+      || (isSupported(x, y - 1) && isSupported(x + 1, y));
   };
 
   // Relax: a newly supported cell can only unlock the four neighbours that name
   // it in one of the two rules
   while (queue.length > 0) {
     const cell = queue.pop()!;
+    // Both rules name all four orthogonal neighbours between them, so the
+    // candidate set is the same either way; only canBorrow encodes which pair counts.
     const neighbours = [
-      { x: cell.x - 1, y: cell.y }, { x: cell.x, y: cell.y - 1 }, // reach us through right+down
-      { x: cell.x + 1, y: cell.y }, { x: cell.x, y: cell.y + 1 }, // reach us through left+up
+      { x: cell.x - 1, y: cell.y }, { x: cell.x, y: cell.y - 1 },
+      { x: cell.x + 1, y: cell.y }, { x: cell.x, y: cell.y + 1 },
     ];
     for (const n of neighbours) {
       if (n.x < 0 || n.x >= template.width || n.y < 0 || n.y >= template.height) continue;

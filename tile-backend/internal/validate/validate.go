@@ -501,8 +501,18 @@ func isAdjacentToGround(payload *model.TemplatePayload, x, y, width, height int)
 // softEdge layer:
 //
 //	base       — the cell is 4-adjacent to a ground tile
-//	right+down — the cells at (x+1,y) and (x,y+1) are both supported
-//	left+up    — the cells at (x-1,y) and (x,y-1) are both supported
+//	right+down — the cells to the visual right and below are both supported
+//	left+up    — the cells to the visual left and above are both supported
+//
+// The two propagation rules are stated in VISUAL space, the frame the editor
+// draws and the rule was specified in. The canvas renders the grid rotated 90°
+// CCW (ORT-111), so in the data space this function actually walks:
+//
+//	visual right+down → data (x, y+1) and (x-1, y)
+//	visual left+up    → data (x, y-1) and (x+1, y)
+//
+// Getting this backwards inverts the rule into its mirror image, which fails
+// exactly the L-shaped corner the rule exists to accept (ORT-117).
 //
 // The two propagation rules borrow support only from cells that are themselves
 // supported, so a soft edge patch floating in the void with no ground anchor
@@ -541,13 +551,15 @@ func computeSoftEdgeSupport(payload *model.TemplatePayload, width, height int) [
 		return supported[y][x]
 	}
 
-	// canBorrow applies the two propagation rules to a single cell.
+	// canBorrow applies the two propagation rules to a single cell. The offsets
+	// are the data-space spelling of "visual right and below" / "visual left and
+	// above" — see the rotation note above.
 	canBorrow := func(x, y int) bool {
 		if softEdgeCell(payload, x, y) != 1 {
 			return false
 		}
-		return (isSupported(x+1, y) && isSupported(x, y+1)) ||
-			(isSupported(x-1, y) && isSupported(x, y-1))
+		return (isSupported(x, y+1) && isSupported(x-1, y)) ||
+			(isSupported(x, y-1) && isSupported(x+1, y))
 	}
 
 	// Relax: a newly supported cell can only unlock the four neighbours that
@@ -556,9 +568,12 @@ func computeSoftEdgeSupport(payload *model.TemplatePayload, width, height int) [
 		p := queue[len(queue)-1]
 		queue = queue[:len(queue)-1]
 
+		// Both rules name all four orthogonal neighbours between them, so the
+		// candidate set is the same either way; only canBorrow encodes which
+		// pair counts.
 		neighbours := []point{
-			{p.x - 1, p.y}, {p.x, p.y - 1}, // reach us through right+down
-			{p.x + 1, p.y}, {p.x, p.y + 1}, // reach us through left+up
+			{p.x - 1, p.y}, {p.x, p.y - 1},
+			{p.x + 1, p.y}, {p.x, p.y + 1},
 		}
 		for _, n := range neighbours {
 			if n.x < 0 || n.x >= width || n.y < 0 || n.y >= height {

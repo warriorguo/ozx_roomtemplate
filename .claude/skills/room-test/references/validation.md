@@ -120,8 +120,22 @@ For every cell where `softEdge[y][x] == 1`:
 2. The cell must be **anchored** to the ground. Anchoring is a least fixpoint
    over the whole softEdge layer, not a per-cell adjacency test:
    - **base** — the cell is orthogonally adjacent to a `ground == 1` tile
-   - **right+down** — `(x+1,y)` and `(x,y+1)` are *both* anchored
-   - **left+up** — `(x-1,y)` and `(x,y-1)` are *both* anchored
+   - **right+down** — the cells to the *visual* right and below are both anchored
+   - **left+up** — the cells to the *visual* left and above are both anchored
+
+**The pairs are in visual space; the arrays are in data space** (ORT-117). The
+editor renders the grid rotated 90 degrees CCW (ORT-111), so the offsets to walk
+in the stored arrays are the transpose of how the rule reads:
+
+| rule | visual | data offsets |
+|------|--------|--------------|
+| 1 | right + below | `(x, y+1)` and `(x-1, y)` |
+| 2 | left + above | `(x, y-1)` and `(x+1, y)` |
+
+Using the literal data-space reading instead inverts the rule into its mirror
+image. The rule is deliberately asymmetric — only two of the four corner pairs
+count — so a validator that accepts any two adjacent anchored neighbours is
+wrong, not more permissive.
 
 The propagation rules borrow only from cells that are themselves anchored, so a
 soft edge patch floating in void with no ground contact anywhere stays
@@ -157,10 +171,11 @@ def compute_softedge_support(ground, soft_edge, width, height):
         return 0 <= x < width and 0 <= y < height and supported[y][x]
 
     def can_borrow(x, y):
+        # Data-space spelling of "visual right and below" / "visual left and above"
         if soft_edge[y][x] != 1:
             return False
-        return ((is_supported(x + 1, y) and is_supported(x, y + 1))
-                or (is_supported(x - 1, y) and is_supported(x, y - 1)))
+        return ((is_supported(x, y + 1) and is_supported(x - 1, y))
+                or (is_supported(x, y - 1) and is_supported(x + 1, y)))
 
     # Relax until the fixpoint is reached
     while queue:

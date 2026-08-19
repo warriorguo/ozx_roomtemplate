@@ -171,16 +171,33 @@ internal/
 5. **DPS layer**: `dps==1` requires `ground==1`, cannot overlap bridge/rail/zoner
 6. **MobAir layer**: No ground requirement, cannot overlap other entity layers
 
-**SoftEdge anchoring** (`computeSoftEdgeSupport`, ORT-116): a soft edge cell is
-valid when it is *anchored* to ground, which is a least fixpoint over the whole
+**SoftEdge anchoring** (`computeSoftEdgeSupport`, ORT-116/117): a soft edge cell
+is valid when it is *anchored* to ground, which is a least fixpoint over the whole
 `softEdge` layer rather than a per-cell adjacency test: the **base** rule anchors
 a cell orthogonally adjacent to `ground==1`, and a cell then borrows anchoring
-when **both** `(x+1,y)` and `(x,y+1)` are anchored, or **both** `(x-1,y)` and
-`(x,y-1)` are. Support is borrowed only from cells that are themselves anchored,
-so a patch floating in void with no ground contact anywhere stays invalid however
-large it is, and a diagonal neighbour alone never suffices. The effect is that a
-soft edge patch may be thicker than the 1-cell rim the old adjacency rule allowed,
-as long as its outer boundary reaches ground.
+when **both** the cell to its **visual right** and the one **below** it are
+anchored, or **both** the one to its **visual left** and the one **above** it are.
+Support is borrowed only from cells that are themselves anchored, so a patch
+floating in void with no ground contact anywhere stays invalid however large it
+is, and a diagonal neighbour alone never suffices. The effect is that a soft edge
+patch may be thicker than the 1-cell rim the old adjacency rule allowed, as long
+as its outer boundary reaches ground.
+
+**The pairs are in visual space, the layer is in data space** (ORT-117). The
+rule is stated against what the editor draws, and the canvas is rotated 90° CCW
+(ORT-111), so the data-space offsets the code walks are the transpose:
+
+| rule | visual | data offsets |
+|------|--------|--------------|
+| 1 | right + below | `(x, y+1)` and `(x-1, y)` |
+| 2 | left + above | `(x, y-1)` and `(x+1, y)` |
+
+ORT-116 shipped the literal data-space reading, `(x+1,y)+(x,y+1)`, which is the
+*opposite* diagonal — the mirror image of the rule, rejecting exactly the
+L-shaped corner the relaxation exists to accept. This is the same trap as
+ORT-111/112/113: the rotation is invisible until a shape is asymmetric enough to
+expose it. The rule is deliberately **not** symmetric across all four corners, so
+"fixing" it to accept any two adjacent neighbours is wrong.
 
 This is a pure relaxation — every payload that validated before still validates.
 Generation is untouched: `layer_softedge.go` only ever emits 1xN / Nx1 strips in
