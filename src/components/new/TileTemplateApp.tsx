@@ -255,6 +255,32 @@ export const TileTemplateApp: React.FC = () => {
   const [dpsCount, setDpsCount] = useState<number>(4);
   const [mobAirCount, setMobAirCount] = useState<number>(10);
   const [advancedOptionsExpanded, setAdvancedOptionsExpanded] = useState(false);
+  // Whether the floating error list is expanded (ORT-118). Separate from
+  // uiState.showErrors, which also drives the red cell highlighting in the grid —
+  // collapsing the list must not turn that off. Remembered like the sidebar panels.
+  const [errorPanelOpen, setErrorPanelOpen] = useState(() => readPanelOpen('errors', true));
+
+  const toggleErrorPanel = () => {
+    setErrorPanelOpen(prev => {
+      const next = !prev;
+      try {
+        window.localStorage.setItem(panelStorageKey('errors'), next ? '1' : '0');
+      } catch {
+        // Private-browsing / quota — the panel just won't be remembered.
+      }
+      return next;
+    });
+  };
+
+  // Esc collapses the error list, the usual way out of a popup.
+  useEffect(() => {
+    if (!errorPanelOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') toggleErrorPanel();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [errorPanelOpen]);
 
   // Stage config: recommended counts per stage type. Mirrors StageConfig in
   // tile-backend/internal/generate/stage_rules.go — the backend is
@@ -466,9 +492,12 @@ export const TileTemplateApp: React.FC = () => {
     );
   };
 
-  const ErrorSummary: React.FC = () => {
+  // The error list floats over the page instead of sitting in the flow (ORT-118):
+  // as an inline block it grew and shrank with the error count, pushing the grid
+  // down mid-edit and moving the cell under the cursor.
+  const ErrorOverlay: React.FC = () => {
     const { validationResult } = uiState;
-    
+
     if (!validationResult || validationResult.isValid) {
       return null;
     }
@@ -480,50 +509,122 @@ export const TileTemplateApp: React.FC = () => {
     }, {} as Record<LayerType, typeof validationResult.errors>);
 
     return (
-      <div style={{
-        padding: '15px',
-        backgroundColor: '#fff3cd',
-        border: '1px solid #ffeaa7',
-        borderRadius: '4px',
-        marginBottom: '20px'
-      }}>
-        <h4 style={{ margin: '0 0 10px 0', color: '#856404' }}>
-          ⚠️ Validation Errors ({validationResult.errors.length} total)
-        </h4>
-        
-        {Object.entries(errorsByLayer).map(([layer, errors]) => (
-          <div key={layer} style={{ marginBottom: '10px' }}>
-            {/* Jump straight to the offending layer's tab (ORT-96) */}
-            <button
-              onClick={() => setActiveTab(layer as LayerType)}
-              style={{
-                background: 'none',
-                border: 'none',
-                padding: 0,
-                font: 'inherit',
-                fontWeight: 'bold',
-                color: '#721c24',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-              }}
-            >
-              {layerConfigs.find(c => c.layer === layer)?.title}: {errors.length} errors
-            </button>
-            <ul style={{ margin: '5px 0', paddingLeft: '20px', fontSize: '12px' }}>
-              {errors.slice(0, 5).map((error, index) => (
-                <li key={index} style={{ color: '#721c24' }}>
-                  ({error.x}, {error.y}): {error.reason}
-                </li>
-              ))}
-              {errors.length > 5 && (
-                <li style={{ color: '#6c757d' }}>
-                  ... and {errors.length - 5} more
-                </li>
-              )}
-            </ul>
+      <>
+        {/* Collapsed handle — keeps the error count reachable without reserving
+            any layout space. */}
+        <button
+          onClick={toggleErrorPanel}
+          title={errorPanelOpen ? 'Hide validation errors' : 'Show validation errors'}
+          style={{
+            position: 'fixed',
+            right: '20px',
+            bottom: '20px',
+            zIndex: 1001,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '8px 14px',
+            borderRadius: '20px',
+            border: 'none',
+            backgroundColor: '#dc3545',
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}
+        >
+          ⚠️ {validationResult.errors.length} error{validationResult.errors.length === 1 ? '' : 's'}
+          <span style={{ fontSize: '10px', opacity: 0.85 }}>{errorPanelOpen ? '▼' : '▲'}</span>
+        </button>
+
+        {errorPanelOpen && (
+          <div
+            style={{
+              position: 'fixed',
+              right: '20px',
+              bottom: '64px',
+              zIndex: 1001,
+              width: 'min(420px, calc(100vw - 40px))',
+              maxHeight: '55vh',
+              overflowY: 'auto',
+              padding: '15px',
+              backgroundColor: '#fff3cd',
+              border: '1px solid #ffeaa7',
+              borderRadius: '8px',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+            }}
+          >
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '10px',
+              marginBottom: '10px',
+            }}>
+              <h4 style={{ margin: 0, color: '#856404' }}>
+                ⚠️ Validation Errors ({validationResult.errors.length} total)
+              </h4>
+              <button
+                onClick={toggleErrorPanel}
+                title="Close (Esc)"
+                style={{
+                  // Roomy hit target — an 18px glyph alone is easy to miss.
+                  flexShrink: 0,
+                  width: '26px',
+                  height: '26px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  background: 'none',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: 0,
+                  fontSize: '20px',
+                  lineHeight: 1,
+                  color: '#856404',
+                  cursor: 'pointer',
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {Object.entries(errorsByLayer).map(([layer, errors]) => (
+              <div key={layer} style={{ marginBottom: '10px' }}>
+                {/* Jump straight to the offending layer's tab (ORT-96) */}
+                <button
+                  onClick={() => setActiveTab(layer as LayerType)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    padding: 0,
+                    font: 'inherit',
+                    fontWeight: 'bold',
+                    color: '#721c24',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  {layerConfigs.find(c => c.layer === layer)?.title}: {errors.length} errors
+                </button>
+                <ul style={{ margin: '5px 0', paddingLeft: '20px', fontSize: '12px' }}>
+                  {errors.slice(0, 5).map((error, index) => (
+                    <li key={index} style={{ color: '#721c24' }}>
+                      ({error.x}, {error.y}): {error.reason}
+                    </li>
+                  ))}
+                  {errors.length > 5 && (
+                    <li style={{ color: '#6c757d' }}>
+                      ... and {errors.length - 5} more
+                    </li>
+                  )}
+                </ul>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        )}
+      </>
     );
   };
 
@@ -538,6 +639,7 @@ export const TileTemplateApp: React.FC = () => {
         margin: '0 auto'
       }}>
         <ToolBar />
+        {uiState.showErrors && <ErrorOverlay />}
         
         {/* Backend status now lives in the Template Info panel (ORT-97); only
             hard API errors still warrant a page-level banner. */}
@@ -554,8 +656,6 @@ export const TileTemplateApp: React.FC = () => {
           </div>
         )}
 
-        {uiState.showErrors && <ErrorSummary />}
-        
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'auto 300px',
