@@ -356,7 +356,7 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 				}
 			}
 
-			// Rule: chaser==1 => ground==1
+			// Rule: chaser==1 => ground==1 && static==0
 			if chaser == 1 {
 				if ground == 0 {
 					errors = append(errors, model.ValidationError{
@@ -366,9 +366,21 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 						Reason: "chasers require walkable ground",
 					})
 				}
+
+				// Rule: chasers cannot share a cell with a static obstacle (ORT-119).
+				// Generation already refuses these cells via isValidEnemyPosition;
+				// this is the authoritative check for hand-edited rooms.
+				if static == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "chaser",
+						X:      x,
+						Y:      y,
+						Reason: "chasers cannot overlap static obstacles",
+					})
+				}
 			}
 
-			// Rule: zoner==1 => ground==1
+			// Rule: zoner==1 => ground==1 && static==0
 			if zoner == 1 {
 				if ground == 0 {
 					errors = append(errors, model.ValidationError{
@@ -378,9 +390,21 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 						Reason: "zoners require walkable ground",
 					})
 				}
+
+				// Rule: zoners cannot share a cell with a static obstacle (ORT-119).
+				// Generation already refuses these cells via isValidEnemyPosition;
+				// this is the authoritative check for hand-edited rooms.
+				if static == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "zoner",
+						X:      x,
+						Y:      y,
+						Reason: "zoners cannot overlap static obstacles",
+					})
+				}
 			}
 
-			// Rule: dps==1 => ground==1
+			// Rule: dps==1 => ground==1 && static==0
 			if dps == 1 {
 				if ground == 0 {
 					errors = append(errors, model.ValidationError{
@@ -388,6 +412,18 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 						X:      x,
 						Y:      y,
 						Reason: "dps require walkable ground",
+					})
+				}
+
+				// Rule: dps cannot share a cell with a static obstacle (ORT-119).
+				// Generation already refuses these cells via isValidEnemyPosition;
+				// this is the authoritative check for hand-edited rooms.
+				if static == 1 {
+					errors = append(errors, model.ValidationError{
+						Layer:  "dps",
+						X:      x,
+						Y:      y,
+						Reason: "dps cannot overlap static obstacles",
 					})
 				}
 			}

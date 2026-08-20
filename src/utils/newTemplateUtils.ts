@@ -247,8 +247,8 @@ export function validateCellRules(
     chaser: chaser === 0 || (ground === 1 && static_ === 0 && bridge === 0 && pipeline === 0 && rail === 0 && zoner === 0),
     // Zoner: requires ground=1, cannot be on static/bridge/pipeline/rail/chaser
     zoner: zoner === 0 || (ground === 1 && static_ === 0 && bridge === 0 && pipeline === 0 && rail === 0 && chaser === 0),
-    // DPS: requires ground=1, cannot be on bridge/pipeline/rail/zoner
-    dps: dps === 0 || (ground === 1 && bridge === 0 && pipeline === 0 && rail === 0 && zoner === 0),
+    // DPS: requires ground=1, cannot be on static/bridge/pipeline/rail/zoner (ORT-119)
+    dps: dps === 0 || (ground === 1 && static_ === 0 && bridge === 0 && pipeline === 0 && rail === 0 && zoner === 0),
     mainPath: true, // MainPath is read-only, no constraints
     mobAir: true, // MobAir has no constraints
   };
@@ -569,6 +569,7 @@ function getValidationErrorReason(
       return 'Unknown error';
     case 'dps':
       if (ground === 0) return 'DPS requires walkable ground';
+      if (static_ === 1) return 'DPS cannot be placed on static items';
       if (bridge === 1) return 'DPS cannot be placed on bridge';
       if (pipeline === 1) return 'DPS cannot be placed on pipeline';
       if (rail === 1) return 'DPS cannot be placed on rail';

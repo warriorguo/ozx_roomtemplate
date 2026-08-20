@@ -744,3 +744,103 @@ func TestComputeSoftEdgeSupport_LargePatch(t *testing.T) {
 	}
 	assert.Empty(t, softEdgeErrors(payload))
 }
+
+// entityTestPayload builds a payload carrying ground, static and one entity
+// layer, so the only logical rules that can fire are that entity's.
+func entityTestPayload(ground, staticLayer [][]int, entity string, entityLayer [][]int) *model.TemplatePayload {
+	height := len(ground)
+	width := len(ground[0])
+
+	zeros := func() [][]int {
+		layer := make([][]int, height)
+		for y := range layer {
+			layer[y] = make([]int, width)
+		}
+		return layer
+	}
+
+	payload := &model.TemplatePayload{
+		Ground: ground,
+		Static: staticLayer,
+		Chaser: zeros(),
+		Zoner:  zeros(),
+		DPS:    zeros(),
+		MobAir: zeros(),
+		Meta: model.TemplateMeta{
+			Name:    "entity",
+			Version: 1,
+			Width:   width,
+			Height:  height,
+		},
+	}
+
+	switch entity {
+	case "chaser":
+		payload.Chaser = entityLayer
+	case "zoner":
+		payload.Zoner = entityLayer
+	case "dps":
+		payload.DPS = entityLayer
+	}
+	return payload
+}
+
+// TestValidateTemplate_EntitiesCannotOverlapStatic covers ORT-119: chaser,
+// zoner and dps all collide with static. Generation already refuses these cells
+// via isValidEnemyPosition; these are the checks for hand-edited rooms.
+func TestValidateTemplate_EntitiesCannotOverlapStatic(t *testing.T) {
+	allGround := [][]int{
+		{1, 1, 1, 1},
+		{1, 1, 1, 1},
+		{1, 1, 1, 1},
+		{1, 1, 1, 1},
+	}
+	staticAt11 := [][]int{
+		{0, 0, 0, 0},
+		{0, 1, 0, 0},
+		{0, 0, 0, 0},
+		{0, 0, 0, 0},
+	}
+
+	for _, entity := range []string{"chaser", "zoner", "dps"} {
+		t.Run(entity+" on static errors", func(t *testing.T) {
+			onStatic := [][]int{
+				{0, 0, 0, 0},
+				{0, 1, 0, 0},
+				{0, 0, 0, 0},
+				{0, 0, 0, 0},
+			}
+			payload := entityTestPayload(allGround, staticAt11, entity, onStatic)
+
+			result := ValidateTemplate(payload, true)
+			var hits []model.ValidationError
+			for _, e := range result.Errors {
+				if e.Layer == entity {
+					hits = append(hits, e)
+				}
+			}
+
+			assert.Len(t, hits, 1)
+			if len(hits) == 1 {
+				assert.Equal(t, 1, hits[0].X)
+				assert.Equal(t, 1, hits[0].Y)
+				assert.Contains(t, hits[0].Reason, "static")
+			}
+		})
+
+		t.Run(entity+" clear of static is valid", func(t *testing.T) {
+			offStatic := [][]int{
+				{0, 0, 0, 0},
+				{0, 0, 0, 1},
+				{0, 0, 0, 0},
+				{0, 0, 0, 0},
+			}
+			payload := entityTestPayload(allGround, staticAt11, entity, offStatic)
+
+			result := ValidateTemplate(payload, true)
+			for _, e := range result.Errors {
+				assert.NotEqual(t, entity, e.Layer, "unexpected error: %+v", e)
+			}
+		})
+	}
+}

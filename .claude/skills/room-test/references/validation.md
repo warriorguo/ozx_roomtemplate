@@ -266,11 +266,13 @@ for each layer in [static, chaser, zoner, dps]:
 `mobAir` has no ground requirement — skip this check for mobAir.
 
 ### 4.2 No Invalid Overlaps
-Per validation rules:
+Per validation rules. Chaser, zoner and dps all collide with static (ORT-119) —
+dps used to be exempt in the frontend rule and none of the three were checked by
+the backend at all:
 - `static==1`: cannot overlap chaser, zoner, dps, bridge, rail
 - `chaser==1`: cannot overlap static, bridge, rail, zoner
 - `zoner==1`: cannot overlap static, bridge, rail, chaser
-- `dps==1`: cannot overlap bridge, rail, zoner (CAN coexist with chaser, static)
+- `dps==1`: cannot overlap static, bridge, rail, zoner (CAN coexist with chaser)
 - `mobAir==1`: cannot overlap chaser, zoner, dps, static
 
 ```python
@@ -278,7 +280,7 @@ overlap_rules = {
     'static':  ['chaser', 'zoner', 'dps', 'bridge', 'rail'],
     'chaser':  ['static', 'bridge', 'rail', 'zoner'],
     'zoner':   ['static', 'bridge', 'rail', 'chaser'],
-    'dps':     ['bridge', 'rail', 'zoner'],
+    'dps':     ['static', 'bridge', 'rail', 'zoner'],
     'mobAir':  ['chaser', 'zoner', 'dps', 'static'],
 }
 

@@ -168,8 +168,19 @@ internal/
 2. **Static layer**: `static==1` requires `ground==1`
 3. **Chaser layer**: `chaser==1` requires `ground==1`, cannot overlap static/bridge/rail/zoner
 4. **Zoner layer**: `zoner==1` requires `ground==1`, cannot overlap static/bridge/rail/chaser
-5. **DPS layer**: `dps==1` requires `ground==1`, cannot overlap bridge/rail/zoner
+5. **DPS layer**: `dps==1` requires `ground==1`, cannot overlap static/bridge/rail/zoner
 6. **MobAir layer**: No ground requirement, cannot overlap other entity layers
+
+**Entities never share a cell with static** (ORT-119): `chaser`, `zoner` and
+`dps` all collide with `static`. Generation has always enforced this — all three
+go through `isValidEnemyPosition`, which rejects any cell with `staticLayer != 0`
+— but validation did not: the frontend exempted `dps`, and the **backend checked
+none of the three**, only their `ground` requirement. A hand-edited room could
+therefore stack an enemy on an obstacle and still validate. Both validators now
+reject it, so generated and hand-edited rooms are held to the same rule.
+
+The backend's entity rules are still narrower than this list: the bridge, rail,
+pipeline and cross-entity overlaps above are enforced by the frontend only.
 
 **SoftEdge anchoring** (`computeSoftEdgeSupport`, ORT-116/117): a soft edge cell
 is valid when it is *anchored* to ground, which is a least fixpoint over the whole
