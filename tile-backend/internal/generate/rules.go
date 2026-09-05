@@ -1491,7 +1491,11 @@ func isValidMobAirPositionNew(pos Point, ground, softEdge, bridge, staticLayer, 
 
 	// No ground requirement - flying mobs can spawn anywhere
 
-	// Must not overlap with other layers
+	// Keep clear of the other layers. This is a generation-time dispersion
+	// preference, NOT a rule (ORT-121): mobAir has no overlap constraint, and
+	// neither validator checks one, so a hand-edited room may stack mobAir on
+	// any entity or obstacle and still be legal. Generation avoids it only so a
+	// generated room reads clearly.
 	if softEdge[y][x] != 0 || bridge[y][x] != 0 || staticLayer[y][x] != 0 ||
 		zonerLayer[y][x] != 0 || chaserLayer[y][x] != 0 || dpsLayer[y][x] != 0 {
 		return false

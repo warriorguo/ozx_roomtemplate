@@ -273,7 +273,10 @@ the backend at all:
 - `chaser==1`: cannot overlap static, bridge, rail, zoner
 - `zoner==1`: cannot overlap static, bridge, rail, chaser
 - `dps==1`: cannot overlap static, bridge, rail, zoner (CAN coexist with chaser)
-- `mobAir==1`: cannot overlap chaser, zoner, dps, static
+- `mobAir==1`: **no overlap rule at all** (ORT-121). Neither validator checks
+  mobAir, and hand-authored rooms stack it on zoner/chaser/dps/static freely.
+  Generation still keeps it clear as a dispersion preference — assert that only
+  against `/generate` output (§5a-4), never against a loaded template.
 
 ```python
 overlap_rules = {
@@ -281,7 +284,7 @@ overlap_rules = {
     'chaser':  ['static', 'bridge', 'rail', 'zoner'],
     'zoner':   ['static', 'bridge', 'rail', 'chaser'],
     'dps':     ['static', 'bridge', 'rail', 'zoner'],
-    'mobAir':  ['chaser', 'zoner', 'dps', 'static'],
+    # mobAir omitted deliberately (ORT-121): it has no overlap rule.
 }
 
 for layer_name, forbidden in overlap_rules.items():
@@ -415,6 +418,9 @@ Unchanged by ORT-104, and worth asserting on every room:
   pipeline, so any overlap means a later layer was placed on top of it, not the
   reverse. This was a real defect in fullroom's grouped placement before ORT-104
   (mobAir ran inside the per-group loop); treat any overlap as a regression.
+
+  **Generation invariant only, not a validation rule** (ORT-121). Assert it
+  against `/generate` output; never against a loaded template.
 
 ### 5b. Room Size Is Unconstrained (ORT-109)
 

@@ -169,7 +169,18 @@ internal/
 3. **Chaser layer**: `chaser==1` requires `ground==1`, cannot overlap static/bridge/rail/zoner
 4. **Zoner layer**: `zoner==1` requires `ground==1`, cannot overlap static/bridge/rail/chaser
 5. **DPS layer**: `dps==1` requires `ground==1`, cannot overlap static/bridge/rail/zoner
-6. **MobAir layer**: No ground requirement, cannot overlap other entity layers
+6. **MobAir layer**: no constraints at all — no ground requirement, and **no
+   overlap rule** (ORT-121)
+
+**MobAir has no overlap rule** (ORT-121). This list used to claim mobAir "cannot
+overlap other entity layers", but neither validator has ever implemented it:
+`newTemplateUtils.ts` returns `mobAir: true` unconditionally and
+`validate/validate.go` does not look at the layer. Only generation keeps mobAir
+clear of softEdge/bridge/static/zoner/chaser/dps, and that is a **placement
+preference** — a generated room reads more clearly when air mobs sit on their own
+cells — not a rule a payload can violate. Seven of the hand-authored `normal`
+rooms stack mobAir on zoner/chaser/dps/static and are legal. Do not "fix" the
+validators to match `isValidMobAirPositionNew`.
 
 **Entities never share a cell with static** (ORT-119): `chaser`, `zoner` and
 `dps` all collide with `static`. Generation has always enforced this — all three
