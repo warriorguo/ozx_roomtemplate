@@ -272,7 +272,8 @@ the backend at all:
 - `static==1`: cannot overlap chaser, zoner, dps, bridge, rail
 - `chaser==1`: cannot overlap static, bridge, rail, zoner
 - `zoner==1`: cannot overlap static, bridge, rail, chaser
-- `dps==1`: cannot overlap static, bridge, rail, zoner (CAN coexist with chaser)
+- `dps==1`: cannot overlap static, bridge, rail, zoner (CAN coexist with chaser —
+  ORT-122 removed the generation-side exclusion too)
 - `mobAir==1`: **no overlap rule at all** (ORT-121). Neither validator checks
   mobAir, and hand-authored rooms stack it on zoner/chaser/dps/static freely.
   Generation still keeps it clear as a dispersion preference — assert that only

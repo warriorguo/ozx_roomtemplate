@@ -88,8 +88,12 @@ func generateDPSLayerCore(dpsLayer, ground, softEdge, bridge, rail, staticLayer,
 		pos, idx := pickFromTopN(candidates, 0.3, 3)
 
 		if !relaxSpacing {
-			// No adjacent existing DPS and cannot overlap chaser
-			if touchesLayer(pos, dpsLayer, width, height) || chaserLayer[pos.Y][pos.X] != 0 {
+			// No adjacent existing DPS. Sharing a cell with a chaser is
+			// deliberately allowed (ORT-122): the two are different categories,
+			// so a shared cell is not the same-category adjacency that crashes
+			// the game (ORT-93), and the hand-authored normal rooms stack them
+			// routinely. Only the same-category spacing constraint applies.
+			if touchesLayer(pos, dpsLayer, width, height) {
 				candidates = append(candidates[:idx], candidates[idx+1:]...)
 				continue
 			}

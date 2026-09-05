@@ -288,7 +288,7 @@ stage asked for. The room is still valid and saveable.
 - **static**: 2x2 blocks on ground. Min 5x5 forbidden zone around doors. Blocks cannot touch each other. Must preserve door connectivity.
 - **chaser**: Melee enemies. 0-3 cells from main path, prefer low squishy score. Cannot overlap static/bridge/rail/zoner.
 - **zoner**: Area control enemies. **2x2 blocks** (1x1 only as a fallback where no 2x2 site fits), so one zoner = 4 cells. 0-5 cells from main path, prefer high squishy score. Every cell of a block must satisfy the constraints; cannot overlap static/bridge/rail/chaser. Distinct blocks cannot touch in any of the 8 directions.
-- **dps**: Ranged damage enemies. 0-4 cells from main path, prefers proximity to chaser/static. Cannot overlap bridge/rail/zoner.
+- **dps**: Ranged damage enemies. 0-4 cells from main path, prefers proximity to chaser/static. Cannot overlap static/bridge/rail/zoner. **May share a cell with chaser** (ORT-122) — different categories, so it is not an ORT-93 spacing violation; only DPS-on-DPS adjacency is forbidden.
 - **mobAir**: Air mobs. No ground requirement and **no overlap rule** (ORT-121) — neither validator checks it and hand-authored rooms stack it on other entities freely. **Centre-seeded and evenly distributed outward**, deterministically — the cell nearest the room centre is always taken, and the rest fill a centre-anchored grid. Zoner/chaser density only breaks ties within one grid slot. Door distance >= 4, edge distance >= 2, spacing >= 1. Generation keeps it clear of the other layers as a dispersion preference, not as a rule.
 
 ### Stage Type Rules

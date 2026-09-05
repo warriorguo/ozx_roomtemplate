@@ -418,7 +418,7 @@ func TestStageCountsPlaceCleanlyAtReferenceSize(t *testing.T) {
 
 		t.Run(fmt.Sprintf("%s_%dx%d", stage, w, h), func(t *testing.T) {
 			const trials = 40
-			adjacent, overlapping := 0, 0
+			adjacent := 0
 			for i := 0; i < trials; i++ {
 				resp, err := GenerateFullRoom(FullRoomGenerateRequest{
 					Width: w, Height: h, Doors: doors, StaticCount: 8,
@@ -441,9 +441,6 @@ func TestStageCountsPlaceCleanlyAtReferenceSize(t *testing.T) {
 				if bad {
 					adjacent++
 				}
-				if layersOverlap(p.DPS, p.Chaser, w, h) {
-					overlapping++
-				}
 			}
 			// Allow a tail. Placement is randomised and the relaxed pass fires
 			// legitimately in occasional pathological ground shapes — measured at
@@ -458,9 +455,6 @@ func TestStageCountsPlaceCleanlyAtReferenceSize(t *testing.T) {
 				"%s at %dx%d produced same-layer 8-dir adjacency in %d/%d rooms "+
 					"(ORT-93 spacing violation); the stage counts have outgrown the room",
 				stage, w, h, adjacent, trials)
-			assert.LessOrEqualf(t, overlapping, maxAllowed,
-				"%s at %dx%d placed DPS on a chaser cell in %d/%d rooms",
-				stage, w, h, overlapping, trials)
 		})
 	}
 }
@@ -544,18 +538,6 @@ func hasSameLayerAdjacency(layer [][]int, width, height int) bool {
 						return true
 					}
 				}
-			}
-		}
-	}
-	return false
-}
-
-// layersOverlap reports whether the two layers both occupy the same cell.
-func layersOverlap(a, b [][]int, width, height int) bool {
-	for y := 0; y < height; y++ {
-		for x := 0; x < width; x++ {
-			if a[y][x] == 1 && b[y][x] == 1 {
-				return true
 			}
 		}
 	}

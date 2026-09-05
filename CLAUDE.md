@@ -182,6 +182,12 @@ cells — not a rule a payload can violate. Seven of the hand-authored `normal`
 rooms stack mobAir on zoner/chaser/dps/static and are legal. Do not "fix" the
 validators to match `isValidMobAirPositionNew`.
 
+**Chaser and DPS may share a cell** (ORT-122). They are different categories, so
+a shared cell is not the same-category adjacency that crashes the game (ORT-93),
+and the hand-authored rooms use it routinely (5 of 14). Generation used to refuse
+it in `layer_dps.go`; that exclusion is gone. The same-category spacing
+constraint — no DPS 8-directionally adjacent to another DPS — still applies.
+
 **Entities never share a cell with static** (ORT-119): `chaser`, `zoner` and
 `dps` all collide with `static`. Generation has always enforced this — all three
 go through `isValidEnemyPosition`, which rejects any cell with `staticLayer != 0`
