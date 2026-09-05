@@ -131,8 +131,29 @@
       "Bash(sed -n '/^func pickFromTopN/,/^}/p' internal/generate/rules.go)",
       "Bash(sed -n '/^func isValidMobAirPositionNew/,/^}/p' internal/generate/rules.go)",
       "Bash(sed -n '/^func dpsScore/,/^}/p' internal/generate/layer_dps.go)",
-      "Artifact"
+      "Artifact",
+      "Bash(gofmt -l internal/generate/)",
+      "Bash(gofmt -l internal/)",
+      "Bash(cp -R \"build/OZX Room Editor.app\" \"/Applications/\")",
+      "Bash(mf issues *)",
+      "Bash(mf issue *)",
+      "Bash(osascript -e 'quit app \"OZX Room Editor\"')",
+      "Bash(/bin/sleep 1)",
+      "Bash(cp /Users/andrew/.claude/image-cache/73bb6635-0e18-4b5d-969a-5e9b535dd598/1.png __TRACKED_VAR__/door-orientation-mismatch.png)",
+      "Bash(mf asset *)",
+      "Bash(make -C /Users/andrew/Codes/github.com/warriorguo/ozx_roomtemplate/swift-app build)",
+      "Bash(gofmt -l internal/store/fsstore/)",
+      "Bash(gofmt -w internal/store/fsstore/fsstore.go)",
+      "Bash(md5 -q __TRACKED_VAR__/ort113/proj/TilemapData/normal/all_start_1_01.json)",
+      "Bash(pkill -f \"ozx-test --config\")",
+      "Bash(rm -rf __TRACKED_VAR__/ort113 __TRACKED_VAR__/ozx-test)",
+      "Bash(md5 -q /Users/andrew/Codes/github.com/warriorguo/ozx_base/Assets/StreamingAssets/TilemapData/normal/all_start_1_01.json)",
+      "Bash(ditto \"build/OZX Room Editor.app\" \"/Applications/OZX Room Editor.app\")"
     ],
     "deny": []
+  },
+  "sandbox": {
+    "enabled": true,
+    "autoAllowBashIfSandboxed": true
   }
 }

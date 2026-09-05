@@ -27,6 +27,12 @@ dist-ssr
 tile-backend/internal/web/dist/*
 !tile-backend/internal/web/dist/index.html
 
+# Test coverage output (make test-coverage)
+tile-backend/coverage.out
+
+# Claude Code scheduler lock
+.claude/scheduled_tasks.lock
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
