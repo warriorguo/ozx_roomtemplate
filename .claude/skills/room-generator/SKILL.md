@@ -293,15 +293,22 @@ stage asked for. The room is still valid and saveable.
 
 ### Stage Type Rules
 
-| Stage | DPS | Chaser | Zoner | MobAir | Notes |
-|-------|-----|--------|-------|--------|-------|
-| start | 0 | 0 | 0 | 0 | Right door only (remaps to OZX Top) |
-| teaching | 2-3 | 0 | 0 | 0 | DPS only |
-| building | 2-3 | 2-3 | 0 | 0 | DPS + Chaser |
-| pressure | 4-6 | 6-8 | 1 | 2-4 | Not bridge |
-| peak | 6-12 | 6-8 | 2-3 | 2-4 | Full only |
-| release | 0-2 | 0-2 | 0-1 | 0-2 | Minimal |
-| boss | 0 | 0 | 0 | 0 | 6x6 center clear, max 2 doors |
+Counts are **spawns, not cells** (a zoner is a 2×2 block). `static` is counted in
+2×2 blocks. When a stage type is supplied it overrides the request's counts.
+
+| Stage | DPS | Chaser | Zoner | MobAir | Static | Notes |
+|-------|-----|--------|-------|--------|--------|-------|
+| start | 0 | 0 | 0 | 0 | 0 | Right door only (remaps to OZX Top) |
+| teaching | 4-6 | 2-6 | 1-2 | 6 | 2-9 | |
+| building | 6-9 | 6-10 | 1-2 | 6-9 | 2-9 | |
+| pressure | 8-12 | 8-10 | 2-5 | 6-12 | 2-9 | Not bridge |
+| peak | 8-12 | 8-10 | 2-3 | 12-18 | 2-9 | Full only; mobAir exceeds a 16×10 room's capacity, expect an ORT-110 warning |
+| release | 2-4 | 2 | 1 | 6 | 2-9 | Minimal |
+| boss | 0 | 0 | 0 | 0 | 0 | 6x6 center clear, max 2 doors |
+
+Ranges last recalibrated in ORT-123/124/125 against the hand-authored rooms in
+`Assets/StreamingAssets/TilemapData/normal`. No stage constrains room size
+(ORT-109), but a small room may under-place — check the response's `warnings`.
 
 ## Error Handling
 

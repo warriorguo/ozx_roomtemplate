@@ -309,34 +309,51 @@ counted in 2×2 blocks. See §5c.
 
 ```
 stageRanges = {
-    "teaching":  { dps: (4,6),   chaser: (2,2),   zoner: (1,1),  mobAir: (6,6)  },
-    "building":  { dps: (4,6),   chaser: (4,6),   zoner: (1,1),  mobAir: (6,6)  },
-    "pressure":  { dps: (8,12),  chaser: (8,10),  zoner: (2,2),  mobAir: (6,12) },
+    "teaching":  { dps: (4,6),   chaser: (2,6),   zoner: (1,2),  mobAir: (6,6)  },
+    "building":  { dps: (6,9),   chaser: (6,10),  zoner: (1,2),  mobAir: (6,9)  },
+    "pressure":  { dps: (8,12),  chaser: (8,10),  zoner: (2,5),  mobAir: (6,12) },
     "peak":      { dps: (8,12),  chaser: (8,10),  zoner: (2,3),  mobAir: (12,18)},
     "release":   { dps: (2,4),   chaser: (2,2),   zoner: (1,1),  mobAir: (6,6)  },
     "boss":      { dps: (0,0),  chaser: (0,0),  zoner: (0,0),  mobAir: (0,0) },
 }
 ```
 
+ORT-123/124 raised the front of the curve to match the hand-authored rooms in
+`Assets/StreamingAssets/TilemapData/normal` (teaching chaser 2 → 2-6; building
+chaser 4-6 → 6-10, dps 4-6 → 6-9, mobAir 6 → 6-9; zoner 1 → 1-2 for
+teaching/building and 2 → 2-5 for pressure). Generated teaching/building rooms
+used to come out conspicuously emptier than the shipped ones.
+
+Peak's `mobAir (12,18)` is knowingly above what a 16×10 room can hold (ceiling
+≈15; 163/200 rooms report an ORT-110 mobAir shortfall). Expect the warning at
+that size — it is not a regression.
+
 If `stageType` is empty or not provided, skip this check.
 
-### 5a. Stage Static Counts (ORT-100)
+### 5a. Stage Static Counts (ORT-100/125)
 
 When a `stageType` is supplied, the stage also drives `staticCount` — the
-request's `staticCount` is **overridden**, not merged. The high-pressure stages
-get roughly one third the cover of the low-pressure ones:
+request's `staticCount` is **overridden**, not merged. Every stage that places
+static at all shares one range:
 
 ```
 stageStaticBlocks = {
     "start":    (0,0),   # no enemies, no cover needed
-    "teaching": (6,9),
-    "building": (6,9),
-    "pressure": (2,3),   # ~1/3 of the baseline
-    "peak":     (2,3),   # ~1/3 of the baseline
-    "release":  (6,9),
+    "teaching": (2,9),
+    "building": (2,9),
+    "pressure": (2,9),
+    "peak":     (2,9),
+    "release":  (2,9),
     "boss":     (0,0),   # 6x6 clear center arena
 }
 ```
+
+ORT-125 removed ORT-100's per-stage split (teaching/building/release 6–9,
+pressure/peak 2–3): the hand-authored rooms show no correlation between stage and
+block count (pressure 8 and 0, teaching 7/5/3, release 7/9/2/3), and the 6-block
+floor was the largest single source of ORT-110 shortfall warnings at the 16×10
+default. Pressure/peak still get their open middle from `StaticDisperse` (§5a-2),
+which is placement, not count.
 
 These are counts of **2×2 blocks**, not cells. Blocks never touch, so a
 successful placement of N blocks yields `4 * N` cells in the `static` layer.

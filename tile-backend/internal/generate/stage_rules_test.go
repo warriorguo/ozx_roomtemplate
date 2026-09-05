@@ -28,9 +28,14 @@ func TestStageRangeConfig(t *testing.T) {
 		// ORT-108 then cut the two heavy stages back so they place cleanly in
 		// small rooms: peak dps 12-24 -> 8-12, chaser 12-16 -> 8-10, zoner 4-6 ->
 		// 2-3, mobAir 18 -> 12-18; pressure chaser 12-16 -> 8-10.
-		{"teaching", 4, 6, 2, 2, 1, 1, 6, 6},
-		{"building", 4, 6, 4, 6, 1, 1, 6, 6},
-		{"pressure", 8, 12, 8, 10, 2, 2, 6, 12},
+		//
+		// ORT-123/124 then raised the front of the curve to the hand-authored
+		// normal rooms it had drifted away from: teaching chaser 2 -> 2-6,
+		// building chaser 4-6 -> 6-10 and dps 4-6 -> 6-9 and mobAir 6 -> 6-9;
+		// zoner 1 -> 1-2 for teaching/building and 2 -> 2-5 for pressure.
+		{"teaching", 4, 6, 2, 6, 1, 2, 6, 6},
+		{"building", 6, 9, 6, 10, 1, 2, 6, 9},
+		{"pressure", 8, 12, 8, 10, 2, 5, 6, 12},
 		{"peak", 8, 12, 8, 10, 2, 3, 12, 18},
 		{"release", 2, 4, 2, 2, 1, 1, 6, 6},
 		{"boss", 0, 0, 0, 0, 0, 0, 0, 0},
@@ -59,12 +64,16 @@ func TestStageStaticRangeConfig(t *testing.T) {
 		stage string
 		want  [2]int
 	}{
+		// ORT-125: the stage-specific bounds are gone. Every stage that places
+		// static at all shares 2-9; the hand-authored normal rooms range 0-9
+		// blocks with no correlation to stage, and pressure/peak's open middle
+		// is carried by StaticDisperse (ORT-99), not by a low count.
 		{"start", [2]int{0, 0}},
-		{"teaching", [2]int{6, 9}},
-		{"building", [2]int{6, 9}},
-		{"pressure", [2]int{2, 3}},
-		{"peak", [2]int{2, 3}},
-		{"release", [2]int{6, 9}},
+		{"teaching", [2]int{2, 9}},
+		{"building", [2]int{2, 9}},
+		{"pressure", [2]int{2, 9}},
+		{"peak", [2]int{2, 9}},
+		{"release", [2]int{2, 9}},
 		{"boss", [2]int{0, 0}},
 	}
 
@@ -85,11 +94,11 @@ func TestValidateAndApplyStage_StaticCount(t *testing.T) {
 		minimum int
 		maximum int
 	}{
-		{"teaching", 16, 8, 6, 9},
-		{"building", 16, 8, 6, 9},
-		{"release", 16, 8, 6, 9},
-		{"pressure", 18, 10, 2, 3},
-		{"peak", 20, 12, 2, 3},
+		{"teaching", 16, 8, 2, 9},
+		{"building", 16, 8, 2, 9},
+		{"release", 16, 8, 2, 9},
+		{"pressure", 18, 10, 2, 9},
+		{"peak", 20, 12, 2, 9},
 	}
 
 	for _, tt := range tests {
@@ -117,7 +126,7 @@ func TestGenerateFullRoom_StaticCountFollowsStage(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp.DebugInfo.Static)
 		assert.GreaterOrEqual(t, resp.DebugInfo.Static.TargetCount, 2)
-		assert.LessOrEqual(t, resp.DebugInfo.Static.TargetCount, 3)
+		assert.LessOrEqual(t, resp.DebugInfo.Static.TargetCount, 9)
 	})
 
 	t.Run("empty stage preserves request", func(t *testing.T) {
@@ -144,7 +153,7 @@ func TestBridgeAndPlatform_StaticCountFollowsStage(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp.DebugInfo.Static)
-		assert.GreaterOrEqual(t, resp.DebugInfo.Static.TargetCount, 6)
+		assert.GreaterOrEqual(t, resp.DebugInfo.Static.TargetCount, 2)
 		assert.LessOrEqual(t, resp.DebugInfo.Static.TargetCount, 9)
 	})
 
@@ -158,7 +167,7 @@ func TestBridgeAndPlatform_StaticCountFollowsStage(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.NotNil(t, resp.DebugInfo.Static)
-		assert.GreaterOrEqual(t, resp.DebugInfo.Static.TargetCount, 6)
+		assert.GreaterOrEqual(t, resp.DebugInfo.Static.TargetCount, 2)
 		assert.LessOrEqual(t, resp.DebugInfo.Static.TargetCount, 9)
 	})
 }

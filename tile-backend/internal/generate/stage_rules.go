@@ -141,22 +141,30 @@ var stageConfigs = map[string]StageConfig{
 		StaticRange:      [2]int{0, 0},
 		PlacementRule:    "start",
 	},
+	// Counts recalibrated against the hand-authored normal rooms in ORT-123/124/125.
+	// Measured spawn counts (8-connected groups, not cells) over
+	// Assets/StreamingAssets/TilemapData/normal: chaser 2/6/6, dps 6/7/9,
+	// zoner 1/1/2, mobAir 6/6/6, static 7/5/3 blocks.
 	model.StageTeaching: {
 		StageType:     model.StageTeaching,
 		DPSRange:      [2]int{4, 6},
-		ChaserRange:   [2]int{2, 2},
-		ZonerRange:    [2]int{1, 1},
+		ChaserRange:   [2]int{2, 6},
+		ZonerRange:    [2]int{1, 2},
 		MobAirRange:   [2]int{6, 6},
-		StaticRange:   [2]int{6, 9},
+		StaticRange:   [2]int{2, 9},
 		PlacementRule: "teaching",
 	},
+	// Hand-authored building rooms measured chaser 8/10/8, dps 9/9/8,
+	// zoner 2/2/3, mobAir 9/9/9, static 6/6/4 blocks — a full difficulty step
+	// above what ORT-108's ranges produced, close to the old pressure numbers
+	// (ORT-123).
 	model.StageBuilding: {
 		StageType:     model.StageBuilding,
-		DPSRange:      [2]int{4, 6},
-		ChaserRange:   [2]int{4, 6},
-		ZonerRange:    [2]int{1, 1},
-		MobAirRange:   [2]int{6, 6},
-		StaticRange:   [2]int{6, 9},
+		DPSRange:      [2]int{6, 9},
+		ChaserRange:   [2]int{6, 10},
+		ZonerRange:    [2]int{1, 2},
+		MobAirRange:   [2]int{6, 9},
+		StaticRange:   [2]int{2, 9},
 		PlacementRule: "building",
 	},
 	model.StagePressure: {
@@ -165,11 +173,14 @@ var stageConfigs = map[string]StageConfig{
 		// Chaser was cut 12-16 -> 8-10 in ORT-108: at 16x8 the old range put a
 		// crash-triggering spawn pair (ORT-93) in 21.5% of rooms against 6% at
 		// 8-10.
-		DPSRange:      [2]int{8, 12},
-		ChaserRange:   [2]int{8, 10},
-		ZonerRange:    [2]int{2, 2},
+		DPSRange:    [2]int{8, 12},
+		ChaserRange: [2]int{8, 10},
+		// Hand-authored pressure rooms carry 4 and 5 zoner spawns against the
+		// old fixed 2 (ORT-124). Counts are spawns: a 2x2 block collapses to
+		// one, so this is 4-5 blocks, not 4-5 cells.
+		ZonerRange:    [2]int{2, 5},
 		MobAirRange:   [2]int{6, 12},
-		StaticRange:   [2]int{2, 3},
+		StaticRange:   [2]int{2, 9},
 		PlacementRule: "pressure",
 	},
 	model.StagePeak: {
@@ -183,7 +194,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:   [2]int{8, 10},
 		ZonerRange:    [2]int{2, 3},
 		MobAirRange:   [2]int{12, 18},
-		StaticRange:   [2]int{2, 3},
+		StaticRange:   [2]int{2, 9},
 		PlacementRule: "peak",
 	},
 	model.StageRelease: {
@@ -192,7 +203,7 @@ var stageConfigs = map[string]StageConfig{
 		ChaserRange:   [2]int{2, 2},
 		ZonerRange:    [2]int{1, 1},
 		MobAirRange:   [2]int{6, 6},
-		StaticRange:   [2]int{6, 9},
+		StaticRange:   [2]int{2, 9},
 		PlacementRule: "teaching", // same as teaching
 	},
 	model.StageBoss: {

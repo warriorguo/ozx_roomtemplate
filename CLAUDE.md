@@ -242,19 +242,42 @@ mirrors of each other and must stay in sync.
 - MobAir: centre-seeded, evenly distributed outward, spacing >= 1
 
 **Stage Rules**:
-- Teaching: DPS (4-6) + Chaser (2) + Zoner (1) + MobAir (6)
-- Building: DPS (4-6) + Chaser (4-6) + Zoner (1) + MobAir (6)
-- Pressure: DPS (8-12) + Chaser (8-10) + Zoner (2) + MobAir (6-12), not bridge
+- Teaching: DPS (4-6) + Chaser (2-6) + Zoner (1-2) + MobAir (6)
+- Building: DPS (6-9) + Chaser (6-10) + Zoner (1-2) + MobAir (6-9)
+- Pressure: DPS (8-12) + Chaser (8-10) + Zoner (2-5) + MobAir (6-12), not bridge
 - Peak: DPS (8-12) + Chaser (8-10) + Zoner (2-3) + MobAir (12-18), full only
 - Release: light mix — DPS (2-4) + Chaser (2) + Zoner (1) + MobAir (6)
 - Boss: requires 6×6 clear center area, restricted door configs
 
-**Stage-driven static count** (`StageConfig.StaticRange`, ORT-100): when a stage
-type is supplied it also supplies the static count, overriding the request's
-`staticCount` in all three generators. Teaching/building/release place 6–9 2×2
-blocks; pressure/peak place 2–3 (roughly one third, so the denser enemy waves
-have room to move); start/boss place none. An empty stage type still honours the
-request value verbatim.
+**The counts are calibrated against the hand-authored rooms** (ORT-123/124):
+ORT-101's floors and ORT-108's cuts had drifted the front of the curve well below
+what ships in `Assets/StreamingAssets/TilemapData/normal`. Measured there in
+**spawns** (8-connected groups, not cells): teaching chaser 2/6/6 and zoner
+1/1/2; building chaser 8/10/8, dps 9/9/8, mobAir 9/9/9 and zoner 2/2/3; pressure
+zoner 4/5. Hand-authored *building* sat roughly where generated *pressure* did,
+so a generated teaching/building room read conspicuously emptier than a shipped
+one. Teaching chaser 2→2-6, building chaser 4-6→6-10, dps 4-6→6-9, mobAir 6→6-9,
+and zoner 1→1-2 (teaching/building) / 2→2-5 (pressure) close that gap.
+
+Peak's `MobAir (12-18)` is knowingly **above** what a 16×10 room can hold
+(measured ceiling ≈ 15, and 163/200 rooms report an ORT-110 mobAir shortfall) and
+above the hand-authored peak rooms (4 and 13). Left alone deliberately — pass a
+larger room for peak, or revisit the range.
+
+**Stage-driven static count** (`StageConfig.StaticRange`, ORT-100/125): when a
+stage type is supplied it also supplies the static count, overriding the
+request's `staticCount` in all three generators. Every stage that places static
+at all now shares the same **2–9** 2×2 blocks; start/boss place none. An empty
+stage type still honours the request value verbatim.
+
+ORT-100's per-stage split (teaching/building/release 6–9, pressure/peak 2–3) is
+gone. Two independent findings killed it: the hand-authored `normal` rooms range
+0–9 blocks with **no** correlation to stage (pressure 8 and 0, teaching 7/5/3,
+release 7/9/2/3), and at the 16×10 default the 6-block floor was the single
+largest source of ORT-110 shortfall warnings — teaching/building/release simply
+could not fit six 2×2 blocks. Pressure and peak keep their open middle through
+`StaticDisperse` below, which is placement, not count; do not reintroduce a low
+ceiling to get it.
 
 **Stage-driven static placement** (`StagePlacementHints.StaticDisperse`, ORT-99):
 start/teaching/building/release keep the default alternating centre-outward /
