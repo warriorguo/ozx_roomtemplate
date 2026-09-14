@@ -34,11 +34,45 @@ function getDisplayLabel(item: TemplateSummary): string {
   const category = segments.pop();
   return category ? `${category}/${filename}` : filename;
 }
+/**
+ * Stage buckets in pipeline order. Anything the backend reports that isn't in
+ * this list (or a template with no stage at all) falls into UNKNOWN_STAGE and
+ * sorts last, so a hand-authored room with a blank stage still shows up.
+ */
+const STAGE_ORDER = ['start', 'teaching', 'building', 'pressure', 'peak', 'release', 'boss'];
+const UNKNOWN_STAGE = '(none)';
+
+/** `-1` stands for "the summary carried no open_doors value" (cloud backend). */
+const UNKNOWN_DOORS = -1;
+
+function stageOf(item: TemplateSummary): string {
+  return item.stage_type?.trim() || UNKNOWN_STAGE;
+}
+
+function doorsOf(item: TemplateSummary): number {
+  return item.open_doors ?? UNKNOWN_DOORS;
+}
+
+function doorLabel(mask: number): string {
+  return mask === UNKNOWN_DOORS ? '?' : formatOpenDoors(mask);
+}
+
+/**
+ * `null` = no category filter. A selection with `doors: null` filters on the
+ * stage alone; with a mask it narrows to that door configuration too.
+ */
+type CategorySelection = { stage: string; doors: number | null } | null;
+
+type StageGroup = { stage: string; total: number; doors: Array<{ mask: number; count: number }> };
+
 export const TemplateSidebar: React.FC = () => {
   const apiState = useNewTemplateStore((s) => s.apiState);
   const loadTemplateFromBackend = useNewTemplateStore((s) => s.loadTemplateFromBackend);
 
   const [search, setSearch] = useState('');
+  const [selection, setSelection] = useState<CategorySelection>(null);
+  const [categoriesOpen, setCategoriesOpen] = useState(true);
+  const [expandedStages, setExpandedStages] = useState<Set<string>>(new Set());
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [items, setItems] = useState<TemplateSummary[]>([]);
   const [total, setTotal] = useState(0);
@@ -225,11 +259,64 @@ export const TemplateSidebar: React.FC = () => {
     backgroundColor: '#fafafa',
   };
 
+  // stage × open-doors histogram over the whole list. Counts are computed from
+  // the full fetch (not the filtered view) so they stay stable while the user
+  // narrows the list — they say how many rooms exist per category, which is the
+  // point of the panel.
+  const stageGroups = useMemo<StageGroup[]>(() => {
+    const byStage = new Map<string, Map<number, number>>();
+    for (const item of items) {
+      const stage = stageOf(item);
+      let doors = byStage.get(stage);
+      if (!doors) {
+        doors = new Map<number, number>();
+        byStage.set(stage, doors);
+      }
+      const mask = doorsOf(item);
+      doors.set(mask, (doors.get(mask) ?? 0) + 1);
+    }
+    const rank = (stage: string) => {
+      const i = STAGE_ORDER.indexOf(stage);
+      return i === -1 ? STAGE_ORDER.length : i;
+    };
+    return Array.from(byStage.entries())
+      .map(([stage, doors]) => ({
+        stage,
+        total: Array.from(doors.values()).reduce((a, b) => a + b, 0),
+        doors: Array.from(doors.entries())
+          .map(([mask, count]) => ({ mask, count }))
+          .sort((a, b) => a.mask - b.mask),
+      }))
+      .sort((a, b) => rank(a.stage) - rank(b.stage) || a.stage.localeCompare(b.stage));
+  }, [items]);
+
   const filteredItems = useMemo(() => {
     const q = debouncedSearch.toLowerCase();
-    if (!q) return items;
-    return items.filter((item) => getDisplayLabel(item).toLowerCase().includes(q));
-  }, [items, debouncedSearch]);
+    let list = items;
+    if (selection) {
+      list = list.filter(
+        (item) =>
+          stageOf(item) === selection.stage &&
+          (selection.doors === null || doorsOf(item) === selection.doors)
+      );
+    }
+    if (q) list = list.filter((item) => getDisplayLabel(item).toLowerCase().includes(q));
+    return list;
+  }, [items, debouncedSearch, selection]);
+
+  const toggleStageFilter = useCallback((stage: string) => {
+    setSelection((prev) => (prev && prev.stage === stage && prev.doors === null ? null : { stage, doors: null }));
+    setExpandedStages((prev) => {
+      const next = new Set(prev);
+      if (next.has(stage)) next.delete(stage);
+      else next.add(stage);
+      return next;
+    });
+  }, []);
+
+  const toggleDoorFilter = useCallback((stage: string, mask: number) => {
+    setSelection((prev) => (prev && prev.stage === stage && prev.doors === mask ? null : { stage, doors: mask }));
+  }, []);
 
   const rows = useMemo(
     () =>
@@ -355,10 +442,31 @@ export const TemplateSidebar: React.FC = () => {
       <div style={headerStyle}>
         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
           <strong style={{ fontSize: 14 }}>Templates</strong>
+          <button
+            type="button"
+            onClick={() => fetchList()}
+            disabled={loading}
+            title="Reload the list from disk (picks up files written outside the app)"
+            aria-label="Refresh template list"
+            style={{
+              marginLeft: 6,
+              marginRight: 'auto',
+              padding: '1px 6px',
+              fontSize: 12,
+              lineHeight: '16px',
+              border: '1px solid #ddd',
+              borderRadius: 4,
+              background: '#fff',
+              color: loading ? '#bbb' : '#555',
+              cursor: loading ? 'wait' : 'pointer',
+            }}
+          >
+            ⟳
+          </button>
           <span style={{ fontSize: 11, color: '#888' }}>
             {loading
               ? 'loading…'
-              : debouncedSearch
+              : debouncedSearch || selection
                 ? `${filteredItems.length} / ${total}`
                 : `${total} total`}
           </span>
@@ -378,6 +486,90 @@ export const TemplateSidebar: React.FC = () => {
             borderRadius: 4,
           }}
         />
+      </div>
+
+      <div style={{ borderBottom: '1px solid #e0e0e0', backgroundColor: '#fff' }}>
+        <button
+          type="button"
+          onClick={() => setCategoriesOpen((o) => !o)}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+            padding: '6px 12px',
+            border: 'none',
+            background: 'transparent',
+            cursor: 'pointer',
+            fontSize: 12,
+            color: '#444',
+          }}
+        >
+          <span style={{ fontWeight: 600 }}>{categoriesOpen ? '▾' : '▸'} Categories</span>
+          <span style={{ fontSize: 11, color: '#888' }}>
+            {selection
+              ? `${selection.stage}${selection.doors === null ? '' : ` · ${doorLabel(selection.doors)}`}`
+              : 'all'}
+          </span>
+        </button>
+
+        {categoriesOpen && (
+          <div style={{ maxHeight: 220, overflowY: 'auto', paddingBottom: 6 }}>
+            <button
+              type="button"
+              onClick={() => setSelection(null)}
+              style={categoryRowStyle(selection === null, 0)}
+            >
+              <span>All stages</span>
+              <span style={{ color: '#888' }}>{items.length}</span>
+            </button>
+
+            {stageGroups.map((group) => {
+              const expanded = expandedStages.has(group.stage);
+              const stageSelected = selection?.stage === group.stage && selection.doors === null;
+              return (
+                <div key={group.stage}>
+                  <button
+                    type="button"
+                    onClick={() => toggleStageFilter(group.stage)}
+                    title={`Show only ${group.stage} rooms`}
+                    style={categoryRowStyle(stageSelected, 0)}
+                  >
+                    <span>
+                      <span style={{ display: 'inline-block', width: 12, color: '#999' }}>
+                        {expanded ? '▾' : '▸'}
+                      </span>
+                      {group.stage}
+                    </span>
+                    <span style={{ color: '#888' }}>{group.total}</span>
+                  </button>
+
+                  {expanded &&
+                    group.doors.map(({ mask, count }) => {
+                      const doorSelected =
+                        selection?.stage === group.stage && selection.doors === mask;
+                      return (
+                        <button
+                          key={mask}
+                          type="button"
+                          onClick={() => toggleDoorFilter(group.stage, mask)}
+                          title={`Show only ${group.stage} rooms with doors ${doorLabel(mask)}`}
+                          style={categoryRowStyle(doorSelected, 22)}
+                        >
+                          <span style={{ color: '#555' }}>doors {doorLabel(mask)}</span>
+                          <span style={{ color: '#888' }}>{count}</span>
+                        </button>
+                      );
+                    })}
+                </div>
+              );
+            })}
+
+            {stageGroups.length === 0 && !loading && (
+              <div style={{ padding: '6px 12px', fontSize: 11, color: '#aaa' }}>No templates yet.</div>
+            )}
+          </div>
+        )}
       </div>
 
       {error && (
@@ -491,6 +683,27 @@ export const TemplateSidebar: React.FC = () => {
     </aside>
   );
 };
+
+/** One row of the category tree. `indent` offsets the door rows under a stage. */
+function categoryRowStyle(selected: boolean, indent: number): React.CSSProperties {
+  return {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 8,
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: `4px 12px 4px ${12 + indent}px`,
+    border: 'none',
+    borderLeft: selected ? '3px solid #1976D2' : '3px solid transparent',
+    background: selected ? '#E3F2FD' : 'transparent',
+    color: '#222',
+    fontSize: 12,
+    fontWeight: selected ? 600 : 400,
+    textAlign: 'left',
+    cursor: 'pointer',
+  };
+}
 
 function menuItemStyle(disabled: boolean): React.CSSProperties {
   return {
