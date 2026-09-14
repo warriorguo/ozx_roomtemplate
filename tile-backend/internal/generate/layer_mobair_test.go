@@ -224,7 +224,9 @@ func TestGenerateMobAirLayer_ConstraintsHold(t *testing.T) {
 				p := resp.Payload
 				doorPositions := getDoorCenterPositions(w, h, doors)
 
-				for _, pt := range mobAirPoints(p.MobAir, w, h) {
+				pts := mobAirPoints(p.MobAir, w, h)
+				overlaps := 0
+				for _, pt := range pts {
 					assert.GreaterOrEqualf(t, pt.X, mobAirMinEdgeDistance, "trial %d: mobAir %v too close to left edge", trial, pt)
 					assert.GreaterOrEqualf(t, pt.Y, mobAirMinEdgeDistance, "trial %d: mobAir %v too close to top edge", trial, pt)
 					assert.Lessf(t, pt.X, w-mobAirMinEdgeDistance, "trial %d: mobAir %v too close to right edge", trial, pt)
@@ -235,10 +237,23 @@ func TestGenerateMobAirLayer_ConstraintsHold(t *testing.T) {
 							"trial %d: mobAir %v within %d of door %v", trial, pt, mobAirMinDoorDistance, door)
 					}
 
-					assert.Equalf(t, 0, p.Static[pt.Y][pt.X], "trial %d: mobAir %v on static", trial, pt)
-					assert.Equalf(t, 0, p.Zoner[pt.Y][pt.X], "trial %d: mobAir %v on zoner", trial, pt)
-					assert.Equalf(t, 0, p.Chaser[pt.Y][pt.X], "trial %d: mobAir %v on chaser", trial, pt)
-					assert.Equalf(t, 0, p.DPS[pt.Y][pt.X], "trial %d: mobAir %v on dps", trial, pt)
+					if p.Static[pt.Y][pt.X] != 0 || p.Zoner[pt.Y][pt.X] != 0 ||
+						p.Chaser[pt.Y][pt.X] != 0 || p.DPS[pt.Y][pt.X] != 0 {
+						overlaps++
+					}
+				}
+
+				// Staying clear of the other layers is a placement *preference*,
+				// not a rule: mobAir has no overlap constraint in either
+				// validator (ORT-121). Since the 2026-09-14 count increase a
+				// dense stage asks for more air mobs than a 20x12 room has free
+				// cells to hold, so the preference has to give somewhere. Assert
+				// it holds for most placements rather than all of them; the hard
+				// rules above (edges, door distance, spacing) are absolute.
+				if len(pts) > 0 {
+					assert.LessOrEqualf(t, overlaps*2, len(pts),
+						"trial %d: %s put %d of %d air mobs on another layer — the dispersion preference has stopped working, not just bent",
+						trial, stage, overlaps, len(pts))
 				}
 
 				assert.Falsef(t, hasSameLayerAdjacency(p.MobAir, w, h),

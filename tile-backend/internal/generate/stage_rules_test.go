@@ -33,11 +33,12 @@ func TestStageRangeConfig(t *testing.T) {
 		// normal rooms it had drifted away from: teaching chaser 2 -> 2-6,
 		// building chaser 4-6 -> 6-10 and dps 4-6 -> 6-9 and mobAir 6 -> 6-9;
 		// zoner 1 -> 1-2 for teaching/building and 2 -> 2-5 for pressure.
-		{"teaching", 4, 6, 2, 6, 1, 2, 6, 6},
-		{"building", 6, 9, 6, 10, 1, 2, 6, 9},
-		{"pressure", 8, 12, 8, 10, 2, 5, 6, 12},
-		{"peak", 8, 12, 8, 10, 2, 3, 12, 18},
-		{"release", 2, 4, 2, 2, 1, 1, 6, 6},
+		// Play-test feedback (2026-09-14): chaser and mobAir doubled, zoner +1-2.
+		{"teaching", 4, 6, 4, 12, 2, 4, 12, 12},
+		{"building", 6, 9, 12, 20, 2, 4, 12, 18},
+		{"pressure", 8, 12, 16, 20, 4, 10, 12, 24},
+		{"peak", 8, 12, 16, 20, 4, 6, 24, 36},
+		{"release", 2, 4, 4, 4, 2, 2, 12, 12},
 		{"boss", 0, 0, 0, 0, 0, 0, 0, 0},
 	}
 
@@ -64,16 +65,16 @@ func TestStageStaticRangeConfig(t *testing.T) {
 		stage string
 		want  [2]int
 	}{
-		// ORT-125: the stage-specific bounds are gone. Every stage that places
-		// static at all shares 2-9; the hand-authored normal rooms range 0-9
-		// blocks with no correlation to stage, and pressure/peak's open middle
-		// is carried by StaticDisperse (ORT-99), not by a low count.
+		// ORT-125 removed the per-stage split; the 2026-09-14 play-test review
+		// brought a smaller one back: pressure/peak want the floor space for
+		// their spawns, and the light stages looked under-furnished at a floor
+		// of 2 blocks.
 		{"start", [2]int{0, 0}},
-		{"teaching", [2]int{2, 9}},
-		{"building", [2]int{2, 9}},
-		{"pressure", [2]int{2, 9}},
-		{"peak", [2]int{2, 9}},
-		{"release", [2]int{2, 9}},
+		{"teaching", [2]int{4, 9}},
+		{"building", [2]int{4, 9}},
+		{"pressure", [2]int{2, 4}},
+		{"peak", [2]int{2, 4}},
+		{"release", [2]int{4, 9}},
 		{"boss", [2]int{0, 0}},
 	}
 
@@ -228,13 +229,14 @@ func TestReleaseStage_DPSCountInRange(t *testing.T) {
 		cfg.DPSRange[0], underMin, trials)
 }
 
-// TestPressureStage_ChaserCountInRange verifies that pressure stage always places at
-// least 6 chasers (min of [6,8]) even when grouped placement exhausts valid positions
-// in one half-room region.
+// TestPressureStage_ChaserCountInRange guards ORT-38: grouped placement split the
+// chaser count across two half-regions and silently lost the remainder when one
+// region had too few valid positions.
 //
-// Regression test for ORT-38: generator produced 5 chasers for pressure stage because
-// the grouped placement split 6 chasers across two half-regions; when one region had
-// insufficient valid positions the total fell below the minimum.
+// Since placement became best-effort and the relaxed pass was removed
+// (2026-09-14), falling below the stage minimum is a legitimate outcome for a
+// room that cannot hold the count — but it must be reported. So this asserts
+// that chasers are placed at all, and that any shortfall carries a warning.
 func TestPressureStage_ChaserCountInRange(t *testing.T) {
 	doorConfigs := [][]DoorPosition{
 		{DoorTop, DoorRight},
@@ -261,17 +263,28 @@ func TestPressureStage_ChaserCountInRange(t *testing.T) {
 		}
 		chaserCount := countCells(resp.Payload.Chaser)
 		cfg := GetStageConfig("pressure")
-		if chaserCount < cfg.ChaserRange[0] {
+		if chaserCount == 0 {
 			failures++
-			t.Errorf("trial=%d (doors=%v): pressure stage chaser count=%d, expected [%d,%d]",
-				trial, doors, chaserCount, cfg.ChaserRange[0], cfg.ChaserRange[1])
-			if failures > 5 {
-				t.FailNow()
+			t.Errorf("trial=%d (doors=%v): pressure stage placed no chasers at all", trial, doors)
+		} else if chaserCount < cfg.ChaserRange[0] {
+			var reported bool
+			for _, w := range resp.Warnings {
+				if w.Layer == "chaser" {
+					reported = true
+				}
 			}
+			if !reported {
+				failures++
+				t.Errorf("trial=%d (doors=%v): chaser count=%d is below min %d with no shortfall warning",
+					trial, doors, chaserCount, cfg.ChaserRange[0])
+			}
+		}
+		if failures > 5 {
+			t.FailNow()
 		}
 	}
 	if failures == 0 {
-		t.Logf("All 300 trials produced pressure stage chaser count >= %d", GetStageConfig("pressure").ChaserRange[0])
+		t.Logf("All 300 trials placed chasers, and every shortfall was reported")
 	}
 }
 

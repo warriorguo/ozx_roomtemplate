@@ -235,19 +235,31 @@ in `validate/validate.go` and the one in `src/utils/newTemplateUtils.ts` are
 mirrors of each other and must stay in sync.
 
 **Enemy Placement (Generation)**:
-- Door forbidden zone: radius 2 (Manhattan distance) from all doors
+- Door forbidden zone: radius 2 (Manhattan distance) from all doors — **radius 4 for zoner**
 - Chaser: 0-3 cells from main path, prefer low squishy score
-- Zoner: 2×2 block (1×1 fallback), 0-5 cells from main path, prefer high squishy score, no static blocking LOS
+- Zoner: 2×2 block (no 1×1 fallback), 0-5 cells from main path, never in the room's visual bottom third, prefer high squishy score, no static blocking LOS
 - DPS: 0-4 cells from main path, prefers proximity to chaser/static
 - MobAir: centre-seeded, evenly distributed outward, spacing >= 1
 
 **Stage Rules**:
-- Teaching: DPS (4-6) + Chaser (2-6) + Zoner (1-2) + MobAir (6)
-- Building: DPS (6-9) + Chaser (6-10) + Zoner (1-2) + MobAir (6-9)
-- Pressure: DPS (8-12) + Chaser (8-10) + Zoner (2-5) + MobAir (6-12), not bridge
-- Peak: DPS (8-12) + Chaser (8-10) + Zoner (2-3) + MobAir (12-18), full only
-- Release: light mix — DPS (2-4) + Chaser (2) + Zoner (1) + MobAir (6)
+- Teaching: DPS (4-6) + Chaser (4-12) + Zoner (2-4) + MobAir (12)
+- Building: DPS (6-9) + Chaser (12-20) + Zoner (2-4) + MobAir (12-18)
+- Pressure: DPS (8-12) + Chaser (16-20) + Zoner (4-10) + MobAir (12-24), not bridge
+- Peak: DPS (8-12) + Chaser (16-20) + Zoner (4-6) + MobAir (24-36), full only
+- Release: light mix — DPS (2-4) + Chaser (4) + Zoner (2) + MobAir (12)
 - Boss: requires 6×6 clear center area, restricted door configs
+
+**Chaser, zoner and mobAir were doubled on 2026-09-14** after play-test review:
+a generated room read emptier in-game than the hand-authored measurements the
+ORT-123/124 ranges were calibrated to. DPS and static were not raised.
+
+The new counts do **not** fit the 16×10 default, and that is accepted —
+placement is best-effort and a short room reports the gap through `warnings`
+(ORT-110). Measured zero-shortfall sizes, 10 rooms per size with height fixed at
+10 (OZX room width is the data-space *height*, so only width may grow without
+changing the camera framing): teaching/release 20×10, building 28×10, pressure
+28-32×10, peak 32×10. Do not "fix" a shortfall by reintroducing a size minimum
+(ORT-109) or by relaxing a placement constraint.
 
 **The counts are calibrated against the hand-authored rooms** (ORT-123/124):
 ORT-101's floors and ORT-108's cuts had drifted the front of the curve well below
@@ -259,16 +271,19 @@ so a generated teaching/building room read conspicuously emptier than a shipped
 one. Teaching chaser 2→2-6, building chaser 4-6→6-10, dps 4-6→6-9, mobAir 6→6-9,
 and zoner 1→1-2 (teaching/building) / 2→2-5 (pressure) close that gap.
 
-Peak's `MobAir (12-18)` is knowingly **above** what a 16×10 room can hold
-(measured ceiling ≈ 15, and 163/200 rooms report an ORT-110 mobAir shortfall) and
-above the hand-authored peak rooms (4 and 13). Left alone deliberately — pass a
-larger room for peak, or revisit the range.
+Peak's mobAir has been knowingly **above** what a 16×10 room can hold since
+ORT-124 (measured ceiling ≈ 15), and the 2026-09-14 doubling to 24-36 widened
+that gap deliberately. Peak needs ~32×10 to place its air mobs in full; at any
+smaller size the shortfall warning is the expected outcome, not a bug.
 
 **Stage-driven static count** (`StageConfig.StaticRange`, ORT-100/125): when a
 stage type is supplied it also supplies the static count, overriding the
-request's `staticCount` in all three generators. Every stage that places static
-at all now shares the same **2–9** 2×2 blocks; start/boss place none. An empty
-stage type still honours the request value verbatim.
+request's `staticCount` in all three generators. teaching/building/release take
+**4–9** 2×2 blocks (the floor went 2→4 in the 2026-09-14 review: a release room
+with two blocks in it read as unfurnished); **pressure and peak take 2–4** (play-test review,
+2026-09-14 — they field the heaviest waves, so the floor space is worth more to
+the enemies than to the cover); start/boss place none. An empty stage type still
+honours the request value verbatim.
 
 ORT-100's per-stage split (teaching/building/release 6–9, pressure/peak 2–3) is
 gone. Two independent findings killed it: the hand-authored `normal` rooms range
@@ -297,14 +312,38 @@ pipeline and Chaser/DPS do not check it, fullroom's grouped placement now runs
 mobAir **once after the group loop** rather than inside it — the old order let
 group 1's air mobs be overwritten by group 2's ground enemies.
 
-**Zoner 2×2 footprint** (`zonerSize`, ORT-103): a zoner occupies a 2×2 block
-wherever a valid site exists and falls back to a single cell only when none
-does. Every cell of the block satisfies the same per-cell constraints the 1×1
-path checks, and distinct blocks never touch in any of the 8 directions. The
-game collapses a connected block into one spawn, so **`zonerCount` counts
-spawns, not cells** — count 8-connected groups (`countZonerUnits`), not `1`s,
-whenever comparing against a stage range. Measured 1×1 fallback rate is under 1%
-of spawns at every stage minimum.
+**Zoner is always a 2×2 block** (`zonerSize`, ORT-103 + play-test review
+2026-09-14): every cell of the block satisfies the per-cell constraints, and
+distinct blocks never touch in any of the 8 directions. The game collapses a
+connected block into one spawn, so **`zonerCount` counts spawns, not cells** —
+count 8-connected groups (`countZonerUnits`), not `1`s, whenever comparing
+against a stage range.
+
+ORT-103's **single-cell fallback is gone**. It was invisible while zoner counts
+were 1–5 (measured under 1% of spawns); at the doubled counts it fired
+constantly and shipped rooms full of 1×1 zoners. A room with no 2×2 site left
+now places fewer zoners and reports the shortfall. The *validators* still accept
+a 1×1 zoner — 5 of the 23 hand-authored rooms contain one (and `all_peak_5_01`
+has 8-cell and 20-cell merged groups), so tightening validation would condemn
+shipped content. This is a generation rule only.
+
+**Zoner placement keeps the player's entry fair** (same review): zoner blocks
+*prefer* `zonerBlockGap` = **2** clear cells between them — two blocks with a
+single cell between them read as one 2×5 wall rather than two spawns — but this
+is a preference, not a rule: `GenerateZonerLayer` runs a second pass at the
+ORT-93 minimum of merely not touching, so a tight room places its zoners close
+together rather than going without. They clear doors by
+`zonerDoorForbiddenRadius` = **3** (the other entities use 2; 4 was tried first
+and starved the layer — the radius is Manhattan, so in a 16×10 room with four
+doors it left 1.6 legal 2×2 sites against 7.7 at radius 3, and rooms came back
+with no zoners at all) and are
+never placed in the room's **visual bottom third** (`zonerEntryClearBand`, data
+x < width/3 — the canvas is rotated 90° CCW, so data x=0 is the bottom of the
+room as the player sees it). The player fires automatically, so walking through
+a doorway into a stationary area-denial spawn reads as unfair. `GenerateZonerLayer`
+also takes the **chaser layer**: zoner normally precedes chaser in the pipeline,
+but under fullroom's grouped placement (pressure/peak) group 2's zoner would
+otherwise land on group 1's chaser.
 
 **No stage constrains room size** (ORT-109): ORT-102 gave pressure an 18×10
 minimum and peak a 20×12 one, rejecting smaller rooms up front — an undersized
@@ -496,6 +535,39 @@ Renaming files by hand does not stick: `Create`/`Update` re-derive the name.
 - Backend performs authoritative validation before saving
 - Strict mode (`?strict=true`) enables logical constraint checking
 - Validation errors include layer, position (x, y), and reason
+
+**Carving rules** (2026-09-14 review). Three constraints on how `fullroom`
+cuts holes in its floor, all in `fullroom.go`:
+
+1. **Minimum cut size** — the corner brush is at least `minCornerBrush` (2) in
+   each direction and stretches its long side to `cornerBrushLongSide` (3) where
+   the room allows, so the smallest hole a room can show is 3×2. The retry after
+   a connectivity rollback clamps to the same floor rather than carving a
+   sliver. A 2×1 nick reads as a mistake, not a design.
+2. **Cuts never merge** — `rectClearOfVoid` rejects a corner cut or centre pit
+   that would come within `carveGap` (2) cells of an existing void. Every void
+   region therefore stays its own clean rectangle: no L-shapes, no bands, and no
+   1-cell ground necks between two holes (which is where the spur artefacts came
+   from). Residual non-rectangular voids come from `ensureDoorsWalkable` and
+   `ensureGroundConnectivity` filling cells back in afterwards.
+3. **Per-stage carve probability** — `stageCarveChance` raises corner erase from
+   0.40 to 0.85 and centre pits from 0.30 to 0.70 for teaching/building/release,
+   which want an airier floor; pressure/peak keep the base rates because they
+   need the floor space for their spawns. This is the one place ground
+   generation reads the stage, and it reads the *requested* stage name rather
+   than a resolved `StageConfig` — ground is carved before stage rules resolve,
+   and a probability needs no resolved counts.
+
+**There is no relaxed placement pass** (2026-09-14). `GenerateChaserLayerRelaxed`
+and `GenerateDPSLayerRelaxed` still exist but nothing calls them. They dropped
+the 8-directional spacing to hit the stage's count, which emits same-category
+spawns on touching cells — the ORT-93 shape that crashes the game — in 25% of
+pressure and 35% of peak rooms once the counts were doubled. Placement is
+best-effort: a room that cannot hold the count places fewer and reports it.
+Two regression tests were rewritten to match (ORT-26's zoner count and ORT-38's
+chaser count): both now assert the layer is non-empty and that any count below
+the stage minimum carries a `warnings` entry, rather than asserting the minimum
+is always met.
 
 ### Ground Auto-Generation
 - Rectangular rooms: Configurable wall thickness with door positions

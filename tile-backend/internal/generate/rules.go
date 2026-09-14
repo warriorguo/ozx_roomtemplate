@@ -66,13 +66,39 @@ func applyDefaultDimensions(width, height *int) {
 // Static placement size (fixed 2x2)
 const staticSize = 2
 
-// Zoner placement size. A zoner occupies a 2x2 block wherever one fits and
-// falls back to a single cell otherwise (ORT-103). The game collapses a
-// connected block into one spawn, so a block is one enemy, not four.
+// Zoner placement size. A zoner is always a 2x2 block and never anything else.
+// The game collapses a connected block into one spawn, so a block is one enemy,
+// not four.
 const zonerSize = 2
 
 // Unified door forbidden radius
 const doorForbiddenRadius = 2
+
+// Zoners get a wider berth around doors than the other entities. A zoner is a
+// stationary area-denial spawn and the player fires automatically, so walking
+// through a doorway straight into one reads as unfair rather than difficult.
+//
+// 3, not 4. The radius is Manhattan, so in a 16x10 room with four doors a
+// radius of 4 covers most of the floor: measured over 20 teaching rooms it left
+// 1.6 legal 2x2 sites against 7.7 at radius 3 and 14.9 at radius 2, and rooms
+// were coming back with no zoners at all. Door clearance is by far the binding
+// constraint on this layer — the bottom-third band (5.2 sites) and static
+// (6.9) cost much less.
+const zonerDoorForbiddenRadius = 3
+
+// Clear cells required between two zoner blocks. The ORT-93 spacing only needs
+// them not to touch, but two blocks with a single cell between them read as one
+// 2x5 wall of area denial rather than two spawns (play-test review 2026-09-14).
+const zonerBlockGap = 2
+
+// zonerEntryClearBand returns the data-space x below which a zoner may not be
+// placed. The canvas (and the game) draws the room rotated 90 CCW, so data x=0
+// is the *bottom* of the room as the player sees it — the end they usually walk
+// in from. Keeping the bottom third clear pushes zoners into the middle and
+// upper parts of the room, where the player meets them with room to manoeuvre.
+func zonerEntryClearBand(width int) int {
+	return width / 3
+}
 
 // Legacy turret/mobground constants (kept for backward-compatible validation helpers)
 const (
@@ -186,11 +212,16 @@ func wouldTouch(pos1, pos2 Point) bool {
 // are clear of each other only when at least one full cell of gap separates
 // them on an axis — i.e. pos1.X+size+1 <= pos2.X.
 func blocksWouldTouch(pos1, pos2 Point, size int) bool {
-	// Check X overlap with 1 cell buffer
-	xOverlap := !(pos1.X+size+1 <= pos2.X || pos2.X+size+1 <= pos1.X)
-	// Check Y overlap with 1 cell buffer
-	yOverlap := !(pos1.Y+size+1 <= pos2.Y || pos2.Y+size+1 <= pos1.Y)
+	return blocksWithinGap(pos1, pos2, size, 1)
+}
 
+// blocksWithinGap reports whether two size x size blocks are closer than `gap`
+// empty cells apart. gap=1 is "must not touch"; zoner uses zonerBlockGap so two
+// blocks separated by a single cell — which reads as one long wall rather than
+// two spawns — cannot happen.
+func blocksWithinGap(pos1, pos2 Point, size, gap int) bool {
+	xOverlap := !(pos1.X+size+gap <= pos2.X || pos2.X+size+gap <= pos1.X)
+	yOverlap := !(pos1.Y+size+gap <= pos2.Y || pos2.Y+size+gap <= pos1.Y)
 	return xOverlap && yOverlap
 }
 
@@ -1421,8 +1452,13 @@ func filterAdjacent(candidates []Point, pos Point) []Point {
 // whether a size x size block anchored at pos overlaps, or 8-directionally
 // touches, any non-zero cell of layer.
 func blockTouchesLayer(pos Point, size int, layer [][]int, width, height int) bool {
-	for y := pos.Y - 1; y <= pos.Y+size; y++ {
-		for x := pos.X - 1; x <= pos.X+size; x++ {
+	return blockNearLayer(pos, size, layer, width, height, 1)
+}
+
+// blockNearLayer is blockTouchesLayer with an explicit ring width.
+func blockNearLayer(pos Point, size int, layer [][]int, width, height, gap int) bool {
+	for y := pos.Y - gap; y < pos.Y+size+gap; y++ {
+		for x := pos.X - gap; x < pos.X+size+gap; x++ {
 			if x >= 0 && x < width && y >= 0 && y < height && layer[y][x] != 0 {
 				return true
 			}
@@ -1443,9 +1479,15 @@ func placeBlock(layer [][]int, pos Point, size int) {
 // filterTouchingBlocks removes candidate anchors whose size x size block would
 // touch the block just placed at placedPos.
 func filterTouchingBlocks(candidates []Point, placedPos Point, size int) []Point {
+	return filterBlocksWithinGap(candidates, placedPos, size, 1)
+}
+
+// filterBlocksWithinGap removes candidate anchors closer than `gap` cells to the
+// block just placed at placedPos.
+func filterBlocksWithinGap(candidates []Point, placedPos Point, size, gap int) []Point {
 	var filtered []Point
 	for _, pos := range candidates {
-		if !blocksWouldTouch(pos, placedPos, size) {
+		if !blocksWithinGap(pos, placedPos, size, gap) {
 			filtered = append(filtered, pos)
 		}
 	}

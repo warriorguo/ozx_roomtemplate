@@ -287,12 +287,25 @@ func TestGenerateFullRoom_PressureStageZonerCount(t *testing.T) {
 		// entirely, so assert against the configured range rather than a pinned
 		// number — that way the test follows stage range changes (ORT-101).
 		cfg := GetStageConfig("pressure")
-		assert.GreaterOrEqualf(t, zonerCount, cfg.ZonerRange[0],
-			"pressure stage placed %d zoners, below configured min %d (iteration %d)",
-			zonerCount, cfg.ZonerRange[0], i)
+		assert.Greaterf(t, zonerCount, 0,
+			"pressure stage placed no zoners at all (iteration %d)", i)
 		assert.LessOrEqualf(t, zonerCount, cfg.ZonerRange[1],
 			"pressure stage placed %d zoners, above configured max %d (iteration %d)",
 			zonerCount, cfg.ZonerRange[1], i)
+		// Falling short of the minimum is allowed — since the zoner layer lost
+		// its single-cell fallback a 20x12 room does not always hold 2x2 blocks
+		// for the whole range — but it must never be silent.
+		if zonerCount < cfg.ZonerRange[0] {
+			var reported bool
+			for _, w := range resp.Warnings {
+				if w.Layer == "zoner" {
+					reported = true
+				}
+			}
+			assert.Truef(t, reported,
+				"pressure stage placed %d zoners (below min %d) without a shortfall warning (iteration %d)",
+				zonerCount, cfg.ZonerRange[0], i)
+		}
 	}
 }
 

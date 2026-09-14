@@ -9,12 +9,26 @@ import (
 // Zoners must be on ground, within 0-5 of main path, prefer HIGH squishy score,
 // and no static between zoner and main path.
 //
-// A zoner occupies a 2x2 block wherever a valid site exists and falls back to a
-// single cell otherwise (ORT-103), so targetCount counts spawns rather than
-// cells. Every cell of a block satisfies the same constraints the 1x1 path
-// checks, and no two zoners touch in any of the 8 directions — which keeps each
-// connected group of zoner cells exactly one spawn, the spacing ORT-93 needs.
-func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer [][]int,
+// Two placement rules keep the player's entry fair: zoners clear doors by
+// zonerDoorForbiddenRadius (wider than the other entities) and never sit in the
+// room's visual bottom third (see zonerEntryClearBand). A room with no legal
+// site left under those rules reports a shortfall rather than relaxing them.
+//
+// Spacing between zoner blocks is a preference, not a rule: the first pass keeps
+// zonerBlockGap clear cells between them, and a second pass falls back to the
+// ORT-93 minimum of merely not touching.
+//
+// A zoner is always a 2x2 block, so targetCount counts spawns rather than cells.
+// Every cell of a block satisfies the per-cell constraints, and no two zoners
+// touch in any of the 8 directions — which keeps each connected group of zoner
+// cells exactly one spawn, the spacing ORT-93 needs. ORT-103's single-cell
+// fallback is gone (play-test feedback, 2026-09-14): a room with no 2x2 site
+// left now under-places and reports a shortfall.
+// chaserLayer may be nil. It is only populated when an earlier placement group
+// has already run (fullroom's grouped path): zoner normally precedes chaser in
+// the pipeline, but with grouping, group 2's zoner would otherwise be free to
+// land on group 1's chaser.
+func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer, chaserLayer [][]int,
 	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int, regionFilter ...*RegionFilter) *EnemyLayerDebugInfo {
 
 	debug := &EnemyLayerDebugInfo{
@@ -23,7 +37,8 @@ func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer 
 		Misses:      []MissInfo{},
 	}
 
-	forbidden := getDoorForbiddenCellsRadius(doorPositions, width, height, doorForbiddenRadius)
+	forbidden := getDoorForbiddenCellsRadius(doorPositions, width, height, zonerDoorForbiddenRadius)
+	minX := zonerEntryClearBand(width)
 
 	var rf *RegionFilter
 	if len(regionFilter) > 0 {
@@ -37,6 +52,14 @@ func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer 
 		for y := 0; y < height; y++ {
 			for x := 0; x < width; x++ {
 				if !rf.Contains(x, y) {
+					continue
+				}
+				// Keep the room's visual bottom third free of zoners.
+				if x < minX {
+					continue
+				}
+				// Never share a cell with a chaser placed by an earlier group.
+				if chaserLayer != nil && chaserLayer[y][x] != 0 {
 					continue
 				}
 				pos := Point{x, y}
@@ -77,53 +100,50 @@ func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer 
 		return si > sj
 	})
 
-	// Preferred footprint: 2x2 blocks whose whole area is drawn from the valid
-	// cells above, ranked by the mean squishy score over that area.
-	blocks := zonerBlockAnchors(candidates, width, height)
-	sort.Slice(blocks, func(i, j int) bool {
-		return blockSquishyScore(blocks[i], mainPath) > blockSquishyScore(blocks[j], mainPath)
-	})
-
 	remaining := targetCount
 
-	for remaining > 0 && len(blocks) > 0 {
-		pos, idx := pickFromTopN(blocks, 0.3, 3)
-		blocks = append(blocks[:idx], blocks[idx+1:]...)
-		if blockTouchesLayer(pos, zonerSize, zonerLayer, width, height) {
-			continue
-		}
-		placeBlock(zonerLayer, pos, zonerSize)
-		blocks = filterTouchingBlocks(blocks, pos, zonerSize)
-		remaining--
-		debug.PlacedCount++
-		debug.Placements = append(debug.Placements, PlaceInfo{
-			Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
-			Size:     "2x2",
-			Reason:   fmt.Sprintf("squishy=%.2f pathDist=%d", blockSquishyScore(pos, mainPath), mainPath.DirectDistance[pos.Y][pos.X]),
+	// Blocks are 2x2 anchors drawn from the valid cells above, ranked by the
+	// mean squishy score over the block's area.
+	//
+	// Two passes. The first keeps zonerBlockGap clear cells between blocks so
+	// they read as separate spawns rather than one long wall; the second only
+	// requires that they not touch, which is the actual rule (ORT-93). The wide
+	// spacing is a preference, so a room short of room places its zoners close
+	// together rather than going without them.
+	place := func(gap int) {
+		blocks := zonerBlockAnchors(candidates, width, height)
+		sort.Slice(blocks, func(i, j int) bool {
+			return blockSquishyScore(blocks[i], mainPath) > blockSquishyScore(blocks[j], mainPath)
 		})
+		for remaining > 0 && len(blocks) > 0 {
+			pos, idx := pickFromTopN(blocks, 0.3, 3)
+			blocks = append(blocks[:idx], blocks[idx+1:]...)
+			if blockNearLayer(pos, zonerSize, zonerLayer, width, height, gap) {
+				continue
+			}
+			placeBlock(zonerLayer, pos, zonerSize)
+			blocks = filterBlocksWithinGap(blocks, pos, zonerSize, gap)
+			remaining--
+			debug.PlacedCount++
+			debug.Placements = append(debug.Placements, PlaceInfo{
+				Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
+				Size:     "2x2",
+				Reason: fmt.Sprintf("squishy=%.2f pathDist=%d gap=%d",
+					blockSquishyScore(pos, mainPath), mainPath.DirectDistance[pos.Y][pos.X], gap),
+			})
+		}
+	}
+	place(zonerBlockGap)
+	if remaining > 0 {
+		place(1)
 	}
 
-	// Documented fallback: a single cell, used only once no 2x2 site is left.
-	for remaining > 0 && len(candidates) > 0 {
-		pos, idx := pickFromTopN(candidates, 0.3, 3)
-		candidates = append(candidates[:idx], candidates[idx+1:]...)
-		if zonerLayer[pos.Y][pos.X] != 0 || touchesLayer(pos, zonerLayer, width, height) {
-			continue
-		}
-		zonerLayer[pos.Y][pos.X] = 1
-		candidates = filterAdjacent(candidates, pos)
-		remaining--
-		debug.PlacedCount++
-		debug.Placements = append(debug.Placements, PlaceInfo{
-			Position: fmt.Sprintf("(%d,%d)", pos.X, pos.Y),
-			Size:     "1x1",
-			Reason:   fmt.Sprintf("no 2x2 site left; squishy=%.2f pathDist=%d", mainPath.SquishyScore[pos.Y][pos.X], mainPath.DirectDistance[pos.Y][pos.X]),
-		})
-	}
-
+	// No single-cell fallback: a zoner is always a 2x2 block. A room that runs
+	// out of 2x2 sites places fewer zoners and says so, rather than emitting a
+	// shape the game does not expect.
 	if remaining > 0 {
 		debug.Misses = append(debug.Misses, MissInfo{
-			Reason: fmt.Sprintf("could not place %d more zoners", remaining),
+			Reason: fmt.Sprintf("could not place %d more zoners: no 2x2 site left", remaining),
 		})
 	}
 

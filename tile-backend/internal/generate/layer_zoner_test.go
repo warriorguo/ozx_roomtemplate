@@ -49,7 +49,7 @@ func newZonerFixture(t *testing.T, ground [][]int, width, height int, doors []Do
 
 func (f *zonerFixture) generate(targetCount int) ([][]int, *EnemyLayerDebugInfo) {
 	zoner := createEmptyLayer(f.width, f.height)
-	debug := GenerateZonerLayer(zoner, f.ground, f.softEdge, f.bridge, nil, f.staticLayer,
+	debug := GenerateZonerLayer(zoner, f.ground, f.softEdge, f.bridge, nil, f.staticLayer, nil,
 		f.doorPositions, f.mainPath, f.width, f.height, targetCount)
 	return zoner, debug
 }
@@ -79,10 +79,11 @@ func TestGenerateZonerLayer_PrefersBlocks(t *testing.T) {
 	}
 }
 
-// TestGenerateZonerLayer_FallsBackTo1x1 covers the documented fallback: a
-// one-cell-wide corridor has no 2x2 site anywhere, so every zoner must be a
-// single cell rather than the layer coming back empty.
-func TestGenerateZonerLayer_FallsBackTo1x1(t *testing.T) {
+// TestGenerateZonerLayer_NeverFallsBackTo1x1 pins the rule that replaced
+// ORT-103's single-cell fallback (play-test feedback, 2026-09-14): a zoner is
+// always a 2x2 block. A one-cell-wide corridor has no 2x2 site anywhere, so the
+// layer comes back empty with a miss recorded rather than placing lone cells.
+func TestGenerateZonerLayer_NeverFallsBackTo1x1(t *testing.T) {
 	const width, height = 24, 9
 	const corridorY = 4
 
@@ -95,15 +96,10 @@ func TestGenerateZonerLayer_FallsBackTo1x1(t *testing.T) {
 	f := newZonerFixture(t, ground, width, height, []DoorPosition{DoorLeft, DoorRight})
 	zoner, debug := f.generate(3)
 
-	require.Greaterf(t, debug.PlacedCount, 0,
-		"corridor room placed no zoners at all, misses=%v", debug.Misses)
-	for _, p := range debug.Placements {
-		assert.Equalf(t, "1x1", p.Size, "zoner at %s claimed a 2x2 block in a 1-wide corridor", p.Position)
-	}
-	assert.Equal(t, debug.PlacedCount, countCells(zoner),
-		"each fallback zoner should occupy exactly one cell")
-	assert.False(t, hasInvalidZonerGroup(zoner, width, height),
-		"fallback cells must still keep 8-directional distance from each other")
+	assert.Equalf(t, 0, debug.PlacedCount,
+		"corridor room has no 2x2 site, so it must place no zoner at all")
+	assert.Equal(t, 0, countCells(zoner), "no zoner cells should be written")
+	assert.NotEmpty(t, debug.Misses, "the shortfall must be reported, not silent")
 }
 
 // TestZonerBlocksSatisfyPerCellConstraints checks that every cell of every

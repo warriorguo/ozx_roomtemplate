@@ -145,26 +145,33 @@ var stageConfigs = map[string]StageConfig{
 	// Measured spawn counts (8-connected groups, not cells) over
 	// Assets/StreamingAssets/TilemapData/normal: chaser 2/6/6, dps 6/7/9,
 	// zoner 1/1/2, mobAir 6/6/6, static 7/5/3 blocks.
+	// Play-test feedback (2026-09-14) doubled chaser and mobAir and lifted zoner
+	// by 1-2: a generated teaching room read noticeably emptier in-game than the
+	// hand-authored measurements above suggested.
 	model.StageTeaching: {
 		StageType:     model.StageTeaching,
 		DPSRange:      [2]int{4, 6},
-		ChaserRange:   [2]int{2, 6},
-		ZonerRange:    [2]int{1, 2},
-		MobAirRange:   [2]int{6, 6},
-		StaticRange:   [2]int{2, 9},
+		ChaserRange:   [2]int{4, 12},
+		ZonerRange:    [2]int{2, 4},
+		MobAirRange:   [2]int{12, 12},
+		StaticRange:   [2]int{4, 9},
 		PlacementRule: "teaching",
 	},
 	// Hand-authored building rooms measured chaser 8/10/8, dps 9/9/8,
 	// zoner 2/2/3, mobAir 9/9/9, static 6/6/4 blocks — a full difficulty step
 	// above what ORT-108's ranges produced, close to the old pressure numbers
 	// (ORT-123).
+	// Play-test feedback (2026-09-14) doubled chaser, zoner and mobAir across
+	// every stage that fields them; dps and static were left alone. The
+	// hand-authored measurements quoted below are what the previous ranges were
+	// calibrated to — they are now a floor, not the target.
 	model.StageBuilding: {
 		StageType:     model.StageBuilding,
 		DPSRange:      [2]int{6, 9},
-		ChaserRange:   [2]int{6, 10},
-		ZonerRange:    [2]int{1, 2},
-		MobAirRange:   [2]int{6, 9},
-		StaticRange:   [2]int{2, 9},
+		ChaserRange:   [2]int{12, 20},
+		ZonerRange:    [2]int{2, 4},
+		MobAirRange:   [2]int{12, 18},
+		StaticRange:   [2]int{4, 9},
 		PlacementRule: "building",
 	},
 	model.StagePressure: {
@@ -174,13 +181,17 @@ var stageConfigs = map[string]StageConfig{
 		// crash-triggering spawn pair (ORT-93) in 21.5% of rooms against 6% at
 		// 8-10.
 		DPSRange:    [2]int{8, 12},
-		ChaserRange: [2]int{8, 10},
+		ChaserRange: [2]int{16, 20},
 		// Hand-authored pressure rooms carry 4 and 5 zoner spawns against the
 		// old fixed 2 (ORT-124). Counts are spawns: a 2x2 block collapses to
 		// one, so this is 4-5 blocks, not 4-5 cells.
-		ZonerRange:    [2]int{2, 5},
-		MobAirRange:   [2]int{6, 12},
-		StaticRange:   [2]int{2, 9},
+		ZonerRange:  [2]int{4, 10},
+		MobAirRange: [2]int{12, 24},
+		// Play-test feedback (2026-09-14): pressure and peak carry less cover
+		// than the other stages. They field the heaviest waves, so the floor
+		// space is worth more to the enemies than to the obstacles, and
+		// StaticDisperse already pushes what cover there is to the perimeter.
+		StaticRange:   [2]int{2, 4},
 		PlacementRule: "pressure",
 	},
 	model.StagePeak: {
@@ -191,19 +202,19 @@ var stageConfigs = map[string]StageConfig{
 		// 8-10, zoner 4-6 -> 2-3, mobAir 18 -> 12-18) so peak stops engaging the
 		// relaxed fallback in small rooms.
 		DPSRange:      [2]int{8, 12},
-		ChaserRange:   [2]int{8, 10},
-		ZonerRange:    [2]int{2, 3},
-		MobAirRange:   [2]int{12, 18},
-		StaticRange:   [2]int{2, 9},
+		ChaserRange:   [2]int{16, 20},
+		ZonerRange:    [2]int{4, 6},
+		MobAirRange:   [2]int{24, 36},
+		StaticRange:   [2]int{2, 4},
 		PlacementRule: "peak",
 	},
 	model.StageRelease: {
 		StageType:     model.StageRelease,
 		DPSRange:      [2]int{2, 4},
-		ChaserRange:   [2]int{2, 2},
-		ZonerRange:    [2]int{1, 1},
-		MobAirRange:   [2]int{6, 6},
-		StaticRange:   [2]int{2, 9},
+		ChaserRange:   [2]int{4, 4},
+		ZonerRange:    [2]int{2, 2},
+		MobAirRange:   [2]int{12, 12},
+		StaticRange:   [2]int{4, 9},
 		PlacementRule: "teaching", // same as teaching
 	},
 	model.StageBoss: {
@@ -312,6 +323,26 @@ func ValidateAndApplyStage(stageType, roomType string, doors []DoorPosition, gro
 	}
 
 	return result, nil
+}
+
+// Ground carving probabilities. The light stages read better with visible holes
+// in the floor; the heavy ones need the floor space for their spawns
+// (play-test review, 2026-09-14).
+//
+// This is the one place ground generation looks at the stage, and it reads the
+// *requested* stage name rather than a resolved StageConfig — ground is carved
+// before stage rules resolve (see the pipeline order in CLAUDE.md), and nothing
+// about a probability needs the resolved counts.
+func stageCarveChance(stageType string, base float64) float64 {
+	switch stageType {
+	case model.StageTeaching, model.StageBuilding, model.StageRelease:
+		if base < 0.4 {
+			return 0.7 // centre pits
+		}
+		return 0.85 // corner erase
+	default:
+		return base
+	}
 }
 
 // buildPlacementHints creates stage-specific placement hints

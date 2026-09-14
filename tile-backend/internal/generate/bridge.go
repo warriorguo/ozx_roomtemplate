@@ -142,7 +142,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	// Step 5: Generate zoner layer if requested
 	zonerLayer := copyLayer(emptyLayer)
 	if req.ZonerCount > 0 {
-		zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount)
+		zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, nil, doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount)
 		debugInfo.Zoner = zonerDebug
 	} else {
 		debugInfo.Zoner = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "zonerCount is 0 or not specified"}
@@ -152,10 +152,6 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	chaserLayer := copyLayer(emptyLayer)
 	if req.ChaserCount > 0 {
 		chaserDebug := GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, req.ChaserCount)
-		// Relaxed fallback: if strict pass still can't fill target, drop spacing constraint.
-		if remaining := req.ChaserCount - chaserDebug.PlacedCount; remaining > 0 {
-			GenerateChaserLayerRelaxed(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, remaining)
-		}
 		debugInfo.Chaser = chaserDebug
 	} else {
 		debugInfo.Chaser = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "chaserCount is 0 or not specified"}
@@ -165,10 +161,6 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 	dpsLayer := copyLayer(emptyLayer)
 	if req.DPSCount > 0 {
 		dpsDebug := GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, req.DPSCount)
-		// Relaxed fallback: if strict pass still can't fill target, drop spacing constraint.
-		if remaining := req.DPSCount - dpsDebug.PlacedCount; remaining > 0 {
-			GenerateDPSLayerRelaxed(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining)
-		}
 		debugInfo.DPS = dpsDebug
 	} else {
 		debugInfo.DPS = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "dpsCount is 0 or not specified"}

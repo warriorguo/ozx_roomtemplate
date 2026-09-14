@@ -22,7 +22,7 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `roomCategory` | string | `"normal"` | Room category: `"normal"`, `"basement"`, `"test"`, `"cave"`. Passed through to output. |
 | `softEdgeCount` | int | `3` | Number of soft edge strips to place in void notches |
 | `railEnabled` | bool | `true` | Whether to generate a rail loop on the ground |
-| `staticCount` | int | `8` | Number of 2x2 static obstacle blocks. **Ignored when `stageType` is set** — the stage supplies it: teaching/building/release 6–9, pressure/peak 2–3, start/boss 0. |
+| `staticCount` | int | `8` | Number of 2x2 static obstacle blocks. **Ignored when `stageType` is set** — the stage supplies it: teaching/building/release 4–9, pressure/peak 2–4, start/boss 0. |
 | `chaserCount` | int | `4` | Number of chaser placements (melee enemies near main path) |
 | `zonerCount` | int | `2` | Number of zoner placements (area control enemies). Counted in **spawns, not cells** — each zoner occupies a 2x2 block, so `zonerCount: 2` produces 8 cells. |
 | `dpsCount` | int | `4` | Number of DPS placements (ranged damage enemies) |
@@ -281,13 +281,13 @@ stage asked for. The room is still valid and saveable.
 
 ### Layer Rules
 
-- **ground**: Foundation layer. Full rooms start 100% filled then carve corners/pits. Bridge rooms connect doors with paths. Platform rooms use large rectangular blocks.
+- **ground**: Foundation layer. Full rooms start 100% filled then carve corners/pits. Every carved hole is at least 3x2, and holes never merge — each void is its own clean rectangle. teaching/building/release carve far more often (0.85/0.70 vs 0.40/0.30) so their floors are airier. Bridge rooms connect doors with paths. Platform rooms use large rectangular blocks.
 - **softEdge**: Placed in void cells adjacent to ground (concave notches). Min 3 cells long.
 - **bridge**: 2x2 blocks in void connecting floating islands. Cannot overlap softEdge.
 - **rail**: Closed loop on ground/bridge. Requires solid area >= 6x6. Cannot overlap other layers.
 - **static**: 2x2 blocks on ground. Min 5x5 forbidden zone around doors. Blocks cannot touch each other. Must preserve door connectivity.
 - **chaser**: Melee enemies. 0-3 cells from main path, prefer low squishy score. Cannot overlap static/bridge/rail/zoner.
-- **zoner**: Area control enemies. **2x2 blocks** (1x1 only as a fallback where no 2x2 site fits), so one zoner = 4 cells. 0-5 cells from main path, prefer high squishy score. Every cell of a block must satisfy the constraints; cannot overlap static/bridge/rail/chaser. Distinct blocks cannot touch in any of the 8 directions.
+- **zoner**: Area control enemies. **Always 2x2 blocks**, preferring 2 clear cells between blocks (falls back to merely not touching when the room is tight) — the 1x1 fallback was removed on 2026-09-14, so a room with no 2x2 site left under-places and reports a shortfall instead. One zoner = 4 cells. Zoners also clear doors by 3 (wider than the other entities' 2) and never sit in the room's visual bottom third, so the player does not walk through a doorway into one. 0-5 cells from main path, prefer high squishy score. Every cell of a block must satisfy the constraints; cannot overlap static/bridge/rail/chaser. Distinct blocks cannot touch in any of the 8 directions.
 - **dps**: Ranged damage enemies. 0-4 cells from main path, prefers proximity to chaser/static. Cannot overlap static/bridge/rail/zoner. **May share a cell with chaser** (ORT-122) — different categories, so it is not an ORT-93 spacing violation; only DPS-on-DPS adjacency is forbidden.
 - **mobAir**: Air mobs. No ground requirement and **no overlap rule** (ORT-121) — neither validator checks it and hand-authored rooms stack it on other entities freely. **Centre-seeded and evenly distributed outward**, deterministically — the cell nearest the room centre is always taken, and the rest fill a centre-anchored grid. Zoner/chaser density only breaks ties within one grid slot. Door distance >= 4, edge distance >= 2, spacing >= 1. Generation keeps it clear of the other layers as a dispersion preference, not as a rule.
 
@@ -299,16 +299,30 @@ Counts are **spawns, not cells** (a zoner is a 2×2 block). `static` is counted 
 | Stage | DPS | Chaser | Zoner | MobAir | Static | Notes |
 |-------|-----|--------|-------|--------|--------|-------|
 | start | 0 | 0 | 0 | 0 | 0 | Right door only (remaps to OZX Top) |
-| teaching | 4-6 | 2-6 | 1-2 | 6 | 2-9 | |
-| building | 6-9 | 6-10 | 1-2 | 6-9 | 2-9 | |
-| pressure | 8-12 | 8-10 | 2-5 | 6-12 | 2-9 | Not bridge |
-| peak | 8-12 | 8-10 | 2-3 | 12-18 | 2-9 | Full only; mobAir exceeds a 16×10 room's capacity, expect an ORT-110 warning |
-| release | 2-4 | 2 | 1 | 6 | 2-9 | Minimal |
+| teaching | 4-6 | 4-12 | 2-4 | 12 | 4-9 | |
+| building | 6-9 | 12-20 | 2-4 | 12-18 | 4-9 | |
+| pressure | 8-12 | 16-20 | 4-10 | 12-24 | 2-4 | Not bridge; less cover than the other stages |
+| peak | 8-12 | 16-20 | 4-6 | 24-36 | 2-4 | Full only; needs ~32×10 to place mobAir in full |
+| release | 2-4 | 4 | 2 | 12 | 4-9 | Minimal |
 | boss | 0 | 0 | 0 | 0 | 0 | 6x6 center clear, max 2 doors |
 
-Ranges last recalibrated in ORT-123/124/125 against the hand-authored rooms in
-`Assets/StreamingAssets/TilemapData/normal`. No stage constrains room size
-(ORT-109), but a small room may under-place — check the response's `warnings`.
+Ranges were recalibrated in ORT-123/124/125 against the hand-authored rooms in
+`Assets/StreamingAssets/TilemapData/normal`, then raised again on 2026-09-14.
+No stage constrains room size (ORT-109), but a small room may under-place —
+check the response's `warnings`.
+
+Counts were doubled for chaser, zoner and mobAir on 2026-09-14 after play-test
+review: a generated room read noticeably emptier in-game than the hand-authored
+measurements the previous ranges were calibrated to. dps and static were left
+alone, except that pressure and peak had static cut to 2-4 — they field the
+heaviest waves, so the floor is worth more to the enemies than to the cover.
+
+At the 16×10 default these counts do not fit: placement is **best-effort by
+design**, so a room places what it can and reports the rest through `warnings`.
+Zero-shortfall room sizes measured over 10 rooms per size (height fixed at 10,
+because OZX room width = data-space height): teaching/release 20×10, building
+28×10, pressure 28-32×10, peak 32×10.
+
 
 ## Error Handling
 

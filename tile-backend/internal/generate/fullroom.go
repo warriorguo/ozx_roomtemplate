@@ -174,10 +174,10 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 
 	// Step 2: Corner erase (40% probability)
 	groundDebug := &FullRoomGroundDebugInfo{}
-	generateFullRoomCornerErase(ground, req.Width, req.Height, req.Doors, groundDebug)
+	generateFullRoomCornerErase(ground, req.Width, req.Height, req.Doors, req.StageType, groundDebug)
 
 	// Step 3: Center pits (30% probability)
-	generateFullRoomCenterPits(ground, req.Width, req.Height, req.Doors, groundDebug)
+	generateFullRoomCenterPits(ground, req.Width, req.Height, req.Doors, req.StageType, groundDebug)
 
 	// Step 3.5: Repair any disconnected ground fragments that may remain after
 	// corner erasing / pit carving. The per-step rollback only guards door
@@ -272,7 +272,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 			regionFilter := &RegionFilter{MinY: minY, MaxY: maxY, MinX: minX, MaxX: maxX}
 
 			if group.ZonerCount > 0 {
-				GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, group.ZonerCount, regionFilter)
+				GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, group.ZonerCount, regionFilter)
 			}
 			if group.ChaserCount > 0 {
 				GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, group.ChaserCount, regionFilter)
@@ -299,27 +299,22 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		// the stage minimum count is always met even when a region has too few
 		// valid positions (e.g. pressure stage chaser min=6 with tight room).
 		//
-		// Two-pass strategy:
-		//   1. Strict pass (respects 8-dir spacing) — preserves ideal spread.
-		//   2. Relaxed pass (drops spacing) — only used when strict pass still falls short,
-		//      guaranteeing the minimum is always met.
+		// The fill-in pass keeps the 8-directional spacing constraint.
+		// There is no relaxed pass. Dropping the 8-directional spacing to hit the
+		// stage's count emits same-category spawns on touching cells, which the
+		// game collapses and crashes on (ORT-93) — measured at 25% of pressure
+		// and 35% of peak rooms once the counts were doubled. Placement is
+		// best-effort by decision (2026-09-14): a room that cannot hold the
+		// count places fewer and reports the shortfall.
 		// Zoner is counted in spawns, not cells — a 2x2 block is one enemy (ORT-103).
 		if remaining := req.ZonerCount - countZonerUnits(zonerLayer); remaining > 0 {
-			GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
+			GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
 		}
 		if remaining := req.ChaserCount - countCells(chaserLayer); remaining > 0 {
 			GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
-			// Relaxed fallback: if strict pass still can't fill target, drop spacing constraint.
-			if remaining2 := req.ChaserCount - countCells(chaserLayer); remaining2 > 0 {
-				GenerateChaserLayerRelaxed(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, remaining2)
-			}
 		}
 		if remaining := req.DPSCount - countCells(dpsLayer); remaining > 0 {
 			GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
-			// Relaxed fallback: if strict pass still can't fill target, drop spacing constraint.
-			if remaining2 := req.DPSCount - countCells(dpsLayer); remaining2 > 0 {
-				GenerateDPSLayerRelaxed(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining2)
-			}
 		}
 		if remaining := req.MobAirCount - countCells(mobAirLayer); remaining > 0 {
 			GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, remaining, nil)
@@ -348,7 +343,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 				cx, cy := req.Width/2, req.Height/2
 				zonerFilter = &RegionFilter{MinY: cy - 3, MaxY: cy + 3, MinX: cx - 3, MaxX: cx + 3}
 			}
-			zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount, zonerFilter)
+			zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount, zonerFilter)
 			debugInfo.Zoner = zonerDebug
 		} else {
 			debugInfo.Zoner = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "zonerCount is 0 or not specified"}
@@ -455,12 +450,58 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	}, nil
 }
 
+// A corner void is never thinner than minCornerBrush in either direction, and
+// its long side reaches cornerBrushLongSide whenever the room is big enough —
+// so the smallest cut a room can show is 3x2 (or 2x3), never a 2x1 sliver.
+const (
+	minCornerBrush      = 2
+	cornerBrushLongSide = 3
+)
+
+// pickCornerSide returns one dimension of the corner brush: at least
+// minCornerBrush, at most limit, and lifted to cornerBrushLongSide when this is
+// the brush's long side and the room has the space for it.
+func pickCornerSide(limit int, long bool) int {
+	if limit < minCornerBrush {
+		limit = minCornerBrush
+	}
+	size := minCornerBrush + rand.Intn(limit-minCornerBrush+1)
+	if long && size < cornerBrushLongSide && limit >= cornerBrushLongSide {
+		size = cornerBrushLongSide
+	}
+	return size
+}
+
+// carveGap is the number of ground cells a new carve must leave between itself
+// and any existing void. At 2 the voids stay separate rectangles — they cannot
+// merge into an L or a band — and the ground between them is never a 1-cell
+// neck, which is where the spur artefacts came from.
+const carveGap = 2
+
+// rectClearOfVoid reports whether a w x h rect at (x,y) can be carved without
+// coming within carveGap cells of a void that is already there. Cells outside
+// the room do not count: a carve at the room edge is what a corner cut *is*.
+func rectClearOfVoid(ground [][]int, x, y, w, h, width, height int) bool {
+	for py := y - carveGap; py < y+h+carveGap; py++ {
+		for px := x - carveGap; px < x+w+carveGap; px++ {
+			if px < 0 || px >= width || py < 0 || py >= height {
+				continue
+			}
+			inside := px >= x && px < x+w && py >= y && py < y+h
+			if !inside && ground[py][px] == 0 {
+				return false
+			}
+		}
+	}
+	return true
+}
+
 // generateFullRoomCornerErase performs step 2: erase corners with 40% probability
-func generateFullRoomCornerErase(ground [][]int, width, height int, doors []DoorPosition, debug *FullRoomGroundDebugInfo) {
+func generateFullRoomCornerErase(ground [][]int, width, height int, doors []DoorPosition, stageType string, debug *FullRoomGroundDebugInfo) {
 	cornerDebug := &CornerEraseDebugInfo{}
 
-	// 40% probability to execute
-	if rand.Float64() >= 0.4 {
+	// 40% base probability, raised for the stages that want an airier floor
+	if rand.Float64() >= stageCarveChance(stageType, 0.4) {
 		cornerDebug.Skipped = true
 		cornerDebug.SkipReason = "did not pass 40% probability check"
 		debug.CornerErase = cornerDebug
@@ -469,26 +510,21 @@ func generateFullRoomCornerErase(ground [][]int, width, height int, doors []Door
 
 	cornerDebug.Skipped = false
 
-	// Choose brush type (50/50)
+	// Choose brush type (50/50). Both directions start at minCornerBrush and
+	// stretch the long side to cornerBrushLongSide where the room allows it: a
+	// corner void only reads as a deliberate cut at 2x2 or larger, and a
+	// 1-cell-wide sliver looks like a mistake (play-test feedback, 2026-09-14).
 	var brushW, brushH int
 	if rand.Float64() < 0.5 {
-		// Brush 1: 1 <= x <= M/2, 1 <= y <= 2
+		// Brush 1: long side along x
 		cornerDebug.BrushType = "horizontal"
-		maxW := width / 2
-		if maxW < 1 {
-			maxW = 1
-		}
-		brushW = 1 + rand.Intn(maxW)
-		brushH = 1 + rand.Intn(2)
+		brushW = pickCornerSide(width/2, true)
+		brushH = pickCornerSide(minCornerBrush+1, false)
 	} else {
-		// Brush 2: 1 <= x <= 2, 1 <= y <= N/2
+		// Brush 2: long side along y
 		cornerDebug.BrushType = "vertical"
-		maxH := height / 2
-		if maxH < 1 {
-			maxH = 1
-		}
-		brushW = 1 + rand.Intn(2)
-		brushH = 1 + rand.Intn(maxH)
+		brushW = pickCornerSide(minCornerBrush+1, false)
+		brushH = pickCornerSide(height/2, true)
 	}
 
 	cornerDebug.BrushSize = fmt.Sprintf("%dx%d", brushW, brushH)
@@ -514,6 +550,14 @@ func generateFullRoomCornerErase(ground [][]int, width, height int, doors []Door
 			Size:     fmt.Sprintf("%dx%d", brushW, brushH),
 		}
 
+		// Skip a corner whose cut would merge with one already made.
+		if !rectClearOfVoid(ground, x, y, brushW, brushH, width, height) {
+			info.RolledBack = true
+			info.Reason = "would merge with an existing void"
+			cornerDebug.Corners = append(cornerDebug.Corners, info)
+			continue
+		}
+
 		// Save state for rollback
 		backup := copyLayer(ground)
 
@@ -525,20 +569,22 @@ func generateFullRoomCornerErase(ground [][]int, width, height int, doors []Door
 			// Rollback
 			restoreLayer(ground, backup)
 
-			// Retry once: try a smaller brush
-			retryW := brushW
-			retryH := brushH
-			if retryW > 1 {
-				retryW = retryW / 2
-				if retryW < 1 {
-					retryW = 1
-				}
+			// Retry once with a smaller brush, but never below minCornerBrush in
+			// either direction — a sliver is worse than no cut at all.
+			retryW := brushW / 2
+			if retryW < minCornerBrush {
+				retryW = minCornerBrush
 			}
-			if retryH > 1 {
-				retryH = retryH / 2
-				if retryH < 1 {
-					retryH = 1
-				}
+			retryH := brushH / 2
+			if retryH < minCornerBrush {
+				retryH = minCornerBrush
+			}
+			if retryW == brushW && retryH == brushH {
+				// Already at the floor: nothing smaller left to try.
+				info.RolledBack = true
+				info.Reason = "broke door connectivity at the minimum brush size, skipping remaining corners"
+				cornerDebug.Corners = append(cornerDebug.Corners, info)
+				break
 			}
 
 			x2, y2 := getCornerPosition(corner, width, height, retryW, retryH)
@@ -565,11 +611,11 @@ func generateFullRoomCornerErase(ground [][]int, width, height int, doors []Door
 }
 
 // generateFullRoomCenterPits performs step 3: center pits with 30% probability
-func generateFullRoomCenterPits(ground [][]int, width, height int, doors []DoorPosition, debug *FullRoomGroundDebugInfo) {
+func generateFullRoomCenterPits(ground [][]int, width, height int, doors []DoorPosition, stageType string, debug *FullRoomGroundDebugInfo) {
 	pitsDebug := &CenterPitsDebugInfo{}
 
-	// 30% probability to execute
-	if rand.Float64() >= 0.3 {
+	// 30% base probability, raised for the stages that want an airier floor
+	if rand.Float64() >= stageCarveChance(stageType, 0.3) {
 		pitsDebug.Skipped = true
 		pitsDebug.SkipReason = "did not pass 30% probability check"
 		debug.CenterPits = pitsDebug
@@ -647,22 +693,33 @@ func generateFullRoomCenterPits(ground [][]int, width, height int, doors []DoorP
 	for i := 0; i < len(pitPositions); i += 2 {
 		backup := copyLayer(ground)
 
-		// Apply the pair (or single if odd)
+		// Apply the pair (or single if odd). A pit that would merge with an
+		// existing void — a corner cut, or the pit it is mirrored with — is
+		// skipped, so every void stays its own rectangle.
 		pit1 := pitPositions[i]
-		eraseRect(ground, pit1.x, pit1.y, brushW, brushH, width, height)
-
 		info1 := CenterPitInfo{
 			Position: fmt.Sprintf("(%d,%d)", pit1.x, pit1.y),
 			Size:     fmt.Sprintf("%dx%d", brushW, brushH),
+		}
+		if rectClearOfVoid(ground, pit1.x, pit1.y, brushW, brushH, width, height) {
+			eraseRect(ground, pit1.x, pit1.y, brushW, brushH, width, height)
+		} else {
+			info1.RolledBack = true
+			info1.Reason = "would merge with an existing void"
 		}
 
 		var info2 *CenterPitInfo
 		if i+1 < len(pitPositions) {
 			pit2 := pitPositions[i+1]
-			eraseRect(ground, pit2.x, pit2.y, brushW, brushH, width, height)
 			info2 = &CenterPitInfo{
 				Position: fmt.Sprintf("(%d,%d)", pit2.x, pit2.y),
 				Size:     fmt.Sprintf("%dx%d", brushW, brushH),
+			}
+			if rectClearOfVoid(ground, pit2.x, pit2.y, brushW, brushH, width, height) {
+				eraseRect(ground, pit2.x, pit2.y, brushW, brushH, width, height)
+			} else {
+				info2.RolledBack = true
+				info2.Reason = "would merge with an existing void"
 			}
 		}
 
