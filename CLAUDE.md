@@ -686,6 +686,17 @@ make test-unit           # Fast unit tests
 - Documents in `tile-backend/documents/` describe generation rules
 - When updating generation logic, keep the documentation in sync with the implementation
 
+**Whether a generated room is good enough is a written-down question**, not a
+judgement call to re-derive: `tile-backend/tools/roombatch/` holds the
+acceptance rules (`judge.py`) and the batch runner that applies them. Its
+README lists every hard rule with the review that produced it, and — more
+useful than the list — the method the rules were calibrated with: start from
+what already ships (a rule that flags the hand-authored rooms is a style, not a
+defect), put thresholds where the data separates accepted from rejected rooms,
+and fix the generator rather than filtering its output whenever the generator
+can be fixed. Read it before changing generation, and update it when a review
+adds a rule.
+
 ## Testing Strategy
 
 **Backend Tests**:
