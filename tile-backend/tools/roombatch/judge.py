@@ -124,6 +124,13 @@ def analyse(r):
         band=w//3                       # visual bottom third (h is visual height)
         low=[(y,x) for y in range(h-band,h) for x in range(len(g[0])) if v['zoner'][y][x]]
         if low: fails.append(f"zoner in the bottom third at {low[:3]}")
+    # ORT-128: a spawn layer with zero cells makes every enemy of that role
+    # vanish from the room - EncounterActionExecutor.PlaceDirect skips the whole
+    # launch when its layer is empty. Fewer cells than enemies degrades
+    # gracefully; zero does not.
+    empty=[k for k in ('chaser','zoner','dps','mobAir')
+           if not v.get(k) or not any(any(r) for r in v[k])]
+    if empty: fails.append(f"spawn layer empty: {empty} (ORT-128)")
     if spurs: fails.append(f"ground has {spurs} 1-cell spurs")
     if (p.get('stageType') in AIRY_STAGES) and fill > MAX_AIRY_FILL:
         fails.append(f"floor is a solid slab (fill={fill:.2f} > {MAX_AIRY_FILL})")

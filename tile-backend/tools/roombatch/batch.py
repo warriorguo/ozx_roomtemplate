@@ -17,6 +17,10 @@ import argparse, collections, json, os, sys, urllib.request, importlib.util
 SP = os.path.dirname(os.path.abspath(__file__))
 API = os.environ.get("ROOM_API", "http://localhost:8099/api/v1")
 BITS = {'top': 1, 'right': 2, 'bottom': 4, 'left': 8}
+# A filename's openDoors mask is in OZX space, the generator's doors are in data
+# space, and the two differ by the ORT-111 rotation: OZX Top(1) is the data right
+# edge, Right(2) the data bottom, Bottom(4) the data left, Left(8) the data top.
+OZX_TO_DATA = {1: 'right', 2: 'bottom', 4: 'left', 8: 'top'}
 SIDES = ['top', 'right', 'bottom', 'left']
 STAGE_ORDER = ['start', 'teaching', 'building', 'pressure', 'peak', 'release', 'boss']
 ENDPOINT = {'full': 'fullroom', 'bridge': 'bridge', 'platform': 'platform'}
@@ -55,8 +59,9 @@ def plan(target, stages):
     out.sort(key=lambda e: (STAGE_ORDER.index(e[0][0]) if e[0][0] in STAGE_ORDER else 9, e[0][1]))
     return out
 
-def generate(stage, mask, w, h, cat, shape):
-    body = {'width': w, 'height': h, 'doors': [s for s in SIDES if mask & BITS[s]],
+def generate(stage, mask, w, h, cat, shape, doors=None):
+    body = {'width': w, 'height': h,
+            'doors': doors if doors else [s for s in SIDES if mask & BITS[s]],
             'stageType': stage, 'roomCategory': cat, 'softEdgeCount': 3, 'railEnabled': True}
     r = api('/generate/' + ENDPOINT.get(shape, 'fullroom'), body)
     r['_request'] = body
@@ -73,10 +78,23 @@ def main():
                          "pass 'ref' to follow each category's existing template instead")
     ap.add_argument('--category', default='test', help='roomCategory / subfolder')
     ap.add_argument('--save', action='store_true', help='write accepted rooms (default: dry run)')
+    ap.add_argument('--cells', default='',
+                    help="explicit work list instead of the top-up plan: "
+                         "'stage:ozxMask:count,...' e.g. 'pressure:5:1,boss:4:2'. "
+                         "Masks are OZX-space, the way they appear in filenames.")
     a = ap.parse_args()
     stages = [s for s in a.stages.split(',') if s]
 
-    todo = plan(a.target, stages)
+    if a.cells:
+        todo = []
+        for spec in a.cells.split(','):
+            stage, mask, n = spec.split(':')
+            ozx = int(mask)
+            todo.append(((stage, ozx), int(n),
+                         {'width': 16, 'height': 10, 'room_type': 'full',
+                          'doors': [OZX_TO_DATA[b] for b in (1, 2, 4, 8) if ozx & b]}))
+    else:
+        todo = plan(a.target, stages)
     if not todo:
         print(f"nothing to do: every category already holds >= {a.target} templates")
         return
@@ -96,7 +114,7 @@ def main():
                 return (len(res['fails']), res['missing'], len(res['soft']))
             best = None
             for attempt in range(1, a.attempts + 1):
-                r = generate(stage, mask, w, h, a.category, shape)
+                r = generate(stage, mask, w, h, a.category, shape, ref.get('doors'))
                 res = judge.analyse(r)
                 if best is None or score(res) < score(best[2]):
                     best = (attempt, r, res)
@@ -105,7 +123,7 @@ def main():
             attempt, r, res = best
             ok = not res['fails']
             accepted += ok; rejected += not ok
-            label = f"{stage}_{dlabel(mask)}"
+            label = f"{stage}_ozx{mask}" if a.cells else f"{stage}_{dlabel(mask)}"
             line = (f"{label:18} {f'{w}x{h}':7} {attempt:>4}  "
                     + ("ACCEPT" if ok else "KEPT-BEST: " + '; '.join(res['fails'])))
             if res['soft']: line += "  | " + '; '.join(res['soft'])
