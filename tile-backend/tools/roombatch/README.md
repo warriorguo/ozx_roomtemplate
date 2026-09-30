@@ -43,6 +43,32 @@ or below 1.63 on the half-to-half ratio, and the two rejected as one-sided were
 at 2.4 (left/right) and 1.9 (top/bottom). Quadrant ratios do not separate those
 cases; halves do.
 
+## Layout diversity (`--diverse`, ORT-132)
+
+Rooms sharing a `(stageType, openDoors)` family share the candidate pool the
+level generator draws from, so two similar rooms in one family read as a repeat
+when they land next to each other. `--diverse` rejects a candidate whose layout
+is too close to any room already in its family (and to the others produced in
+the same run), by Jaccard overlap of cell sets:
+
+| layer | limit | why this number |
+|-------|------:|-----------------|
+| ground | 0.95 | pathing. Two shipped peak d5 rooms have *identical* ground (1.00) — that is the thing ORT-132 was filed about, so the bar here is deliberately stricter than what ships |
+| static | 0.35 | cover position. Shipped d5 pairs run 0.07-0.50 |
+| enemies (all four layers unioned) | 0.35 | shipped d5 pairs run 0.11-0.43 |
+
+The check is **incremental** — a room is compared against the family as it stood
+when that room was generated — so a later sibling can still end up close to an
+earlier one. With `--save` the run therefore ends with a whole-family re-check
+that names any offending pair; **redo those rooms** (delete the file, rerun that
+cell) rather than leaving a near-duplicate in the pool. Three of ORT-132's first
+eleven rooms needed exactly that.
+
+A dense family can saturate: peak d5 fields 40+ spawn cells in a 160-cell room,
+and after four rooms a fifth could not get below 0.41 enemy overlap in 120
+attempts. Four distinct rooms beat five with two near-duplicates — the pool size
+is a means, layout difference is the goal.
+
 **Zoner block spacing is deliberately NOT a hard rule.** The generator prefers
 2 clear cells between blocks and falls back to merely not touching — asked
 about it in review, the answer was "not necessarily", so a room is never
