@@ -751,6 +751,8 @@ export interface RailDebugInfo {
   skipReason?: string;
   platformsFound: number;
   railLoops: RailLoopInfo[];
+  connectors?: RailConnectorInfo[];
+  doorSpurs?: RailDoorSpurInfo[];
   misses?: MissInfo[];
 }
 
@@ -758,13 +760,20 @@ export interface RailLoopInfo {
   platform: string;
   boundingBox: string;
   perimeter: number;
-  indents: IndentInfo[];
+  inset: number;
 }
 
-export interface IndentInfo {
-  position: string;
-  direction: string;
-  size: number;
+export interface RailConnectorInfo {
+  from: number;
+  to: number;
+  straight: boolean;
+  lengths: number[];
+}
+
+export interface RailDoorSpurInfo {
+  door: string;
+  start: string;
+  length: number;
 }
 
 export interface FullRoomDebugInfo {

@@ -150,7 +150,7 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	// Step 3.5: Generate rail layer
 	railLayer := copyLayer(emptyLayer)
 	if req.RailEnabled {
-		railDebug := GenerateRailLayer(railLayer, ground, bridgeLayer, req.Width, req.Height)
+		railDebug := GenerateRailLayer(railLayer, ground, bridgeLayer, req.Doors, req.Width, req.Height)
 		debugInfo.Rail = railDebug
 	} else {
 		debugInfo.Rail = &RailDebugInfo{

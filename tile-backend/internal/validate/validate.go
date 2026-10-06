@@ -307,17 +307,9 @@ func validateLogicalRules(payload *model.TemplatePayload) []model.ValidationErro
 					})
 				}
 
-				// Rule: rail segments cannot branch or intersect (max 2 neighbors per
-				// cell). Closed-loop requirement was dropped — endpoints are valid.
-				neighborCount := countRailNeighbors(payload, x, y, width, height)
-				if neighborCount > 2 {
-					errors = append(errors, model.ValidationError{
-						Layer:  "rail",
-						X:      x,
-						Y:      y,
-						Reason: fmt.Sprintf("rail segments cannot intersect (has %d neighbors, max 2)", neighborCount),
-					})
-				}
+				// Rails may branch (2026-10-06): a generated rail is a network
+				// joining rings, connectors and every open door, so a cell may have
+				// 3 or 4 rail neighbours.
 			}
 
 			// Rule: static==1 => (ground==1 || bridge==1) && bridge==0 && pipeline==0 && rail==0
@@ -472,33 +464,6 @@ func isWalkable(payload *model.TemplatePayload, x, y, width, height int) bool {
 	}
 
 	return ground == 1 || bridge == 1
-}
-
-// countRailNeighbors counts adjacent rail cells for a given position
-func countRailNeighbors(payload *model.TemplatePayload, x, y, width, height int) int {
-	if payload.Rail == nil {
-		return 0
-	}
-
-	directions := []struct{ dx, dy int }{
-		{-1, 0}, {1, 0}, // left, right
-		{0, -1}, {0, 1}, // up, down
-	}
-
-	count := 0
-	for _, dir := range directions {
-		nx, ny := x+dir.dx, y+dir.dy
-
-		if nx >= 0 && nx < width && ny >= 0 && ny < height {
-			if len(payload.Rail) > ny && len(payload.Rail[ny]) > nx {
-				if payload.Rail[ny][nx] == 1 {
-					count++
-				}
-			}
-		}
-	}
-
-	return count
 }
 
 // softEdgeCell reads the softEdge layer defensively — it is optional, so a

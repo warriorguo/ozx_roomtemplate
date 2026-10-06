@@ -21,7 +21,7 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `stageType` | string | `""` | Stage type: `"start"`, `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty (defaults to `"default"` in output). Controls enemy count ranges **and `staticCount`** — when set, it overrides the counts below. |
 | `roomCategory` | string | `"normal"` | Room category: `"normal"`, `"basement"`, `"test"`, `"cave"`. Passed through to output. |
 | `softEdgeCount` | int | `3` | Number of soft edge strips to place in void notches |
-| `railEnabled` | bool | `true` | Whether to generate a rail loop on the ground |
+| `railEnabled` | bool | `true` | Whether to generate the rail network (rings + connectors + a spur to every door) |
 | `staticCount` | int | `8` | Number of 2x2 static obstacle blocks. **Ignored when `stageType` is set** — the stage supplies it: teaching/building/release 4–9, pressure/peak 2–4, start/boss 0. |
 | `chaserCount` | int | `4` | Number of chaser placements (melee enemies near main path) |
 | `zonerCount` | int | `2` | Number of zoner placements (area control enemies). Counted in **spawns, not cells** — each zoner occupies a 2x2 block, so `zonerCount: 2` produces 8 cells. |
@@ -136,7 +136,7 @@ Extract and display key debug info from the response:
 - Center pits: skipped or pit count + symmetry
 
 **For all room types:**
-- Rail: platforms found, loops placed, perimeter
+- Rail: rectangles found, rings (inset, perimeter), connectors (straight/bent, lengths), door spurs
 - Static: target vs placed count
 - Chaser: target vs placed count
 - Zoner: target vs placed count
@@ -210,7 +210,7 @@ The API returns this JSON structure:
     "ground": [[0,1,...], ...],      // 2D grid, 0=void, 1=walkable
     "softEdge": [[0,1,...], ...],    // Fills void notches adjacent to ground
     "bridge": [[0,1,...], ...],      // Connects floating islands
-    "rail": [[0,1,...], ...],        // Closed loop track on ground
+    "rail": [[0,1,...], ...],        // Branching rail network on ground/bridge
     "static": [[0,1,...], ...],      // 2x2 obstacle blocks
     "chaser": [[0,1,...], ...],      // Melee enemy positions (near main path)
     "zoner": [[0,1,...], ...],       // Area control enemy positions
@@ -242,7 +242,9 @@ The API returns this JSON structure:
     "rail": {                 // Rail generation debug
       "skipped": false,
       "platformsFound": 1,
-      "railLoops": [{ "platform": "...", "boundingBox": "...", "perimeter": 36 }]
+      "railLoops": [{ "platform": "...", "boundingBox": "...", "perimeter": 36, "inset": 0 }],
+      "connectors": [{ "from": 0, "to": 1, "straight": true, "lengths": [4, 4] }],
+      "doorSpurs": [{ "door": "left", "start": "(0,5)", "length": 1 }]
     },
     "softEdge": { "skipped": false, "targetCount": 3, "placedCount": 3, ... },
     "bridgeLayer": { ... },
@@ -284,7 +286,7 @@ stage asked for. The room is still valid and saveable.
 - **ground**: Foundation layer. Full rooms start 100% filled then carve corners/pits. Every carved hole is at least 3x2, and holes never merge — each void is its own clean rectangle. teaching/building/release carve far more often (0.85/0.70 vs 0.40/0.30) so their floors are airier. Bridge rooms connect doors with paths. Platform rooms use large rectangular blocks.
 - **softEdge**: Placed in void cells adjacent to ground (concave notches). Min 3 cells long.
 - **bridge**: 2x2 blocks in void connecting floating islands. Cannot overlap softEdge.
-- **rail**: Closed loop on ground/bridge. Requires solid area >= 6x6. Cannot overlap other layers.
+- **rail**: Branching network on ground/bridge. Each of up to 3 largest rectangles (area > 12, inside a 1-cell border) carries a ring on its edge or 1–2 cells in; rings are joined by straight connectors (two, as far apart as possible, when they fit); every open door is joined — visual up/down doors on their visual-right cell, visual left/right doors on their visually-lower cell. Cells may have 3+ rail neighbours.
 - **static**: 2x2 blocks on ground. Min 5x5 forbidden zone around doors. Blocks cannot touch each other. Must preserve door connectivity.
 - **chaser**: Melee enemies. 0-3 cells from main path, prefer low squishy score. Cannot overlap static/bridge/rail/zoner.
 - **zoner**: Area control enemies. **Always 2x2 blocks**, preferring 2 clear cells between blocks (falls back to merely not touching when the room is tight) — the 1x1 fallback was removed on 2026-09-14, so a room with no 2x2 site left under-places and reports a shortfall instead. One zoner = 4 cells. Zoners also clear doors by 3 (wider than the other entities' 2) and never sit in the room's visual bottom third, so the player does not walk through a doorway into one. 0-5 cells from main path, prefer high squishy score. Every cell of a block must satisfy the constraints; cannot overlap static/bridge/rail/chaser. Distinct blocks cannot touch in any of the 8 directions.

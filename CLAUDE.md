@@ -558,6 +558,33 @@ cuts holes in its floor, all in `fullroom.go`:
    than a resolved `StageConfig` — ground is carved before stage rules resolve,
    and a probability needs no resolved counts.
 
+**Rail is a branching network, not a loop** (2026-10-06 review, `rail.go`).
+The old generator merged the two largest corner rectangles into one closed
+loop and ignored doors; it is gone. Now:
+
+1. **Rings** — `findRailRects` takes up to `maxRailRects` (3) of the largest
+   all-walkable rectangles inside the room's 1-cell border, each kept a cell
+   clear of the previous ones. One whose area exceeds `railRectMinArea` (12)
+   carries a rectangular ring. `maxRailInset` sets how far in the ring may
+   run: with `d` = half the short side, `d<4` → on the edge only, `d<6` →
+   edge or 1 in, otherwise up to 2 in.
+2. **Connectors** — rings are joined cheapest pair first (Kruskal). Straight
+   runs are preferred, and when two straight connectors fit without touching,
+   both are laid, chosen as far apart as possible (`pickRailConnectors`). If no
+   straight line exists, a turn-penalised route (`routeRail`) is used.
+3. **Door spurs** — every open door is joined to the network. The rail enters
+   through one doorway cell chosen in **visual space** (`railDoorCell`): a
+   visual up/down door (data right/left) takes the cell on its visual right
+   (data `y = H/2`), and a visual left/right door (data top/bottom) takes the
+   cell visually below (data `x = W/2-1`). With no ring, the doors are joined
+   to each other directly; a single door with no ring gets no rail.
+
+The network **branches** where a connector or spur meets a ring, so both
+validators dropped the max-2-neighbours rule. **The game does not accept this
+yet:** OZX's `RailCellTracer` still throws on any cell with more than 2
+neighbours, or on more than 2 endpoints, so a train cannot spawn on a
+generated room until the game side follows a rail graph.
+
 **There is no relaxed placement pass** (2026-09-14). `GenerateChaserLayerRelaxed`
 and `GenerateDPSLayerRelaxed` still exist but nothing calls them. They dropped
 the 8-directional spacing to hit the stage's count, which emits same-category

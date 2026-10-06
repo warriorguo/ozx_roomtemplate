@@ -239,7 +239,7 @@ export function validateCellRules(
     bridge: validateBridgeCell(template, x, y),
     // Pipeline: must be on ground, cannot be on bridge
     pipeline: pipeline === 0 || (ground === 1 && bridge === 0),
-    // Rail: must be on ground or bridge; segments cannot branch/intersect (max 2 rail neighbors). Endpoints are allowed.
+    // Rail: must be on ground or bridge; may branch (2026-10-06).
     rail: validateRailCell(template, x, y),
     // Static: can't be on bridge, can't conflict with pipeline or rail
     static: static_ === 0 || ((ground === 1 || bridge === 1) && bridge === 0 && pipeline === 0 && rail === 0),
@@ -362,42 +362,11 @@ function validateSoftEdgeCell(
   return softEdgeSupport[y][x];
 }
 
-// Count adjacent rail cells for a given position
-function countRailNeighbors(template: Template, x: number, y: number): number {
-  const directions = [
-    { dx: -1, dy: 0 }, // left
-    { dx: 1, dy: 0 },  // right
-    { dx: 0, dy: -1 }, // up
-    { dx: 0, dy: 1 }   // down
-  ];
-
-  let count = 0;
-  for (const dir of directions) {
-    const nx = x + dir.dx;
-    const ny = y + dir.dy;
-
-    if (nx >= 0 && nx < template.width && ny >= 0 && ny < template.height) {
-      if (template.rail[ny][nx] === 1) {
-        count++;
-      }
-    }
-  }
-  return count;
-}
-
-// Validate rail cell: must be on ground or bridge, and cannot branch/intersect (max 2 rail neighbors). Endpoints (0 or 1 neighbor) are valid.
+// Validate rail cell: must be on ground or bridge. Rails may branch (2026-10-06) —
+// a generated rail is a network joining rings, connectors and every open door.
 function validateRailCell(template: Template, x: number, y: number): boolean {
-  const rail = template.rail[y][x];
-  if (rail === 0) return true; // Empty rail cells are always valid
-
-  const ground = template.ground[y][x];
-  const bridge = template.bridge[y][x];
-
-  // Rail must be on ground or bridge
-  if (ground === 0 && bridge === 0) return false;
-
-  const neighborCount = countRailNeighbors(template, x, y);
-  return neighborCount <= 2;
+  if (template.rail[y][x] === 0) return true; // Empty rail cells are always valid
+  return template.ground[y][x] === 1 || template.bridge[y][x] === 1;
 }
 
 // Validate bridge placement: bridge should span unwalkable areas (ground=0) to connect walkable areas
@@ -542,8 +511,6 @@ function getValidationErrorReason(
       return 'Unknown error';
     case 'rail':
       if (ground === 0 && bridge === 0) return 'Rail must be placed on ground or bridge';
-      const railNeighbors = countRailNeighbors(template, x, y);
-      if (railNeighbors > 2) return `Rail segments cannot intersect (has ${railNeighbors} neighbors, max 2)`;
       return 'Unknown error';
     case 'static':
       if (ground === 0 && bridge === 0) return 'Static items require walkable ground or bridge';
