@@ -43,6 +43,31 @@ or below 1.63 on the half-to-half ratio, and the two rejected as one-sided were
 at 2.4 (left/right) and 1.9 (top/bottom). Quadrant ratios do not separate those
 cases; halves do.
 
+## Rail rooms (ORT-138)
+
+Three rules come from the rail chapter, all in `judge.py`:
+
+- **rail length 35-45 cells** when the layer is non-empty — long enough for the
+  cart to be worth boarding, short enough not to turn the floor into a grid.
+  Matches the four shipped rail rooms (35/36/40/44).
+- **every open door needs a 2x2 walkable, static-free passage.** One unit of
+  clearance funnels the player and the cart through a single tile; 17% of rooms
+  failed this before it was a rule.
+- **half-density gate lowered from 12 spawns to 10** — two rail rooms at 10 and
+  11 spawns came out 9:1 and 8:3 and had to be redone by eye.
+
+`--diverse` also compares the `rail` layer (limit 0.60): the network is derived
+from the ground shape, so two rooms with similar floors get *identical* track
+(measured max 1.00 over ten same-stage rooms). Note that two rooms with no rail
+at all are not "identical" — `_jaccard` returns 0 for two empty sets, or every
+non-rail pair in the library would be reported as a collision.
+
+On the generator side, mobAir now avoids rail cells (`isValidMobAirPositionNew`),
+with a final top-up pass that *allows* the overlap once clear cells run out:
+staying off the track is a preference, but a room's slot counts have to stay in
+its family's range or OZX's LevelPlanValidator sees less intake capacity than the
+plan expects.
+
 ## Layout diversity (`--diverse`, ORT-132)
 
 Rooms sharing a `(stageType, openDoors)` family share the candidate pool the

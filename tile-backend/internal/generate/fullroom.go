@@ -291,7 +291,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		// (they passed a nil filter), which makes one call for the summed count
 		// equivalent apart from the ordering fix, and better distributed besides.
 		if groupedMobAir > 0 {
-			GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, groupedMobAir, nil)
+			GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, railLayer, doorPositions, req.Width, req.Height, groupedMobAir, nil)
 		}
 
 		// Fallback: if grouped placement underplaced, fill remaining up to target
@@ -317,7 +317,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 			GenerateDPSLayer(dpsLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
 		}
 		if remaining := req.MobAirCount - countCells(mobAirLayer); remaining > 0 {
-			GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, remaining, nil)
+			GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, railLayer, doorPositions, req.Width, req.Height, remaining, nil)
 		}
 
 		// Count placed for debug
@@ -364,7 +364,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		}
 
 		if req.MobAirCount > 0 {
-			mobAirDebug := GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, req.MobAirCount, nil)
+			mobAirDebug := GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, railLayer, doorPositions, req.Width, req.Height, req.MobAirCount, nil)
 			debugInfo.MobAir = mobAirDebug
 		} else {
 			debugInfo.MobAir = &MobAirDebugInfo{Skipped: true, SkipReason: "mobAirCount is 0 or not specified"}

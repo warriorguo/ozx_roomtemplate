@@ -226,7 +226,7 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 	// Step 7: Generate mob air layer
 	mobAirLayer := copyLayer(emptyLayer)
 	if req.MobAirCount > 0 {
-		mobAirDebug := GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, doorPositions, req.Width, req.Height, req.MobAirCount)
+		mobAirDebug := GenerateMobAirLayerNew(mobAirLayer, ground, softEdgeLayer, bridgeLayer, staticLayer, zonerLayer, chaserLayer, dpsLayer, railLayer, doorPositions, req.Width, req.Height, req.MobAirCount)
 		debugInfo.MobAir = mobAirDebug
 	} else {
 		debugInfo.MobAir = &MobAirDebugInfo{Skipped: true, SkipReason: "mobAirCount is 0 or not specified"}

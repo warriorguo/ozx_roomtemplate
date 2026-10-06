@@ -1517,7 +1517,7 @@ func touchesLayer(pos Point, layer [][]int, width, height int) bool {
 // ============================================================================
 
 // isValidMobAirPositionNew checks if a cell is valid for mob air with new enemy layers
-func isValidMobAirPositionNew(pos Point, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer, mobAirLayer [][]int,
+func isValidMobAirPositionNew(pos Point, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer, mobAirLayer, railLayer [][]int,
 	doorPositions map[DoorPosition]Point, width, height int) bool {
 
 	x, y := pos.X, pos.Y
@@ -1540,6 +1540,13 @@ func isValidMobAirPositionNew(pos Point, ground, softEdge, bridge, staticLayer, 
 	// generated room reads clearly.
 	if softEdge[y][x] != 0 || bridge[y][x] != 0 || staticLayer[y][x] != 0 ||
 		zonerLayer[y][x] != 0 || chaserLayer[y][x] != 0 || dpsLayer[y][x] != 0 {
+		return false
+	}
+
+	// Rail is in the same list for a stronger reason than reading clearly: the
+	// cart drives along the track, so an air mob spawned on it is a spawn the
+	// cart runs through (ORT-138). railLayer may be nil for a room without rail.
+	if railLayer != nil && railLayer[y][x] != 0 {
 		return false
 	}
 

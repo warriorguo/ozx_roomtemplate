@@ -131,6 +131,35 @@ def analyse(r):
     empty=[k for k in ('chaser','zoner','dps','mobAir')
            if not v.get(k) or not any(any(r) for r in v[k])]
     if empty: fails.append(f"spawn layer empty: {empty} (ORT-128)")
+    # Every open door needs a passage two cells wide and two deep that is
+    # walkable and free of static: one unit of clearance funnels the player (and
+    # a rail cart) through a single tile. Measured 17% of rooms failed this.
+    gate_bad=[]
+    gd=p.get('doors') or {}
+    H,W=len(g[0]),len(g)          # NOTE: g here is the *visual* grid (see above)
+    raw=r['payload']['ground']; rh,rw=len(raw),len(raw[0])
+    rst=r['payload'].get('static') or [[0]*rw for _ in range(rh)]
+    anchors={'top':(rw//2,0,0,1),'bottom':(rw//2,rh-1,0,-1),
+             'left':(0,rh//2,1,0),'right':(rw-1,rh//2,-1,0)}
+    for side,(ax,ay,ix,iy) in anchors.items():
+        if not gd.get(side): continue
+        ok=False
+        for off in (0,-1):
+            good=True
+            for d in range(2):
+                for k in range(2):
+                    x,y=(ax+off+k, ay+iy*d) if side in ('top','bottom') else (ax+ix*d, ay+off+k)
+                    if not (0<=x<rw and 0<=y<rh) or raw[y][x]!=1 or rst[y][x]:
+                        good=False
+            ok=ok or good
+        if not ok: gate_bad.append(side)
+    if gate_bad: fails.append(f"door passage narrower than 2x2 at {gate_bad}")
+    # A room that carries rail must carry a useful amount of it: long enough for
+    # the cart to be worth boarding, short enough not to turn the floor into a
+    # grid. 35-45 is the band ORT-138 gives, matching the four shipped rail rooms.
+    rail_cells=sum(sum(row) for row in (r['payload'].get('rail') or [[0]]))
+    if rail_cells and not (35 <= rail_cells <= 45):
+        fails.append(f"rail {rail_cells} cells outside the 35-45 band")
     if spurs: fails.append(f"ground has {spurs} 1-cell spurs")
     if (p.get('stageType') in AIRY_STAGES) and fill > MAX_AIRY_FILL:
         fails.append(f"floor is a solid slab (fill={fill:.2f} > {MAX_AIRY_FILL})")
@@ -178,7 +207,7 @@ def analyse(r):
     # call): a room that cannot hold its stage's counts places what fits and
     # says so. Quadrant balance is advisory too - a room the user accepted in
     # review ran 5:1 across quadrants.
-    if sum(eq.values())>=12 and min(eq.values())==0:
+    if sum(eq.values())>=10 and min(eq.values())==0:
         fails.append(f"entity-free quadrant {[k for k,n in eq.items() if n==0]}")
     # Cover has to be spread too: four or more blocks all in one half of the
     # room leaves the other half bare.
@@ -186,10 +215,12 @@ def analyse(r):
         fails.append(f"static crowded into fewer than 3 quadrants {sq}")
 
     # One half of the room must not carry close to twice the other's spawns.
+    # The gate was >=12 spawns; lowered to 10 after two rail rooms at 10 and 11
+    # spawns came out 9:1 and 8:3 and had to be redone by eye.
     # Calibrated on review: every room accepted by eye sits at or below 1.63,
     # the two rejected for looking one-sided were at 2.4 (left/right) and 1.9
     # (top/bottom). Quadrant ratios do not separate these cases; halves do.
-    if sum(eq.values())>=12:
+    if sum(eq.values())>=10:
         halves={'left':eq['TL']+eq['BL'], 'right':eq['TR']+eq['BR'],
                 'top':eq['TL']+eq['TR'], 'bottom':eq['BL']+eq['BR']}
         for a,b in (('left','right'),('top','bottom')):

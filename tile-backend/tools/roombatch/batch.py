@@ -46,7 +46,11 @@ def api(path, body=None):
 # ground similarity runs 0.34-1.00 (peak's two rooms have *identical* ground),
 # static 0.07-0.50, enemies 0.11-0.43. The ticket asks for difference in "走法
 # 和掩体位置" - pathing and cover - so ground and static carry the thresholds.
-DIVERSITY = {'ground': 0.95, 'static': 0.35, 'enemy': 0.35}
+# rail is in here because the network is derived from the ground shape, so two
+# rooms with similar floors get *identical* track (measured max 1.00 over 10
+# same-stage rooms, median 0.23) - and in a rail chapter the track is the first
+# thing a player reads.
+DIVERSITY = {'ground': 0.95, 'static': 0.35, 'enemy': 0.35, 'rail': 0.60}
 ENEMY_LAYERS = ('chaser', 'zoner', 'dps', 'mobAir')
 
 def _cells(payload, layer):
@@ -54,11 +58,17 @@ def _cells(payload, layer):
     return {(y, x) for y, row in enumerate(g) for x, v in enumerate(row) if v}
 
 def _jaccard(a, b):
-    return len(a & b) / len(a | b) if (a | b) else 1.0
+    # Two empty layers are not "identical" in any meaningful sense - most of the
+    # library has no rail at all, and calling every such pair 1.00 drowned the
+    # real collisions in noise.
+    if not a and not b:
+        return 0.0
+    return len(a & b) / len(a | b) if (a | b) else 0.0
 
 def signature(payload):
     return {'ground': _cells(payload, 'ground'),
             'static': _cells(payload, 'static'),
+            'rail': _cells(payload, 'rail'),
             'enemy': set().union(*[_cells(payload, k) for k in ENEMY_LAYERS])}
 
 def family_signatures(stage, ozx_mask):

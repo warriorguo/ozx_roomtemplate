@@ -18,7 +18,7 @@ import (
 // even-coverage requirement wins, the dense-area preference breaks its ties.
 //
 // Placement is deterministic: the same room always produces the same layer.
-func GenerateMobAirLayerNew(mobAirLayer, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer [][]int,
+func GenerateMobAirLayerNew(mobAirLayer, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer, railLayer [][]int,
 	doorPositions map[DoorPosition]Point, width, height, targetCount int, regionFilter ...*RegionFilter) *MobAirDebugInfo {
 
 	debug := &MobAirDebugInfo{
@@ -44,7 +44,19 @@ func GenerateMobAirLayerNew(mobAirLayer, ground, softEdge, bridge, staticLayer, 
 	isValid := func(pos Point) bool {
 		return rf.Contains(pos.X, pos.Y) &&
 			isValidMobAirPositionNew(pos, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer,
-				mobAirLayer, doorPositions, width, height)
+				mobAirLayer, railLayer, doorPositions, width, height)
+	}
+
+	// Staying off the rail is a preference, not a rule - ORT-138 calls the
+	// overlap "not a hard error, just hard to read" - and a room's slot count has
+	// to stay in the same range as the rest of its family, or OZX's
+	// LevelPlanValidator sees less intake capacity than the plan expects. So once
+	// the clear cells run out, top up over the track rather than ship a rail room
+	// with a third of its air mobs.
+	isValidOverRail := func(pos Point) bool {
+		return rf.Contains(pos.X, pos.Y) &&
+			isValidMobAirPositionNew(pos, ground, softEdge, bridge, staticLayer, zonerLayer, chaserLayer, dpsLayer,
+				mobAirLayer, nil, doorPositions, width, height)
 	}
 
 	// Row-major order, which makes every "first best wins" tiebreak below
@@ -140,6 +152,27 @@ func GenerateMobAirLayerNew(mobAirLayer, ground, softEdge, bridge, staticLayer, 
 		}
 		place(pos, "top-up (farthest from placed)")
 		remaining--
+	}
+
+	// Last resort: the same farthest-point top-up, but allowed over the rail.
+	if remaining > 0 && railLayer != nil {
+		var overRail []Point
+		for y := 0; y < height; y++ {
+			for x := 0; x < width; x++ {
+				if pos := (Point{X: x, Y: y}); isValidOverRail(pos) {
+					overRail = append(overRail, pos)
+				}
+			}
+		}
+		railDensity := mobAirDensityScores(overRail, zonerLayer, chaserLayer, width, height)
+		for remaining > 0 {
+			pos, ok := farthestValidFrom(placed, overRail, railDensity, isValidOverRail)
+			if !ok {
+				break
+			}
+			place(pos, "top-up over rail (no clear cell left)")
+			remaining--
+		}
 	}
 
 	if remaining > 0 {

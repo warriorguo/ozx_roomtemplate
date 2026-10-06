@@ -28,7 +28,7 @@ func generateMobAirRoom(t *testing.T, stage string, w, h int) func(target int) [
 	return func(target int) [][]int {
 		layer := createEmptyLayer(w, h)
 		GenerateMobAirLayerNew(layer, p.Ground, p.SoftEdge, p.Bridge, p.Static,
-			p.Zoner, p.Chaser, p.DPS, doorPositions, w, h, target)
+			p.Zoner, p.Chaser, p.DPS, p.Rail, doorPositions, w, h, target)
 		return layer
 	}
 }
@@ -89,7 +89,7 @@ func TestGenerateMobAirLayer_SeedsRoomCentre(t *testing.T) {
 
 				layer := createEmptyLayer(tc.w, tc.h)
 				GenerateMobAirLayerNew(layer, p.Ground, p.SoftEdge, p.Bridge, p.Static,
-					p.Zoner, p.Chaser, p.DPS, doorPositions, tc.w, tc.h, tc.target)
+					p.Zoner, p.Chaser, p.DPS, p.Rail, doorPositions, tc.w, tc.h, tc.target)
 
 				// Smallest distance to the centre any valid cell could have, in
 				// the empty room before anything was placed.
@@ -100,7 +100,7 @@ func TestGenerateMobAirLayer_SeedsRoomCentre(t *testing.T) {
 					for x := 0; x < tc.w; x++ {
 						pos := Point{X: x, Y: y}
 						if !isValidMobAirPositionNew(pos, p.Ground, p.SoftEdge, p.Bridge, p.Static,
-							p.Zoner, p.Chaser, p.DPS, empty, doorPositions, tc.w, tc.h) {
+							p.Zoner, p.Chaser, p.DPS, empty, p.Rail, doorPositions, tc.w, tc.h) {
 							continue
 						}
 						if d := manhattanDistance(pos, center); bestPossible < 0 || d < bestPossible {
@@ -155,7 +155,7 @@ func TestGenerateMobAirLayer_EvenlyDispersed(t *testing.T) {
 
 		layer := createEmptyLayer(w, h)
 		GenerateMobAirLayerNew(layer, p.Ground, p.SoftEdge, p.Bridge, p.Static,
-			p.Zoner, p.Chaser, p.DPS, doorPositions, w, h, target)
+			p.Zoner, p.Chaser, p.DPS, p.Rail, doorPositions, w, h, target)
 
 		pts := mobAirPoints(layer, w, h)
 		if len(pts) < 2 {
@@ -168,7 +168,7 @@ func TestGenerateMobAirLayer_EvenlyDispersed(t *testing.T) {
 		for y := 0; y < h; y++ {
 			for x := 0; x < w; x++ {
 				if isValidMobAirPositionNew(Point{X: x, Y: y}, p.Ground, p.SoftEdge, p.Bridge, p.Static,
-					p.Zoner, p.Chaser, p.DPS, empty, doorPositions, w, h) {
+					p.Zoner, p.Chaser, p.DPS, empty, p.Rail, doorPositions, w, h) {
 					area++
 				}
 			}
