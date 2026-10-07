@@ -58,6 +58,20 @@ def render(v):
 AIRY_STAGES = ('teaching', 'building', 'release')
 MAX_AIRY_FILL = 0.9
 
+# The grid layers are always data-space, but `doors` is NOT: fsstore rotates the
+# door metadata at the disk boundary (ORT-112/113), so a payload read straight
+# from a .json carries OZX-space side names while one from the generate API or
+# GET /templates/{id} carries data-space ones. The door-passage rule picks which
+# wall to check by name, so it needs to know. Pass _doors_space='ozx' when the
+# payload came off disk; the default assumes the API shape.
+OZX_TO_DATA_SIDE = {'top': 'right', 'right': 'bottom', 'bottom': 'left', 'left': 'top'}
+
+def data_space_doors(payload, space='data'):
+    doors = payload.get('doors') or {}
+    if space == 'ozx':
+        return {OZX_TO_DATA_SIDE[k]: v for k, v in doors.items() if k in OZX_TO_DATA_SIDE}
+    return doors
+
 def analyse(r):
     p=r['payload']
     v={k:rot(p[k]) for k in LAYERS if p.get(k)}
@@ -135,7 +149,7 @@ def analyse(r):
     # walkable and free of static: one unit of clearance funnels the player (and
     # a rail cart) through a single tile. Measured 17% of rooms failed this.
     gate_bad=[]
-    gd=p.get('doors') or {}
+    gd=data_space_doors(p, r.get('_doors_space','data'))
     H,W=len(g[0]),len(g)          # NOTE: g here is the *visual* grid (see above)
     raw=r['payload']['ground']; rh,rw=len(raw),len(raw[0])
     rst=r['payload'].get('static') or [[0]*rw for _ in range(rh)]

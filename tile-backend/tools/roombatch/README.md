@@ -52,7 +52,16 @@ Three rules come from the rail chapter, all in `judge.py`:
   Matches the four shipped rail rooms (35/36/40/44).
 - **every open door needs a 2x2 walkable, static-free passage.** One unit of
   clearance funnels the player and the cart through a single tile; 17% of rooms
-  failed this before it was a rule.
+  failed this before it was a rule. Rail inside the passage does *not* count as
+  blocking — ORT-139 runs a spur to every door on purpose, so the player can
+  board at the doorway, and track is floor you walk over.
+
+  This rule picks which wall to check **by door side name**, and that is the one
+  field whose space depends on where the payload came from: the grid layers are
+  always data-space, but `fsstore` rotates `doors` at the disk boundary
+  (ORT-112/113). Pass `_doors_space='ozx'` when analysing a payload read straight
+  from a `.json`; the default assumes the API shape. Getting this wrong checks
+  the wrong wall on any room that is not all-doors-open.
 - **half-density gate lowered from 12 spawns to 10** — two rail rooms at 10 and
   11 spawns came out 9:1 and 8:3 and had to be redone by eye.
 
