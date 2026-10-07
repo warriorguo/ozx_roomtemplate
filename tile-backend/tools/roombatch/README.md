@@ -50,18 +50,23 @@ Three rules come from the rail chapter, all in `judge.py`:
 - **rail length 35-45 cells** when the layer is non-empty — long enough for the
   cart to be worth boarding, short enough not to turn the floor into a grid.
   Matches the four shipped rail rooms (35/36/40/44).
-- **every open door needs a 2x2 walkable, static-free passage.** One unit of
-  clearance funnels the player and the cart through a single tile; 17% of rooms
-  failed this before it was a rule. Rail inside the passage does *not* count as
-  blocking — ORT-139 runs a spur to every door on purpose, so the player can
-  board at the doorway, and track is floor you walk over.
+- **an open wall must not present a one-cell slit**: every walkable run along it
+  is at least 2 cells, and at least one run exists.
 
-  This rule picks which wall to check **by door side name**, and that is the one
-  field whose space depends on where the payload came from: the grid layers are
-  always data-space, but `fsstore` rotates `doors` at the disk boundary
-  (ORT-112/113). Pass `_doors_space='ozx'` when analysing a payload read straight
-  from a `.json`; the default assumes the API shape. Getting this wrong checks
-  the wrong wall on any room that is not all-doors-open.
+  That is all this repo can honestly check. The first version of this rule
+  assumed the doorway sat at `width/2` and demanded its 2x2 be free of static —
+  which is wrong twice over: for a fullroom the whole wall line is walkable, and
+  *where* along it the game puts the doorway is not ours to know. It produced
+  five false positives on rooms whose wall was 12 cells of clear floor with a
+  2x2 static block happening to sit at x=8, and cost two rooms a needless
+  regeneration before review caught it. Static near an entrance is cover, not a
+  narrow door.
+
+  The rule reads door *side names*, which is the one field whose space depends on
+  provenance: layers are always data-space, but `fsstore` rotates `doors` at the
+  disk boundary (ORT-112/113). Pass `_doors_space='ozx'` for a payload read
+  straight from a `.json`; the default assumes the API shape.
+
 - **half-density gate lowered from 12 spawns to 10** — two rail rooms at 10 and
   11 spawns came out 9:1 and 8:3 and had to be redone by eye.
 

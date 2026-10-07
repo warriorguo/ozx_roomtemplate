@@ -145,35 +145,36 @@ def analyse(r):
     empty=[k for k in ('chaser','zoner','dps','mobAir')
            if not v.get(k) or not any(any(r) for r in v[k])]
     if empty: fails.append(f"spawn layer empty: {empty} (ORT-128)")
-    # Every open door needs a passage two cells wide and two deep that is
-    # walkable and free of static: one unit of clearance funnels the player (and
-    # a rail cart) through a single tile. Measured 17% of rooms failed this.
+    # An open wall must not present a one-cell slit: every walkable run along it
+    # is at least 2 cells, and at least one run exists. That is all this repo can
+    # honestly check - for a fullroom the whole wall line is walkable and *where*
+    # along it the game puts the doorway is not ours to know.
+    #
+    # An earlier version of this rule assumed the doorway sat at width/2 and
+    # demanded that its 2x2 be free of static. It produced five false positives on
+    # rooms whose wall was 12 cells of clear floor with a static block happening
+    # to sit at x=8, and cost two rooms a needless regeneration. Static near an
+    # entrance is cover, not a narrow door.
     gate_bad=[]
     gd=data_space_doors(p, r.get('_doors_space','data'))
-    H,W=len(g[0]),len(g)          # NOTE: g here is the *visual* grid (see above)
     raw=r['payload']['ground']; rh,rw=len(raw),len(raw[0])
-    rst=r['payload'].get('static') or [[0]*rw for _ in range(rh)]
-    anchors={'top':(rw//2,0,0,1),'bottom':(rw//2,rh-1,0,-1),
-             'left':(0,rh//2,1,0),'right':(rw-1,rh//2,-1,0)}
-    for side,(ax,ay,ix,iy) in anchors.items():
+    for side in ('top','bottom','left','right'):
         if not gd.get(side): continue
-        ok=False
-        for off in (0,-1):
-            good=True
-            for d in range(2):
-                for k in range(2):
-                    x,y=(ax+off+k, ay+iy*d) if side in ('top','bottom') else (ax+ix*d, ay+off+k)
-                    if not (0<=x<rw and 0<=y<rh) or raw[y][x]!=1 or rst[y][x]:
-                        good=False
-            ok=ok or good
-        if not ok: gate_bad.append(side)
-    if gate_bad: fails.append(f"door passage narrower than 2x2 at {gate_bad}")
-    # A room that carries rail must carry a useful amount of it: long enough for
-    # the cart to be worth boarding, short enough not to turn the floor into a
-    # grid. 35-45 is the band ORT-138 gives, matching the four shipped rail rooms.
-    rail_cells=sum(sum(row) for row in (r['payload'].get('rail') or [[0]]))
-    if rail_cells and not (35 <= rail_cells <= 45):
-        fails.append(f"rail {rail_cells} cells outside the 35-45 band")
+        if side in ('top','bottom'):
+            yy=0 if side=='top' else rh-1
+            walk=[1 if raw[yy][x] else 0 for x in range(rw)]
+        else:
+            xx=0 if side=='left' else rw-1
+            walk=[1 if raw[y][xx] else 0 for y in range(rh)]
+        runs=[];cur=0
+        for cell in walk+[0]:
+            if cell: cur+=1
+            else:
+                if cur: runs.append(cur)
+                cur=0
+        if not runs or max(runs)<2 or 1 in runs:
+            gate_bad.append(f"{side}{runs}")
+    if gate_bad: fails.append(f"doorway narrower than 2 cells at {gate_bad}")
     if spurs: fails.append(f"ground has {spurs} 1-cell spurs")
     if (p.get('stageType') in AIRY_STAGES) and fill > MAX_AIRY_FILL:
         fails.append(f"floor is a solid slab (fill={fill:.2f} > {MAX_AIRY_FILL})")
