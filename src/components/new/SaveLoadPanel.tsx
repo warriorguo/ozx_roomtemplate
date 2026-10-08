@@ -43,12 +43,14 @@ const roomTypeLabels: Record<string, string> = {
 };
 
 const stageTypeLabels: Record<string, string> = {
+  start: 'Start',
   teaching: 'Teaching',
   building: 'Building',
   pressure: 'Pressure',
   peak: 'Peak',
   release: 'Release',
   boss: 'Boss',
+  story: 'Story',
 };
 
 // Three-state checkbox component: null (any) -> true (yes) -> false (no) -> null (any)
@@ -596,12 +598,14 @@ export const SaveLoadPanel: React.FC<SaveLoadPanelProps> = ({ isOpen, onClose, m
                           }}
                         >
                           <option value="all">All Types</option>
+                          <option value="start">Start</option>
                           <option value="teaching">Teaching</option>
                           <option value="building">Building</option>
                           <option value="pressure">Pressure</option>
                           <option value="peak">Peak</option>
                           <option value="release">Release</option>
                           <option value="boss">Boss</option>
+                          <option value="story">Story</option>
                         </select>
                       </div>
                     </div>

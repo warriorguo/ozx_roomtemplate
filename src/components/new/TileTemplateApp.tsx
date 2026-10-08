@@ -294,12 +294,14 @@ export const TileTemplateApp: React.FC = () => {
     mobAir: [number, number];
   }> = {
     start:    { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
-    teaching: { chaser: [2, 2], zoner: [1, 1], dps: [4, 6], mobAir: [6, 6] },
-    building: { chaser: [4, 6], zoner: [1, 1], dps: [4, 6], mobAir: [6, 6] },
-    pressure: { chaser: [8, 10], zoner: [2, 2], dps: [8, 12], mobAir: [6, 12] },
-    peak:     { chaser: [8, 10], zoner: [2, 3], dps: [8, 12], mobAir: [12, 18] },
-    release:  { chaser: [2, 2], zoner: [1, 1], dps: [2, 4], mobAir: [6, 6] },
+    teaching: { chaser: [4, 12], zoner: [2, 4], dps: [4, 6], mobAir: [12, 12] },
+    building: { chaser: [12, 20], zoner: [2, 4], dps: [6, 9], mobAir: [12, 18] },
+    pressure: { chaser: [16, 20], zoner: [4, 10], dps: [8, 12], mobAir: [12, 24] },
+    peak:     { chaser: [16, 20], zoner: [4, 6], dps: [8, 12], mobAir: [24, 36] },
+    release:  { chaser: [4, 4], zoner: [2, 2], dps: [2, 4], mobAir: [12, 12] },
     boss:     { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
+    // A story room fields no enemies at all, by design (ORT-140).
+    story:    { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
   };
 
 
@@ -372,7 +374,9 @@ export const TileTemplateApp: React.FC = () => {
         height: template.height,
         doors,
         softEdgeCount,
-        railEnabled: true,
+        // ch1/ch2 are not the cart chapter, so a story room has no use for a
+        // rail network - 38 cells of track is just noise in it (ORT-140).
+        railEnabled: template.stageType !== 'story',
         staticCount,
         chaserCount,
         zonerCount,
@@ -788,6 +792,7 @@ export const TileTemplateApp: React.FC = () => {
                     <option value="peak">Peak (峰值期)</option>
                     <option value="release">Release (释放期)</option>
                     <option value="boss">Boss (Boss期)</option>
+                    <option value="story">Story (剧情房)</option>
                   </select>
                   {stageDefaults[template.stageType] && (
                     <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
