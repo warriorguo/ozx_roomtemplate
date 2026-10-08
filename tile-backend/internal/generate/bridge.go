@@ -75,7 +75,7 @@ func GenerateBridgeRoom(req BridgeGenerateRequest) (*BridgeGenerateResponse, err
 
 	// Step 3: Generate soft edge layer if requested
 	softEdgeLayer := copyLayer(emptyLayer)
-	if req.SoftEdgeCount > 0 {
+	if req.SoftEdgeCount > 0 && !stageSuppressesSoftEdge(req.StageType) {
 		softEdgeDebug := generateSoftEdgeLayerWithDebug(softEdgeLayer, ground, doorPositions, req.Width, req.Height, req.SoftEdgeCount)
 		debugInfo.SoftEdge = softEdgeDebug
 	} else {

@@ -192,7 +192,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	// Generate other layers using shared functions
 	// Soft edge
 	softEdgeLayer := copyLayer(emptyLayer)
-	if req.SoftEdgeCount > 0 {
+	if req.SoftEdgeCount > 0 && !stageSuppressesSoftEdge(req.StageType) {
 		softEdgeDebug := generateSoftEdgeLayerWithDebug(softEdgeLayer, ground, doorPositions, req.Width, req.Height, req.SoftEdgeCount)
 		debugInfo.SoftEdge = softEdgeDebug
 	} else {

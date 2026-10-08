@@ -315,6 +315,7 @@ stageRanges = {
     "peak":      { dps: (8,12),  chaser: (16,20), zoner: (4,6),  mobAir: (24,36)},
     "release":   { dps: (2,4),   chaser: (4,4),   zoner: (2,2),  mobAir: (12,12)},
     "boss":      { dps: (0,0),  chaser: (0,0),  zoner: (0,0),  mobAir: (0,0) },
+    "story":     { dps: (0,0),  chaser: (0,0),  zoner: (0,0),  mobAir: (0,0) },  # ORT-140: no enemies by design
 }
 ```
 
@@ -348,6 +349,7 @@ stageStaticBlocks = {
     "peak":     (2,4),
     "release":  (4,9),
     "boss":     (0,0),   # 6x6 clear center arena
+    "story":    (2,3),   # props/interactables need static cells; dispersed, centre left clear
 }
 ```
 

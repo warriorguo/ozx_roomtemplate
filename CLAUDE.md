@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is a **room template editor** for game development, consisting of a React TypeScript frontend and a Go backend service. The editor creates tile-based room templates with a multi-layer system and rule-based validation for game room layouts.
 
 **Layer System**: ground, softEdge, bridge, rail, mainPath, static, chaser, zoner, dps, mobAir
-**Stage Types**: start, teaching, building, pressure, peak, release, boss
+**Stage Types**: start, teaching, building, pressure, peak, release, boss, story
 
 ## Common Commands
 
@@ -248,6 +248,9 @@ mirrors of each other and must stay in sync.
 - Peak: DPS (8-12) + Chaser (16-20) + Zoner (4-6) + MobAir (24-36), full only
 - Release: light mix — DPS (2-4) + Chaser (4) + Zoner (2) + MobAir (12)
 - Boss: requires 6×6 clear center area, restricted door configs
+- Story: **no enemies at all** — all four spawn layers come back empty, by design
+  (ORT-140). static 2–3 2×2 blocks, dispersed to the perimeter, and **softEdge is
+  forced empty** whatever `softEdgeCount` asks for
 
 **Chaser, zoner and mobAir were doubled on 2026-09-14** after play-test review:
 a generated room read emptier in-game than the hand-authored measurements the
@@ -275,6 +278,28 @@ Peak's mobAir has been knowingly **above** what a 16×10 room can hold since
 ORT-124 (measured ceiling ≈ 15), and the 2026-09-14 doubling to 24-36 widened
 that gap deliberately. Peak needs ~32×10 to place its air mobs in full; at any
 smaller size the shortfall warning is the expected outcome, not a bug.
+
+**A story room fields no enemies** (`model.StageStory`, ORT-140): ch1/ch2 are
+hand-built teaching floors, and a story room exists to move the plot — ozx_base
+spawns from the layers, so all four of chaser/zoner/dps/mobAir must come back
+**empty**. That makes it the third zero-enemy stage after start and boss, and the
+reason ORT-128's "every spawn layer needs a cell" rule is scoped to the stages
+that field enemies; for these three an empty layer is the product.
+
+Two things it does need. **static 2–3 blocks**, because story props,
+interactables and keys are placed through ozx_base's `staticPlacements`, which
+needs static cells to land on — the shipped start rooms carry 8–10 cells, and
+`StaticRange` here is `{2,3}` (8–12). Its `StaticDisperse` hint pushes them to
+the perimeter so the middle of the floor stays clear for the story object and the
+staging positions; measured over 12 rooms the central 5×5 is empty every time,
+while the default centre-outward scatter put a block in it every time.
+
+And **softEdge forced empty**: ch1 f0 and ch2 f0 set `noSoftEdge: true`, and
+`RoomTilemapQuery` drops any template carrying softEdge from such a floor, so a
+story room with soft edges is unusable on exactly the floors it exists for.
+`stageSuppressesSoftEdge` gates the softEdge step; like `stageCarveChance` it
+reads the *requested* stage name, because soft edges are generated before stage
+rules resolve.
 
 **Stage-driven static count** (`StageConfig.StaticRange`, ORT-100/125): when a
 stage type is supplied it also supplies the static count, overriding the

@@ -142,9 +142,18 @@ def analyse(r):
     # vanish from the room - EncounterActionExecutor.PlaceDirect skips the whole
     # launch when its layer is empty. Fewer cells than enemies degrades
     # gracefully; zero does not.
-    empty=[k for k in ('chaser','zoner','dps','mobAir')
-           if not v.get(k) or not any(any(r) for r in v[k])]
-    if empty: fails.append(f"spawn layer empty: {empty} (ORT-128)")
+    # start, boss and story field no enemies by design, so an empty layer is the
+    # product, not a defect (ORT-140). For every other stage it is a defect.
+    ZERO_ENEMY_STAGES=('start','boss','story')
+    if p.get('stageType') not in ZERO_ENEMY_STAGES:
+        empty=[k for k in ('chaser','zoner','dps','mobAir')
+               if not v.get(k) or not any(any(r) for r in v[k])]
+        if empty: fails.append(f"spawn layer empty: {empty} (ORT-128)")
+    else:
+        nonzero=[k for k in ('chaser','zoner','dps','mobAir')
+                 if v.get(k) and any(any(r) for r in v[k])]
+        if nonzero:
+            fails.append(f"{p.get('stageType')} room must field no enemies, has {nonzero}")
     # An open wall must not present a one-cell slit: every walkable run along it
     # is at least 2 cells, and at least one run exists. That is all this repo can
     # honestly check - for a fullroom the whole wall line is walkable and *where*

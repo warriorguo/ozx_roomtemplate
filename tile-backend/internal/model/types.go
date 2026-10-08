@@ -63,6 +63,9 @@ const (
 	StagePeak     StageType = "peak"
 	StageRelease  StageType = "release"
 	StageBoss     StageType = "boss"
+	// A room that exists to move the story forward and fields no enemies at all
+	// (ORT-140). Serves the hand-built teaching chapters ch1/ch2.
+	StageStory StageType = "story"
 )
 
 // RoomAttributes represents room attributes (deprecated, kept for backward compatibility)
@@ -101,7 +104,7 @@ type TemplatePayload struct {
 	Doors         *DoorStates     `json:"doors,omitempty"`
 	DoorOverrides *DoorOverrides  `json:"doorOverrides,omitempty"` // explicit per-door open/closed; absent side = auto
 	Attributes    *RoomAttributes `json:"attributes,omitempty"`    // Deprecated
-	StageType     *string         `json:"stageType,omitempty"`     // none, start, teaching, building, pressure, peak, release, boss
+	StageType     *string         `json:"stageType,omitempty"`     // none, start, teaching, building, pressure, peak, release, boss, story
 	RoomShape     *string         `json:"roomShape,omitempty"`     // "all", "bridge", or "platform"
 	RoomCategory  *string         `json:"roomCategory,omitempty"`  // "normal", "basement", "test", "cave"
 	OpenDoors     *int            `json:"openDoors,omitempty"`     // Bitmask: Top=1, Right=2, Bottom=4, Left=8

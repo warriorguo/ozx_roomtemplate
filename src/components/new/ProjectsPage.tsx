@@ -4,7 +4,7 @@ import { GalleryMode } from './GalleryMode';
 import type { CreateProjectRequest, ProjectSummary, DimensionStat } from '../../types/project';
 import { DOOR_BITMASK_LABELS } from '../../types/project';
 
-const STAGE_TYPES = ['start', 'teaching', 'building', 'pressure', 'peak', 'release', 'boss'] as const;
+const STAGE_TYPES = ['start', 'teaching', 'building', 'pressure', 'peak', 'release', 'boss', 'story'] as const;
 const SHAPE_TYPES = ['full', 'bridge', 'platform'] as const;
 
 // All valid door bitmasks (at least 1 door open)

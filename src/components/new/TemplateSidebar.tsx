@@ -39,7 +39,7 @@ function getDisplayLabel(item: TemplateSummary): string {
  * this list (or a template with no stage at all) falls into UNKNOWN_STAGE and
  * sorts last, so a hand-authored room with a blank stage still shows up.
  */
-const STAGE_ORDER = ['start', 'teaching', 'building', 'pressure', 'peak', 'release', 'boss'];
+const STAGE_ORDER = ['start', 'teaching', 'building', 'pressure', 'peak', 'release', 'boss', 'story'];
 const UNKNOWN_STAGE = '(none)';
 
 /** `-1` stands for "the summary carried no open_doors value" (cloud backend). */

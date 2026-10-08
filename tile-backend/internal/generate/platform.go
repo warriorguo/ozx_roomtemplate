@@ -127,7 +127,7 @@ func GeneratePlatformRoom(req PlatformGenerateRequest) (*PlatformGenerateRespons
 
 	// Step 2: Generate soft edge layer
 	softEdgeLayer := copyLayer(emptyLayer)
-	if req.SoftEdgeCount > 0 {
+	if req.SoftEdgeCount > 0 && !stageSuppressesSoftEdge(req.StageType) {
 		softEdgeDebug := generateSoftEdgeLayerWithDebug(softEdgeLayer, ground, doorPositions, req.Width, req.Height, req.SoftEdgeCount)
 		debugInfo.SoftEdge = softEdgeDebug
 	} else {

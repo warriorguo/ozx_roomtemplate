@@ -119,10 +119,10 @@ def plan(target, stages):
     out.sort(key=lambda e: (STAGE_ORDER.index(e[0][0]) if e[0][0] in STAGE_ORDER else 9, e[0][1]))
     return out
 
-def generate(stage, mask, w, h, cat, shape, doors=None):
+def generate(stage, mask, w, h, cat, shape, doors=None, rail=True):
     body = {'width': w, 'height': h,
             'doors': doors if doors else [s for s in SIDES if mask & BITS[s]],
-            'stageType': stage, 'roomCategory': cat, 'softEdgeCount': 3, 'railEnabled': True}
+            'stageType': stage, 'roomCategory': cat, 'softEdgeCount': 3, 'railEnabled': rail}
     r = api('/generate/' + ENDPOINT.get(shape, 'fullroom'), body)
     r['_request'] = body
     r['_ref'] = f"{stage}_{mask}"
@@ -138,6 +138,8 @@ def main():
                          "pass 'ref' to follow each category's existing template instead")
     ap.add_argument('--category', default='test', help='roomCategory / subfolder')
     ap.add_argument('--save', action='store_true', help='write accepted rooms (default: dry run)')
+    ap.add_argument('--no-rail', action='store_true',
+                    help='generate without a rail layer (railEnabled=false)')
     ap.add_argument('--diverse', action='store_true',
                     help='also require each room to differ in layout from every template '
                          'already in its (stage, openDoors) family, and from the others '
@@ -181,7 +183,7 @@ def main():
             family += produced.get((stage, mask), [])
             best = None
             for attempt in range(1, a.attempts + 1):
-                r = generate(stage, mask, w, h, a.category, shape, ref.get('doors'))
+                r = generate(stage, mask, w, h, a.category, shape, ref.get('doors'), not a.no_rail)
                 res = judge.analyse(r)
                 if a.diverse:
                     clash = too_similar(signature(r['payload']), family)

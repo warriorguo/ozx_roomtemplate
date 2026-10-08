@@ -229,6 +229,35 @@ var stageConfigs = map[string]StageConfig{
 		BossArena:        true,
 		PlacementRule:    "boss",
 	},
+	// A story room fields no enemies at all — their absence is the whole point
+	// (ORT-140), and ozx_base spawns from the layers, so every one of the four
+	// must come back empty. Static is the layer it does need: story props,
+	// interactables and keys are placed through `staticPlacements`, which needs
+	// static cells to land on. 2-3 blocks (8-12 cells) is what the shipped start
+	// rooms carry (8-10 cells), and its "story" placement rule disperses them to
+	// the perimeter so the middle of the floor stays open for the prop.
+	model.StageStory: {
+		StageType:     model.StageStory,
+		DPSRange:      [2]int{0, 0},
+		ChaserRange:   [2]int{0, 0},
+		ZonerRange:    [2]int{0, 0},
+		MobAirRange:   [2]int{0, 0},
+		StaticRange:   [2]int{2, 3},
+		PlacementRule: "story",
+	},
+}
+
+// stageSuppressesSoftEdge reports whether a stage must come back with an empty
+// softEdge layer whatever the request asked for. ch1 f0 and ch2 f0 set
+// `noSoftEdge: true`, and RoomTilemapQuery drops any template carrying softEdge
+// from such a floor — so a story room with soft edges is unusable on exactly the
+// floors it exists for (ORT-140).
+//
+// Like stageCarveChance this reads the *requested* stage name: soft edges are
+// generated before stage rules resolve, and nothing about suppressing a layer
+// needs the resolved counts.
+func stageSuppressesSoftEdge(stageType string) bool {
+	return stageType == model.StageStory
 }
 
 // GetStageConfig returns the config for a stage type, or nil if not found
@@ -244,7 +273,7 @@ func GetStageConfig(stageType string) *StageConfig {
 func GetAllStageConfigs() []StageConfigJSON {
 	order := []string{
 		model.StageTeaching, model.StageBuilding, model.StagePressure,
-		model.StagePeak, model.StageRelease, model.StageBoss,
+		model.StagePeak, model.StageRelease, model.StageBoss, model.StageStory,
 	}
 	var result []StageConfigJSON
 	for _, st := range order {
@@ -353,6 +382,16 @@ func buildPlacementHints(cfg *StageConfig, chaserCount, zonerCount, dpsCount, mo
 	case "teaching":
 		// DPS only, restricted to y ∈ [5,7]
 		hints.DPSYRange = [2]int{5, 7}
+
+	case "story":
+		// No enemies to place at all, so the only hint that matters is where the
+		// cover goes. StaticDisperse pushes it to the perimeter, which is what a
+		// story room wants: the story object and the staging positions live in
+		// the clear middle, and the static cells are there for the props and
+		// interactables ozx_base drops through staticPlacements (ORT-140 req. 4).
+		// The default centre-outward scatter is wrong here - measured over 6
+		// rooms it put a 2x2 block inside the central 5x5 every single time.
+		hints.StaticDisperse = true
 
 	case "building":
 		// Chaser: symmetric left-right, center area

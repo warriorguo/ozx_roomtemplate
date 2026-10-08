@@ -21,7 +21,7 @@ export interface DoorOverrides {
 
 export type DoorSide = 'top' | 'right' | 'bottom' | 'left';
 
-export type StageType = 'start' | 'teaching' | 'building' | 'pressure' | 'peak' | 'release' | 'boss';
+export type StageType = 'start' | 'teaching' | 'building' | 'pressure' | 'peak' | 'release' | 'boss' | 'story';
 
 export type RoomType = 'full' | 'bridge' | 'platform';
 

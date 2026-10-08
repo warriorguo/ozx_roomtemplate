@@ -18,7 +18,7 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `width` | int | `20` | Room width in tiles (4-200) |
 | `height` | int | `12` | Room height in tiles (4-200) |
 | `doors` | string[] | `["top","right","bottom","left"]` | Doors to connect. At least 2 required. Options: `top`, `right`, `bottom`, `left` |
-| `stageType` | string | `""` | Stage type: `"start"`, `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, or empty (defaults to `"default"` in output). Controls enemy count ranges **and `staticCount`** — when set, it overrides the counts below. |
+| `stageType` | string | `""` | Stage type: `"start"`, `"teaching"`, `"building"`, `"pressure"`, `"peak"`, `"release"`, `"boss"`, `"story"`, or empty (defaults to `"default"` in output). Controls enemy count ranges **and `staticCount`** — when set, it overrides the counts below. |
 | `roomCategory` | string | `"normal"` | Room category: `"normal"`, `"basement"`, `"test"`, `"cave"`. Passed through to output. |
 | `softEdgeCount` | int | `3` | Number of soft edge strips to place in void notches |
 | `railEnabled` | bool | `true` | Whether to generate the rail network (rings + connectors + a spur to every door) |
@@ -307,6 +307,7 @@ Counts are **spawns, not cells** (a zoner is a 2×2 block). `static` is counted 
 | peak | 8-12 | 16-20 | 4-6 | 24-36 | 2-4 | Full only; needs ~32×10 to place mobAir in full |
 | release | 2-4 | 4 | 2 | 12 | 4-9 | Minimal |
 | boss | 0 | 0 | 0 | 0 | 0 | 6x6 center clear, max 2 doors |
+| story | 0 | 0 | 0 | 0 | 2-3 | **No enemies at all**, by design (ORT-140). softEdge forced empty whatever `softEdgeCount` says; static dispersed to the perimeter so the middle stays clear. For ch1/ch2 story rooms |
 
 Ranges were recalibrated in ORT-123/124/125 against the hand-authored rooms in
 `Assets/StreamingAssets/TilemapData/normal`, then raised again on 2026-09-14.
