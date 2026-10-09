@@ -412,6 +412,15 @@ more than 3 cells from every edge, which needs height ≥ 14. Those are ORT-108'
 count ranges meeting small rooms, not a regression from the size change — pass
 explicit dimensions for boss and for dense bridge/platform rooms.
 
+**Basement is a category, not a rule set** (ORT-141/142): `roomCategory` only
+picks the folder OZX files a room under; the generators stamp it onto the
+output and read it nowhere else. A basement room gets the same default size and
+the same stage-driven spawn layers as a normal one — `category_parity_test.go`
+holds that. ORT-141 moved every rail room from `normal/` to `basement/` (rail
+now ships only in basement areas), and ORT-142 deleted the four early 20×12
+basement pressure rooms that had no chaser/mobAir cells. Do not reintroduce
+basement-specific sizes or spawn rules.
+
 **Placement shortfalls are reported** (`PlacementShortfall`, ORT-110): placement
 is best-effort — the strict pass keeps the 8-directional spacing constraint and
 stops when a room runs out of legal sites, and mobAir has no relaxed fallback at
