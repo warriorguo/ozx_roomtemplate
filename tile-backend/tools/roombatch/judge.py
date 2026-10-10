@@ -184,8 +184,17 @@ def analyse(r):
         if not runs or max(runs)<2 or 1 in runs:
             gate_bad.append(f"{side}{runs}")
     if gate_bad: fails.append(f"doorway narrower than 2 cells at {gate_bad}")
+    # ORT-138: a non-empty rail runs 35-45 cells - long enough for the cart to be
+    # worth boarding, short enough not to turn the floor into a grid. The README
+    # has listed this rule since ORT-138; it was never actually checked here.
+    rail_cells=sum(map(sum,p['rail'])) if p.get('rail') else 0
+    if rail_cells and not 35<=rail_cells<=45:
+        fails.append(f"rail is {rail_cells} cells (want 35-45)")
     if spurs: fails.append(f"ground has {spurs} 1-cell spurs")
-    if (p.get('stageType') in AIRY_STAGES) and fill > MAX_AIRY_FILL:
+    # A room asked for with solidGround (the basement batch) is a solid slab by
+    # request, so the airy-floor rule does not apply to it.
+    solid=(r.get('_request') or {}).get('solidGround')
+    if (p.get('stageType') in AIRY_STAGES) and fill > MAX_AIRY_FILL and not solid:
         fails.append(f"floor is a solid slab (fill={fill:.2f} > {MAX_AIRY_FILL})")
     # A carved void has to read as a deliberate cut: at least 2 cells thick in
     # both directions. A 2x1 nick at a corner looks like a mistake. The

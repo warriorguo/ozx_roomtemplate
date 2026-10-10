@@ -421,6 +421,27 @@ now ships only in basement areas), and ORT-142 deleted the four early 20×12
 basement pressure rooms that had no chaser/mobAir cells. Do not reintroduce
 basement-specific sizes or spawn rules.
 
+**The basement set is denser by request, not by category** (ORT-144). The 20
+shipped basement rooms are solid 16×10 floors with rail and twice the stage's
+static and zoner counts. That came from three fullroom request options, which
+any category may use and which the category never implies:
+
+- `solidGround` skips the corner erase and centre pits, so every cell is ground
+  (and there is nowhere for a soft edge). It also switches static placement to
+  jittered dispersion (`StaticDisperse` + `StaticJitter`): the default
+  centre-outward scatter takes its variety from the floor's shape, and on an
+  unbroken floor it produced the same cover in every room.
+- `staticScale` / `zonerScale` multiply both ends of the stage's range before a
+  count is drawn (`CountScale`, `ValidateAndApplyStageScaled`), so the placement
+  hints see the counts that will actually be placed.
+
+16×10 cannot hold doubled counts. Measured over 30 solid rail rooms per stage,
+zoner averages 2–3 blocks against a doubled target of 4–20, so placement is
+best-effort and every room reports the gap in `warnings`. Pressure and peak only
+approach doubled zoner at 28×10; the size stayed at 16×10 by choice. The batch
+kept rooms that beat normal on both counts (static ≥ 10 and zoner ≥ 3 for
+teaching/building/release, static ≥ 5 and zoner ≥ 4 for pressure/peak).
+
 **Placement shortfalls are reported** (`PlacementShortfall`, ORT-110): placement
 is best-effort — the strict pass keeps the 8-directional spacing constraint and
 stops when a room runs out of legal sites, and mobAir has no relaxed fallback at
@@ -601,7 +622,10 @@ loop and ignored doors; it is gone. Now:
    clear of the previous ones. One whose area exceeds `railRectMinArea` (12)
    carries a rectangular ring. `maxRailInset` sets how far in the ring may
    run: with `d` = half the short side, `d<4` → on the edge only, `d<6` →
-   edge or 1 in, otherwise up to 2 in.
+   edge or 1 in, otherwise up to 2 in. Each of the four sides draws its own
+   inset (ORT-144), so a ring need not be centred: a solid floor has a single
+   interior rectangle, and one shared inset gave just 2 distinct tracks over 40
+   rooms (14 with per-side insets).
 2. **Connectors** — rings are joined cheapest pair first (Kruskal). Straight
    runs are preferred, and when two straight connectors fit without touching,
    both are laid, chosen as far apart as possible (`pickRailConnectors`). If no

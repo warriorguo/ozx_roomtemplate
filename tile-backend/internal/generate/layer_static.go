@@ -203,6 +203,7 @@ func generateStaticLayerWithDebug(staticLayer, ground, softEdge, bridge [][]int,
 // hints may be nil, in which case the default alternating strategy is used.
 func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, rail [][]int, doorPositions map[DoorPosition]Point, width, height, targetCount int, hints *StagePlacementHints) *StaticDebugInfo {
 	disperse := hints != nil && hints.StaticDisperse
+	jitter := hints != nil && hints.StaticJitter
 
 	debug := &StaticDebugInfo{
 		TargetCount: targetCount,
@@ -243,7 +244,7 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 	// First try to place in priority positions (inside rail loop)
 	for remaining > 0 && len(priorityPositions) > 0 {
 		if disperse {
-			sortPositionsDispersed(priorityPositions, placedPositions, width, height)
+			sortPositionsDispersed(priorityPositions, placedPositions, width, height, jitter)
 		} else {
 			sortPositionsByStrategy(priorityPositions, currentStrategy, centerX, centerY, width, height)
 		}
@@ -290,7 +291,7 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 	for remaining > 0 && strategyAttempts < maxStrategyAttempts {
 		strategyName := "center_outward"
 		if disperse {
-			sortPositionsDispersed(validPositions, placedPositions, width, height)
+			sortPositionsDispersed(validPositions, placedPositions, width, height, jitter)
 			strategyName = "edge_first_disperse"
 		} else {
 			sortPositionsByStrategy(validPositions, currentStrategy, centerX, centerY, width, height)
@@ -380,22 +381,30 @@ func generateStaticLayerWithDebugAndRail(staticLayer, ground, softEdge, bridge, 
 // placed static and the largest score wins, so blocks repel each other instead
 // of alternating in and out from the centre. Ties fall back to the edge
 // preference, which keeps cover on the perimeter once spacing is equal.
-func sortPositionsDispersed(positions []Point, placed []Point, width, height int) {
+func sortPositionsDispersed(positions []Point, placed []Point, width, height int, jitter bool) {
 	// Shuffle first so equal-score positions get random order
 	rand.Shuffle(len(positions), func(i, j int) {
 		positions[i], positions[j] = positions[j], positions[i]
 	})
+	noise := func() float64 { return 0 }
+	if jitter {
+		noise = func() float64 { return rand.Float64() * staticJitterSpan }
+	}
 
 	if len(placed) == 0 {
+		edge := make(map[Point]float64, len(positions))
+		for _, pos := range positions {
+			edge[pos] = float64(distanceFromEdge(pos, width, height)) - noise()
+		}
 		sort.SliceStable(positions, func(i, j int) bool {
-			return distanceFromEdge(positions[i], width, height) < distanceFromEdge(positions[j], width, height)
+			return edge[positions[i]] < edge[positions[j]]
 		})
 		return
 	}
 
-	spread := make(map[Point]int, len(positions))
+	spread := make(map[Point]float64, len(positions))
 	for _, pos := range positions {
-		spread[pos] = distanceToNearest(pos, placed)
+		spread[pos] = float64(distanceToNearest(pos, placed)) + noise()
 	}
 
 	sort.SliceStable(positions, func(i, j int) bool {
@@ -405,6 +414,10 @@ func sortPositionsDispersed(positions []Point, placed []Point, width, height int
 		return distanceFromEdge(positions[i], width, height) < distanceFromEdge(positions[j], width, height)
 	})
 }
+
+// staticJitterSpan is the most random noise StaticJitter adds to a
+// candidate's farthest-point score, in cells of Manhattan distance.
+const staticJitterSpan = 3.0
 
 // distanceToNearest returns the Manhattan distance from pos to the closest of
 // the already-placed statics. Points are 2x2 top-left corners; since every

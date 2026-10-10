@@ -82,6 +82,31 @@ staying off the track is a preference, but a room's slot counts have to stay in
 its family's range or OZX's LevelPlanValidator sees less intake capacity than the
 plan expects.
 
+The rail-length rule was listed here from ORT-138 on but never implemented in
+`judge.py`; ORT-144 added the check.
+
+## Solid-ground batches (ORT-144)
+
+A room requested with `solidGround` is a solid slab by design, so rule 8 (airy
+floor ≤ 0.9) is skipped when the request carries it. The basement batch also
+taught three things about reviewing dense rooms:
+
+- **Compare across stages, not just within a family.** A basement floor draws
+  all five stages into one area, so a building room identical to a teaching room
+  is a repeat the player sees. The first selection had three such pairs (same
+  rail, static and zoner); the selection now also caps static overlap at 0.40
+  between rooms of different stages.
+- **Dense cover raises overlap mechanically.** With 10+ static blocks in 160
+  cells, no four teaching rooms stayed under the 0.35 static limit (best was 3);
+  0.40 admits four and is still inside what ships (same-family pairs run up to
+  0.50). The heavy stages, with 5–8 blocks, keep 0.35.
+- **Check a suspected defect against the shipped rooms before rejecting.** Two
+  things that looked wrong were house style: static and zoner touching (45 of
+  64 shipped normal rooms do it, and two hand-authored rooms chain them into a
+  9-cell spine), and a file of 5–7 chaser/dps along one column (26 of 64). The one
+  rejection that survived was a room with **8** spawns in a single column — more
+  than any shipped room (max 7).
+
 ## Layout diversity (`--diverse`, ORT-132)
 
 Rooms sharing a `(stageType, openDoors)` family share the candidate pool the

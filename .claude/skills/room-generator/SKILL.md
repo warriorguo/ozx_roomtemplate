@@ -27,6 +27,9 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `zonerCount` | int | `2` | Number of zoner placements (area control enemies). Counted in **spawns, not cells** — each zoner occupies a 2x2 block, so `zonerCount: 2` produces 8 cells. |
 | `dpsCount` | int | `4` | Number of DPS placements (ranged damage enemies) |
 | `mobAirCount` | int | `10` | Number of air mob spawn points |
+| `solidGround` | bool | `false` | Skip the corner erase and center pits: every cell is ground (so no soft edge either). Static is then placed by jittered dispersion so solid rooms do not all get the same cover. Used for the basement set (ORT-144). |
+| `staticScale` | int | `0` | Multiply the stage's static range before the count is drawn (2 = double). 0/1 = the stage's own range; ignored without `stageType`. |
+| `zonerScale` | int | `0` | Same, for the zoner range. Placement is best-effort: a 16x10 room cannot hold doubled zoner, so expect `warnings`. |
 | `outputPath` | string | *(ask user)* | File path to save the full JSON response. If not provided, ask the user where to save it. |
 
 ## Workflow

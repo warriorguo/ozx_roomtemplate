@@ -20,6 +20,13 @@ type FullRoomGenerateRequest struct {
 	MobAirCount   int            `json:"mobAirCount"`   // Suggested number of mob air (fly) to place (optional)
 	StageType     string         `json:"stageType"`     // Room stage type (optional)
 	RoomCategory  string         `json:"roomCategory"`  // Room category: normal, basement, test, cave (optional, default: normal)
+	// SolidGround skips the corner erase and centre pits, so every cell is
+	// ground (optional). No void also means no soft edge.
+	SolidGround bool `json:"solidGround"`
+	// StaticScale / ZonerScale multiply the stage's static and zoner ranges
+	// (optional; 0 or 1 = the stage's own range). Ignored without a stageType.
+	StaticScale int `json:"staticScale"`
+	ZonerScale  int `json:"zonerScale"`
 }
 
 // FullRoomGenerateResponse represents the generated template
@@ -173,11 +180,13 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	}
 
 	// Step 2: Corner erase (40% probability)
-	groundDebug := &FullRoomGroundDebugInfo{}
-	generateFullRoomCornerErase(ground, req.Width, req.Height, req.Doors, req.StageType, groundDebug)
-
 	// Step 3: Center pits (30% probability)
-	generateFullRoomCenterPits(ground, req.Width, req.Height, req.Doors, req.StageType, groundDebug)
+	// SolidGround skips both, so the room stays one unbroken floor.
+	groundDebug := &FullRoomGroundDebugInfo{}
+	if !req.SolidGround {
+		generateFullRoomCornerErase(ground, req.Width, req.Height, req.Doors, req.StageType, groundDebug)
+		generateFullRoomCenterPits(ground, req.Width, req.Height, req.Doors, req.StageType, groundDebug)
+	}
 
 	// Step 3.5: Repair any disconnected ground fragments that may remain after
 	// corner erasing / pit carving. The per-step rollback only guards door
@@ -225,7 +234,8 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 	}
 
 	// Apply stage rules (validate + override counts if stage type specified)
-	stageResult, stageErr := ValidateAndApplyStage(req.StageType, "full", req.Doors, ground, req.Width, req.Height)
+	stageResult, stageErr := ValidateAndApplyStageScaled(req.StageType, "full", req.Doors, ground, req.Width, req.Height,
+		CountScale{Static: req.StaticScale, Zoner: req.ZonerScale})
 	if stageErr != nil {
 		return nil, stageErr
 	}
@@ -237,6 +247,16 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		req.MobAirCount = stageResult.MobAirCount
 		req.StaticCount = stageResult.StaticCount
 		hints = stageResult.PlacementHints
+	}
+	// The default centre-outward / edge-inward scatter takes its variety from the
+	// floor's shape. A solid floor has none, so every room came out with the same
+	// cover (median static overlap 0.58 between two teaching rooms). Plain
+	// farthest-point dispersion still converged on a few packings once ten-plus
+	// blocks were asked for - rooms of different stages came out identical - so
+	// solid rooms disperse with jitter.
+	if req.SolidGround && hints != nil {
+		hints.StaticDisperse = true
+		hints.StaticJitter = true
 	}
 
 	// Main path computation

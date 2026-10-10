@@ -51,7 +51,8 @@ type RailLoopInfo struct {
 	Platform    string `json:"platform"`    // Rectangle position and size
 	BoundingBox string `json:"boundingBox"` // Ring position and size
 	Perimeter   int    `json:"perimeter"`   // Ring length in cells
-	Inset       int    `json:"inset"`       // Cells between the rectangle edge and the ring
+	Inset       int    `json:"inset"`       // Largest of the four per-side insets
+	Insets      [4]int `json:"insets"`      // Per-side insets: left, top, right, bottom (data space)
 }
 
 // RailConnectorInfo describes how two rings were joined
@@ -100,8 +101,14 @@ func GenerateRailLayer(railLayer, ground, bridge [][]int, doors []DoorPosition, 
 	rects := findRailRects(ground, bridge, width, height)
 	debug.PlatformsFound = len(rects)
 	for _, rect := range rects {
-		inset := rand.Intn(maxRailInset(rect) + 1)
-		ring := railRect{X: rect.X + inset, Y: rect.Y + inset, W: rect.W - 2*inset, H: rect.H - 2*inset}
+		// Each side draws its own inset, so a ring need not be centred in its
+		// rectangle. On a solid floor every room has the same single interior
+		// rectangle, and one inset for all four sides gave just two distinct
+		// tracks across a whole batch.
+		limit := maxRailInset(rect)
+		l, t, r, b := rand.Intn(limit+1), rand.Intn(limit+1), rand.Intn(limit+1), rand.Intn(limit+1)
+		ring := railRect{X: rect.X + l, Y: rect.Y + t, W: rect.W - l - r, H: rect.H - t - b}
+		inset := max(max(l, t), max(r, b))
 		cells := ringCells(ring)
 		idx := len(debug.RailLoops)
 		for _, c := range cells {
@@ -113,6 +120,7 @@ func GenerateRailLayer(railLayer, ground, bridge [][]int, doors []DoorPosition, 
 			BoundingBox: ring.String(),
 			Perimeter:   len(cells),
 			Inset:       inset,
+			Insets:      [4]int{l, t, r, b},
 		})
 	}
 

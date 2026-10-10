@@ -16,10 +16,21 @@ This document describes the auto-generation algorithm for full-type rooms.
 | `dpsCount` | Suggested number of DPS enemies to place (optional, default 0) |
 | `mobAirCount` | Suggested number of mob air (fly) to place (optional, default 0) |
 | `stageType` | Stage type identifier (optional) |
+| `solidGround` | Skip the corner erase and center pits, so every cell is ground (optional, default false). Also switches static placement to jittered dispersion — see below (ORT-144) |
+| `staticScale` | Multiply the stage's static range before the count is drawn (optional; 0 or 1 = the stage's own range). Ignored without `stageType` |
+| `zonerScale` | Same, for the zoner range |
 
 ## Ground Layer Generation
 
 Full rooms start with **all tiles filled** as ground, then optionally carve out corners and center pits.
+With `solidGround` both carving steps are skipped and the room stays one unbroken floor.
+
+On a solid floor the default centre-outward / edge-inward static scatter has no
+floor shape to vary from and gives every room the same cover, so `solidGround`
+places static by farthest-point dispersion with up to 3 cells of random noise
+on each candidate's score (`StaticJitter`). Without the noise, ten-plus blocks
+converged on a handful of packings — rooms of different stages came out
+identical.
 
 ### Step 1: Fill All Ground
 

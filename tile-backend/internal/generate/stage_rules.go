@@ -45,6 +45,13 @@ type StagePlacementHints struct {
 	// then picks each subsequent block by farthest-point selection, pushing
 	// cover to the perimeter and leaving the middle open for heavy enemy waves.
 	StaticDisperse bool
+	// StaticJitter loosens dispersion: each candidate's farthest-point score
+	// (and, for the first block, its edge preference) gets up to
+	// staticJitterSpan of random noise, so the pick is random among the
+	// near-farthest positions rather than always the single farthest. Set for
+	// solid-ground rooms, where ten-plus blocks on an unbroken floor otherwise
+	// converge on a handful of canonical packings.
+	StaticJitter bool
 
 	// Grouping
 	GroupCount int              // 0 = no grouping, just use default placement
@@ -291,8 +298,32 @@ func GetAllStageConfigs() []StageConfigJSON {
 	return result
 }
 
+// CountScale multiplies a stage's static and zoner ranges before a count is
+// drawn from them. 0 and 1 both mean "as the stage says". It exists for room
+// sets that are deliberately denser than the stage default - the basement batch
+// asks for twice the cover and twice the zoners of a normal room - without
+// making any category change the generation rules (ORT-142).
+type CountScale struct {
+	Static int
+	Zoner  int
+}
+
+func scaleRange(r [2]int, s int) [2]int {
+	if s <= 1 {
+		return r
+	}
+	return [2]int{r[0] * s, r[1] * s}
+}
+
 // ValidateAndApplyStage validates stage constraints and returns adjusted enemy counts + placement hints.
 func ValidateAndApplyStage(stageType, roomType string, doors []DoorPosition, ground [][]int, width, height int) (*StageValidationResult, error) {
+	return ValidateAndApplyStageScaled(stageType, roomType, doors, ground, width, height, CountScale{})
+}
+
+// ValidateAndApplyStageScaled is ValidateAndApplyStage with the static and zoner
+// ranges multiplied by scale before the counts are drawn, so the placement hints
+// are built from the counts that will actually be placed.
+func ValidateAndApplyStageScaled(stageType, roomType string, doors []DoorPosition, ground [][]int, width, height int, scale CountScale) (*StageValidationResult, error) {
 	if stageType == "" {
 		return &StageValidationResult{Valid: true}, nil
 	}
@@ -325,10 +356,12 @@ func ValidateAndApplyStage(stageType, roomType string, doors []DoorPosition, gro
 
 	// Generate random counts within ranges
 	chaserCount := randRange(cfg.ChaserRange[0], cfg.ChaserRange[1])
-	zonerCount := randRange(cfg.ZonerRange[0], cfg.ZonerRange[1])
+	zonerRange := scaleRange(cfg.ZonerRange, scale.Zoner)
+	zonerCount := randRange(zonerRange[0], zonerRange[1])
 	dpsCount := randRange(cfg.DPSRange[0], cfg.DPSRange[1])
 	mobAirCount := randRange(cfg.MobAirRange[0], cfg.MobAirRange[1])
-	staticCount := randRange(cfg.StaticRange[0], cfg.StaticRange[1])
+	staticRange := scaleRange(cfg.StaticRange, scale.Static)
+	staticCount := randRange(staticRange[0], staticRange[1])
 
 	result := &StageValidationResult{
 		Valid:       true,
