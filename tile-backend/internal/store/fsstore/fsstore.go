@@ -105,7 +105,7 @@ func (s *Store) Create(ctx context.Context, t model.Template) (*model.Template, 
 		return nil, err
 	}
 
-	basename, err := s.allocateBasename(cat, &t)
+	basename, err := s.allocateBasename(cat, &t, "")
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +190,7 @@ func (s *Store) relocate(oldRel, oldFull, wantCat string, t *model.Template) (*m
 	if err := s.ensureCategory(wantCat); err != nil {
 		return nil, err
 	}
-	basename, err := s.allocateBasename(wantCat, t)
+	basename, err := s.allocateBasename(wantCat, t, oldRel)
 	if err != nil {
 		return nil, err
 	}
@@ -410,29 +410,44 @@ func basenamePrefix(t *model.Template) string {
 	return fmt.Sprintf("%s_%s_%d_", shapeOf(t), stageOf(t), doorsOf(t))
 }
 
-// allocateBasename picks the next free `<shape>_<stage>_<doors>_<NN>` in a
-// category folder. Returns the basename WITHOUT the .json suffix.
-func (s *Store) allocateBasename(cat string, t *model.Template) (string, error) {
+// allocateBasename picks the next free `<shape>_<stage>_<doors>_<NN>` for a
+// template going into a category folder. Returns the basename WITHOUT the
+// .json suffix.
+//
+// The sequence number is free only if no category folder uses it: OZX resolves
+// a pinned templateId by filename alone (RoomTilemapSelector.FindByFile takes
+// the first match across every folder), so basement/all_building_15_01 next to
+// normal/all_building_15_01 silently hijacked chapter 2's pinned room (ORT-144).
+// except names a file (relative path) that does not count as using its number:
+// relocate passes the file it is moving.
+func (s *Store) allocateBasename(cat string, t *model.Template, except string) (string, error) {
 	prefix := basenamePrefix(t)
 
-	catDir := filepath.Join(s.rootDir, cat)
-	entries, err := os.ReadDir(catDir)
+	cats, err := os.ReadDir(s.rootDir)
 	if err != nil && !errors.Is(err, os.ErrNotExist) {
-		return "", fmt.Errorf("fsstore: read category dir: %w", err)
+		return "", fmt.Errorf("fsstore: read root dir: %w", err)
 	}
-
-	used := make(map[int]bool, len(entries))
-	for _, e := range entries {
-		if e.IsDir() {
+	used := map[int]bool{}
+	for _, c := range cats {
+		if !c.IsDir() {
 			continue
 		}
-		name := e.Name()
-		if !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, fileSuffix) {
-			continue
+		entries, err := os.ReadDir(filepath.Join(s.rootDir, c.Name()))
+		if err != nil {
+			return "", fmt.Errorf("fsstore: read category dir: %w", err)
 		}
-		seqStr := strings.TrimSuffix(strings.TrimPrefix(name, prefix), fileSuffix)
-		if n, err := strconv.Atoi(seqStr); err == nil {
-			used[n] = true
+		for _, e := range entries {
+			name := e.Name()
+			if e.IsDir() || !strings.HasPrefix(name, prefix) || !strings.HasSuffix(name, fileSuffix) {
+				continue
+			}
+			if filepath.Join(c.Name(), name) == except {
+				continue
+			}
+			seqStr := strings.TrimSuffix(strings.TrimPrefix(name, prefix), fileSuffix)
+			if n, err := strconv.Atoi(seqStr); err == nil {
+				used[n] = true
+			}
 		}
 	}
 	for n := 1; n <= maxSeq; n++ {

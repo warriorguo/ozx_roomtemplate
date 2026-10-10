@@ -564,6 +564,14 @@ and sync never remaps, so it stays data-space in the file too.
 
 Renaming files by hand does not stick: `Create`/`Update` re-derive the name.
 
+**The `<NN>` sequence is unique across category folders** (ORT-144), not just
+within one. OZX resolves a pinned `templateId` by filename alone and takes the
+first match across every folder, so `basement/all_building_15_01` next to
+`normal/all_building_15_01` silently replaced chapter 2's pinned room
+(`basement` sorts first). `allocateBasename` therefore treats a number as taken
+if any folder uses it; `relocate` exempts the file it is moving, so a category
+move keeps its number when it can.
+
 ### Frontend State Management
 - **Zustand store** is the single source of truth for template data
 - All cell edits go through `setCellValue()` which triggers validation

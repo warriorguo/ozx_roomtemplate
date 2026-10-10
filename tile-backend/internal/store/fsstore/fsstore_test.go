@@ -119,6 +119,28 @@ func TestCreate_FillsGapsInSequence(t *testing.T) {
 	}
 }
 
+// ORT-144: OZX resolves a pinned templateId by filename across every folder,
+// so a sequence number used in normal/ is not free in basement/.
+func TestCreate_SequenceIsUniqueAcrossCategories(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	if _, err := s.Create(ctx, fixture("normal-room")); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	room := fixture("basement-room")
+	basement := "basement"
+	room.Payload.RoomCategory = &basement
+	if _, err := s.Create(ctx, room); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(s.RootDir(), "basement", "all_boss_9_01.json")); err == nil {
+		t.Error("basement room reused normal's all_boss_9_01")
+	}
+	if _, err := os.Stat(filepath.Join(s.RootDir(), "basement", "all_boss_9_02.json")); err != nil {
+		t.Errorf("expected basement/all_boss_9_02.json: %v", err)
+	}
+}
+
 func TestCreateGet_RoundTripsDoorOverrides(t *testing.T) {
 	s := newTestStore(t)
 	ctx := context.Background()
