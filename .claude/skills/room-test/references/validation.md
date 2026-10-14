@@ -314,7 +314,7 @@ stageRanges = {
     "pressure":  { dps: (8,12),  chaser: (16,20), zoner: (4,10), mobAir: (12,24)},
     "peak":      { dps: (8,12),  chaser: (16,20), zoner: (4,6),  mobAir: (24,36)},
     "release":   { dps: (2,4),   chaser: (4,4),   zoner: (2,2),  mobAir: (12,12)},
-    "boss":      { dps: (0,0),  chaser: (0,0),  zoner: (0,0),  mobAir: (0,0) },
+    "boss":      { dps: (12,16), chaser: (14,18), zoner: (4,6),  mobAir: (16,20)},  # ORT-129
     "story":     { dps: (0,0),  chaser: (0,0),  zoner: (0,0),  mobAir: (0,0) },  # ORT-140: no enemies by design
 }
 ```
@@ -348,7 +348,7 @@ stageStaticBlocks = {
     "pressure": (2,4),
     "peak":     (2,4),
     "release":  (4,9),
-    "boss":     (0,0),   # 6x6 clear center arena
+    "boss":     (3,4),   # ORT-129: follows the shipped boss room, dispersed to the perimeter
     "story":    (2,3),   # props/interactables need static cells; dispersed, centre left clear
 }
 ```
@@ -596,20 +596,12 @@ for door, (dx, dy) in door_centers.items():
 
 ---
 
-## 7. Boss Room Center Clear Zone
+## 7. Boss Room Center Clear Zone — removed (ORT-129)
 
-When `stageType == "boss"`, the center 6×6 area must have `static == 0` for all cells.
-
-Center 6×6 for 20×12 grid:
-- x: 7 to 12 (inclusive)
-- y: 3 to 8 (inclusive)
-
-```python
-if stageType == "boss":
-    for y in range(3, 9):
-        for x in range(7, 13):
-            assert static[y][x] == 0, f"static at ({x},{y}) in boss center zone"
-```
+There is no boss arena any more. The 6×6 clear centre needed a room at least 14
+high, so no boss room could generate at the 16×10 default; the shipped boss room
+(`all_boss_15_01`) is 16×10 with full spawn layers, and the boss stage now follows
+it. Validate a boss room like any enemy-fielding stage (section 5, ORT-128).
 
 ---
 
@@ -740,7 +732,7 @@ def validate(payload, expected_stage=None):
         'pressure': {'dps':(8,12),'chaser':(8,10),'zoner':(2,2),'mobAir':(6,12)},
         'peak':     {'dps':(8,12),'chaser':(8,10),'zoner':(2,3),'mobAir':(12,18)},
         'release':  {'dps':(2,4),'chaser':(2,2),'zoner':(1,1),'mobAir':(6,6)},
-        'boss':     {'dps':(0,0),'chaser':(0,0),'zoner':(0,0),'mobAir':(0,0)},
+        'boss':     {'dps':(12,16),'chaser':(14,18),'zoner':(4,6),'mobAir':(16,20)},
     }
     st = expected_stage or (payload.get('stageType') or '')
     if st and st in stage_ranges:
@@ -777,13 +769,6 @@ def validate(payload, expected_stage=None):
                 for x in range(w):
                     if layer[y][x]==1 and abs(x-dx)+abs(y-dy) <= 2:
                         failures.append(f"{lname} at ({x},{y}) within radius 2 of {dname} door")
-
-    # 7. Boss center clear
-    if st == 'boss':
-        for y in range(3, 9):
-            for x in range(7, 13):
-                if payload['static'][y][x] == 1:
-                    failures.append(f"static at ({x},{y}) in boss 6x6 center zone")
 
     # Warnings
     bridge_count = sum(bridge[y][x] for y in range(h) for x in range(w))

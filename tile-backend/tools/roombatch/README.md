@@ -16,9 +16,10 @@ python3 tools/roombatch/batch.py --size 28x10 --category test --save
 `batch.py` tops up every `stage x doors` category that holds fewer than
 `--target` templates, regenerating until a room passes the HARD rules or
 `--attempts` runs out (then it keeps the least-bad attempt and says so).
-`start` and `boss` are skipped — they field no enemies, so there is nothing to
-judge. Rooms are written through `POST /templates`, so `fsstore` derives the
-filename and the door rotation exactly as the editor would.
+`start` and `story` are skipped — they field no enemies, so there is nothing to
+judge (`boss` was skipped too until ORT-129 gave it spawn layers). Rooms are
+written through `POST /templates`, so `fsstore` derives the filename and the
+door rotation exactly as the editor would.
 
 ## HARD rules — a room that trips one is thrown away and regenerated
 
@@ -106,6 +107,22 @@ taught three things about reviewing dense rooms:
   9-cell spine), and a file of 5–7 chaser/dps along one column (26 of 64). The one
   rejection that survived was a room with **8** spawns in a single column — more
   than any shipped room (max 7).
+
+## Boss rooms (ORT-129)
+
+Boss is judged like any enemy-fielding stage now. Two things from the first
+batch of one-door boss rooms:
+
+- **The half-density rule caught a generator bug, not a style.** 60% of boss
+  rooms failed it, all lopsided toward the visual left: a one-door room had an
+  empty main path, so enemy placement had nothing to rank cells by and fell back
+  to scan order. The fix was in `ComputeMainPath` (door to the opposite wall),
+  which took the pass rate from 36% to 73% — not a laxer threshold.
+- **Pits and air mobs over void are house style.** 56 shipped door sides have
+  void within 3 cells of the doorway and 18 of 64 shipped rooms put mobAir over
+  void, so neither is a reason to reject. What did disqualify boss candidates was
+  floor broken into lanes or a corridor: the only shipped boss room is a solid
+  floor, and the boss needs room to move.
 
 ## Layout diversity (`--diverse`, ORT-132)
 

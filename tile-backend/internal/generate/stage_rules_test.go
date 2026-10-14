@@ -39,7 +39,8 @@ func TestStageRangeConfig(t *testing.T) {
 		{"pressure", 8, 12, 16, 20, 4, 10, 12, 24},
 		{"peak", 8, 12, 16, 20, 4, 6, 24, 36},
 		{"release", 2, 4, 4, 4, 2, 2, 12, 12},
-		{"boss", 0, 0, 0, 0, 0, 0, 0, 0},
+		// ORT-129: boss follows the shipped all_boss_15_01.
+		{"boss", 12, 16, 14, 18, 4, 6, 16, 20},
 	}
 
 	for _, tt := range tests {
@@ -75,7 +76,7 @@ func TestStageStaticRangeConfig(t *testing.T) {
 		{"pressure", [2]int{2, 4}},
 		{"peak", [2]int{2, 4}},
 		{"release", [2]int{4, 9}},
-		{"boss", [2]int{0, 0}},
+		{"boss", [2]int{3, 4}},
 	}
 
 	for _, tt := range tests {

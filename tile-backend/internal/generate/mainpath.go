@@ -52,13 +52,26 @@ func ComputeMainPath(ground, bridge [][]int, doorPositions map[DoorPosition]Poin
 		doors = append(doors, doorAnchor{side: side, pos: anchor})
 	}
 
-	if len(doors) < 2 {
-		debug.Misses = append(debug.Misses, "fewer than 2 doors, no main path")
+	if len(doors) == 0 {
+		debug.Misses = append(debug.Misses, "no doors, no main path")
 		return emptyMainPathData(width, height), debug, nil
 	}
 
 	// Find center of room
 	centerX, centerY := width/2, height/2
+
+	// A one-door room has no pair to connect, so its path runs from the
+	// doorway through the centre to the opposite wall - the room the player
+	// walks into (ORT-129). An empty path left every cell at distance 0 with
+	// squishy score 0, so enemy placement had nothing to rank by and its
+	// stable sort fell back to scan order: spawns piled onto the low-y half
+	// (the visual left), and 60% of one-door boss rooms failed the
+	// half-density rule. Stopping at the centre was not enough either: the
+	// far half then lay beyond chaser/dps range of the path and came out bare.
+	if len(doors) == 1 {
+		d := doors[0].pos
+		doors = append(doors, doorAnchor{side: "opposite wall", pos: Point{X: width - 1 - d.X, Y: height - 1 - d.Y}})
+	}
 
 	// Compute main path: for each pair of doors, find path biased toward center
 	onMainPath := make([][]bool, height)

@@ -109,7 +109,7 @@ def plan(target, stages):
         g[(it.get('stage_type') or '', it.get('open_doors') or 0)].append(it)
     out = []
     for (stage, mask), lst in g.items():
-        if not stage or stage in ('start', 'boss'):   # no enemies to judge
+        if not stage or stage in ('start', 'story'):   # no enemies to judge
             continue
         if stages and stage not in stages:
             continue

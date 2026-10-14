@@ -142,9 +142,10 @@ def analyse(r):
     # vanish from the room - EncounterActionExecutor.PlaceDirect skips the whole
     # launch when its layer is empty. Fewer cells than enemies degrades
     # gracefully; zero does not.
-    # start, boss and story field no enemies by design, so an empty layer is the
-    # product, not a defect (ORT-140). For every other stage it is a defect.
-    ZERO_ENEMY_STAGES=('start','boss','story')
+    # start and story field no enemies by design, so an empty layer is the
+    # product, not a defect (ORT-140). For every other stage it is a defect -
+    # boss included since ORT-129, which aligned it with the shipped boss room.
+    ZERO_ENEMY_STAGES=('start','story')
     if p.get('stageType') not in ZERO_ENEMY_STAGES:
         empty=[k for k in ('chaser','zoner','dps','mobAir')
                if not v.get(k) or not any(any(r) for r in v[k])]

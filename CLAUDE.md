@@ -247,7 +247,9 @@ mirrors of each other and must stay in sync.
 - Pressure: DPS (8-12) + Chaser (16-20) + Zoner (4-10) + MobAir (12-24), not bridge
 - Peak: DPS (8-12) + Chaser (16-20) + Zoner (4-6) + MobAir (24-36), full only
 - Release: light mix — DPS (2-4) + Chaser (4) + Zoner (2) + MobAir (12)
-- Boss: requires 6×6 clear center area, restricted door configs
+- Boss: DPS (12-16) + Chaser (14-18) + Zoner (4-6) + MobAir (16-20), static
+  3–4 blocks dispersed to the perimeter, not bridge — see "boss follows the
+  shipped boss room" below (ORT-129)
 - Story: **no enemies at all** — all four spawn layers come back empty, by design
   (ORT-140). static 2–3 2×2 blocks, dispersed to the perimeter, and **softEdge is
   forced empty** whatever `softEdgeCount` asks for
@@ -282,9 +284,10 @@ smaller size the shortfall warning is the expected outcome, not a bug.
 **A story room fields no enemies** (`model.StageStory`, ORT-140): ch1/ch2 are
 hand-built teaching floors, and a story room exists to move the plot — ozx_base
 spawns from the layers, so all four of chaser/zoner/dps/mobAir must come back
-**empty**. That makes it the third zero-enemy stage after start and boss, and the
-reason ORT-128's "every spawn layer needs a cell" rule is scoped to the stages
-that field enemies; for these three an empty layer is the product.
+**empty**. That makes it the second zero-enemy stage after start (boss was one
+too until ORT-129), and the reason ORT-128's "every spawn layer needs a cell"
+rule is scoped to the stages that field enemies; for these an empty layer is the
+product.
 
 Two things it does need. **static 2–3 blocks**, because story props,
 interactables and keys are placed through ozx_base's `staticPlacements`, which
@@ -307,7 +310,7 @@ request's `staticCount` in all three generators. teaching/building/release take
 **4–9** 2×2 blocks (the floor went 2→4 in the 2026-09-14 review: a release room
 with two blocks in it read as unfurnished); **pressure and peak take 2–4** (play-test review,
 2026-09-14 — they field the heaviest waves, so the floor space is worth more to
-the enemies than to the cover); start/boss place none. An empty stage type still
+the enemies than to the cover); boss takes 3–4 (ORT-129); start places none. An empty stage type still
 honours the request value verbatim.
 
 ORT-100's per-stage split (teaching/building/release 6–9, pressure/peak 2–3) is
@@ -407,10 +410,10 @@ at least one ORT-110 warning): fullroom teaching 62 vs. 77, building 29 vs. 75,
 pressure 1 vs. 205, peak 241 vs. 500, release 31 vs. 71 — 16×10 is a strict
 improvement everywhere. Bridge and platform still fall short on `static` in
 ~90%+ of rooms at both sizes (a corridor room has nowhere to put 6–9 2×2
-blocks), and boss cannot generate at either size at all: it needs a 6×6 area
-more than 3 cells from every edge, which needs height ≥ 14. Those are ORT-108's
-count ranges meeting small rooms, not a regression from the size change — pass
-explicit dimensions for boss and for dense bridge/platform rooms.
+blocks). Those are ORT-108's count ranges meeting small rooms, not a
+regression from the size change — pass explicit dimensions for dense
+bridge/platform rooms. (Boss could not generate at either size until ORT-129
+dropped its 6×6 arena, which needed height ≥ 14.)
 
 **Basement is a category, not a rule set** (ORT-141/142): `roomCategory` only
 picks the folder OZX files a room under; the generators stamp it onto the
@@ -442,6 +445,18 @@ approach doubled zoner at 28×10; the size stayed at 16×10 by choice. The batch
 kept rooms that beat normal on both counts (static ≥ 10 and zoner ≥ 3 for
 teaching/building/release, static ≥ 5 and zoner ≥ 4 for pressure/peak).
 
+**Boss follows the shipped boss room** (ORT-129). Boss used to be an empty
+6×6 arena (`BossArena`) with at most two doors (corner pair or one). Neither fit
+what ships: `normal/all_boss_15_01` is 16×10 with four doors and full spawn
+layers — measured in spawns, static 4 blocks, zoner 5, chaser 14, dps 14,
+mobAir 16 — because ozx_base spawns the boss's adds from those layers. The arena
+needed height ≥ 14, so every boss request at the default size failed and the
+whole ch3–ch6 boss pool was that one hand-made room. Boss now draws counts around
+those measurements, disperses its cover to the perimeter (`StaticDisperse`),
+accepts any door set, and `BossArena`, `findBossArena` and the `bossArena` field
+of `/stage-configs` are gone. Do not reintroduce an arena: it cannot exist at the
+size the camera is framed for.
+
 **Placement shortfalls are reported** (`PlacementShortfall`, ORT-110): placement
 is best-effort — the strict pass keeps the 8-directional spacing constraint and
 stops when a room runs out of legal sites, and mobAir has no relaxed fallback at
@@ -471,8 +486,17 @@ so an untraversable room was returned as a success; worse, `findCenterBiasedPath
 snaps an unwalkable endpoint to the nearest walkable cell, so the room came back
 with a plausible-looking path between two interior cells that never crossed a
 doorway. Doors are visited in a fixed order (`doorOrder`) rather than by map
-iteration, so pairing and error text are deterministic. A single-door room is
-still legal and yields an empty main path.
+iteration, so pairing and error text are deterministic.
+
+**A single-door room's path crosses the room** (ORT-129): with no pair to
+connect, `ComputeMainPath` routes from the doorway to the mirror point on the
+opposite wall, through the centre. It used to return an empty path, which put
+every cell at distance 0 with squishy score 0 — enemy placement had nothing to
+rank by, its stable sort fell back to scan order, and spawns piled onto the low-y
+half (the visual left): 60% of one-door boss rooms failed roombatch's
+half-density rule. A path that stopped at the centre left the far half beyond
+chaser/dps range instead. Door to opposite wall took the hard-rule pass rate from
+36% to 73%. A room with no doors still gets an empty path.
 
 **Structure Validation**:
 - Dimensions: 4-200 for width/height

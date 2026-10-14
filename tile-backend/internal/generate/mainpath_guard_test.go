@@ -57,7 +57,8 @@ func TestComputeMainPathRejectsDisconnectedDoors(t *testing.T) {
 }
 
 // TestComputeMainPathSingleDoorIsNotAnError keeps one-door rooms working: there
-// is no pair to connect, so there is no main path and nothing to fail.
+// is no pair to connect, so the path runs from the doorway through the centre
+// to the opposite wall (ORT-129) rather than being empty.
 func TestComputeMainPathSingleDoorIsNotAnError(t *testing.T) {
 	const w, h = 12, 10
 	ground := createEmptyLayer(w, h)
@@ -75,6 +76,15 @@ func TestComputeMainPathSingleDoorIsNotAnError(t *testing.T) {
 	}
 	if data == nil {
 		t.Fatal("single-door room should still return main path data")
+	}
+	if !data.OnMainPath[h/2][w/2] {
+		t.Error("single-door main path should reach the room centre")
+	}
+	if !data.OnMainPath[doors[DoorLeft].Y][doors[DoorLeft].X] {
+		t.Error("single-door main path should start at the doorway")
+	}
+	if !data.OnMainPath[h-1-h/2][w-1] {
+		t.Error("single-door main path should reach the opposite wall")
 	}
 }
 

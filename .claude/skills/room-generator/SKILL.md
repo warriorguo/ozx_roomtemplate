@@ -22,7 +22,7 @@ All parameters have sensible defaults. Show them to the user and let them modify
 | `roomCategory` | string | `"normal"` | Room category: `"normal"`, `"basement"`, `"test"`, `"cave"`. Passed through to output. |
 | `softEdgeCount` | int | `3` | Number of soft edge strips to place in void notches |
 | `railEnabled` | bool | `true` | Whether to generate the rail network (rings + connectors + a spur to every door) |
-| `staticCount` | int | `8` | Number of 2x2 static obstacle blocks. **Ignored when `stageType` is set** — the stage supplies it: teaching/building/release 4–9, pressure/peak 2–4, start/boss 0. |
+| `staticCount` | int | `8` | Number of 2x2 static obstacle blocks. **Ignored when `stageType` is set** — the stage supplies it: teaching/building/release 4–9, pressure/peak 2–4, boss 3–4, start 0. |
 | `chaserCount` | int | `4` | Number of chaser placements (melee enemies near main path) |
 | `zonerCount` | int | `2` | Number of zoner placements (area control enemies). Counted in **spawns, not cells** — each zoner occupies a 2x2 block, so `zonerCount: 2` produces 8 cells. |
 | `dpsCount` | int | `4` | Number of DPS placements (ranged damage enemies) |
@@ -309,7 +309,7 @@ Counts are **spawns, not cells** (a zoner is a 2×2 block). `static` is counted 
 | pressure | 8-12 | 16-20 | 4-10 | 12-24 | 2-4 | Not bridge; less cover than the other stages |
 | peak | 8-12 | 16-20 | 4-6 | 24-36 | 2-4 | Full only; needs ~32×10 to place mobAir in full |
 | release | 2-4 | 4 | 2 | 12 | 4-9 | Minimal |
-| boss | 0 | 0 | 0 | 0 | 0 | 6x6 center clear, max 2 doors |
+| boss | 12-16 | 14-18 | 4-6 | 16-20 | 3-4 | Not bridge; any doors, generates at 16×10. Follows the shipped `all_boss_15_01` (ORT-129) — the old 6×6 arena / max-2-doors rule is gone |
 | story | 0 | 0 | 0 | 0 | 2-3 | **No enemies at all**, by design (ORT-140). softEdge forced empty whatever `softEdgeCount` says; static dispersed to the perimeter so the middle stays clear. For ch1/ch2 story rooms |
 
 Ranges were recalibrated in ORT-123/124/125 against the hand-authored rooms in

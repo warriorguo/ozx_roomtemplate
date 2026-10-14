@@ -214,6 +214,6 @@ Forbidden zone for entities: Manhattan distance ≤ 2 from door center.
 - **Bridge with 1 door**: expect 400 error — this is correct behavior, not a bug
 - **Peak stage on bridge**: stage rules prohibit this — if API returns error, that's correct
 - **Release stage**: minimal or no enemies expected — validate structure only
-- **Boss stage**: validate 6×6 center clear zone specifically
+- **Boss stage**: fields enemies like any other stage since ORT-129 — no arena check
 
 See `references/validation.md` for full rules.

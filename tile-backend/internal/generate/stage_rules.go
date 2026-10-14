@@ -16,7 +16,6 @@ type StageConfig struct {
 	DPSRange         [2]int
 	MobAirRange      [2]int
 	StaticRange      [2]int // [min, max] 2x2 blocks; [0,0] places none (start/boss)
-	BossArena        bool   // requires 6x6 clear center area
 	PlacementRule    string // placement rule identifier
 }
 
@@ -116,14 +115,7 @@ type StageValidationResult struct {
 	DPSCount       int
 	MobAirCount    int
 	StaticCount    int
-	BossArena      *BossArenaInfo
 	PlacementHints *StagePlacementHints
-}
-
-// BossArenaInfo describes the boss arena location
-type BossArenaInfo struct {
-	X, Y          int
-	Width, Height int
 }
 
 // StageConfigJSON is the JSON-friendly version for the frontend API
@@ -134,7 +126,6 @@ type StageConfigJSON struct {
 	ZonerRange       [2]int   `json:"zonerRange"`
 	DPSRange         [2]int   `json:"dpsRange"`
 	MobAirRange      [2]int   `json:"mobAirRange"`
-	BossArena        bool     `json:"bossArena"`
 }
 
 var stageConfigs = map[string]StageConfig{
@@ -224,16 +215,20 @@ var stageConfigs = map[string]StageConfig{
 		StaticRange:   [2]int{4, 9},
 		PlacementRule: "teaching", // same as teaching
 	},
+	// Boss was an empty 6x6 arena with at most two doors, which a 16x10 room
+	// cannot hold (it needs height >= 14), so no boss room was ever generated
+	// from it. The one that ships, normal/all_boss_15_01, is 16x10 with four
+	// doors and full spawn layers - measured in spawns: static 4 blocks,
+	// zoner 5, chaser 14, dps 14, mobAir 16. ozx_base spawns the boss's
+	// adds from those layers, so the config follows the shipped room (ORT-129).
 	model.StageBoss: {
 		StageType:        model.StageBoss,
 		AllowedRoomTypes: []string{"full", "platform"}, // not bridge
-		DoorRestrictions: &DoorRestriction{OnlyCornerPair: true, MaxDoors: 2},
-		DPSRange:         [2]int{0, 0},
-		ChaserRange:      [2]int{0, 0},
-		ZonerRange:       [2]int{0, 0},
-		MobAirRange:      [2]int{0, 0},
-		StaticRange:      [2]int{0, 0},
-		BossArena:        true,
+		DPSRange:         [2]int{12, 16},
+		ChaserRange:      [2]int{14, 18},
+		ZonerRange:       [2]int{4, 6},
+		MobAirRange:      [2]int{16, 20},
+		StaticRange:      [2]int{3, 4},
 		PlacementRule:    "boss",
 	},
 	// A story room fields no enemies at all — their absence is the whole point
@@ -292,7 +287,6 @@ func GetAllStageConfigs() []StageConfigJSON {
 			ZonerRange:       cfg.ZonerRange,
 			DPSRange:         cfg.DPSRange,
 			MobAirRange:      cfg.MobAirRange,
-			BossArena:        cfg.BossArena,
 		})
 	}
 	return result
@@ -374,15 +368,6 @@ func ValidateAndApplyStageScaled(stageType, roomType string, doors []DoorPositio
 
 	// Build placement hints based on stage
 	result.PlacementHints = buildPlacementHints(cfg, chaserCount, zonerCount, dpsCount, mobAirCount, width, height)
-
-	// Boss arena check
-	if cfg.BossArena {
-		arena := findBossArena(ground, width, height)
-		if arena == nil {
-			return nil, fmt.Errorf("stage %s requires a 6x6 clear area in center (distance > 3 from edges), not found", stageType)
-		}
-		result.BossArena = arena
-	}
 
 	return result, nil
 }
@@ -482,7 +467,9 @@ func buildPlacementHints(cfg *StageConfig, chaserCount, zonerCount, dpsCount, mo
 		}
 
 	case "boss":
-		// No enemies, boss arena only
+		// Cover on the perimeter, the middle open for the fight - the shipped
+		// boss room keeps its four blocks in the corners.
+		hints.StaticDisperse = true
 
 	case "start":
 		// No enemies, starting room
@@ -569,39 +556,6 @@ func isCornerDoorPair(doors []DoorPosition) bool {
 		}
 	}
 	return false
-}
-
-// findBossArena finds a 6x6 clear area in the center of the room
-func findBossArena(ground [][]int, width, height int) *BossArenaInfo {
-	const arenaSize = 6
-	const minEdgeDist = 3
-
-	centerX, centerY := width/2, height/2
-	bestDist := width + height
-	var best *BossArenaInfo
-
-	for y := minEdgeDist; y+arenaSize <= height-minEdgeDist; y++ {
-		for x := minEdgeDist; x+arenaSize <= width-minEdgeDist; x++ {
-			allGround := true
-			for dy := 0; dy < arenaSize && allGround; dy++ {
-				for dx := 0; dx < arenaSize && allGround; dx++ {
-					if ground[y+dy][x+dx] != 1 {
-						allGround = false
-					}
-				}
-			}
-			if allGround {
-				midX := x + arenaSize/2
-				midY := y + arenaSize/2
-				dist := abs(midX-centerX) + abs(midY-centerY)
-				if dist < bestDist {
-					bestDist = dist
-					best = &BossArenaInfo{X: x, Y: y, Width: arenaSize, Height: arenaSize}
-				}
-			}
-		}
-	}
-	return best
 }
 
 // randRange returns a random int in [min, max] inclusive

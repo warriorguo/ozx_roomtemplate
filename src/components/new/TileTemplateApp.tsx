@@ -299,7 +299,7 @@ export const TileTemplateApp: React.FC = () => {
     pressure: { chaser: [16, 20], zoner: [4, 10], dps: [8, 12], mobAir: [12, 24] },
     peak:     { chaser: [16, 20], zoner: [4, 6], dps: [8, 12], mobAir: [24, 36] },
     release:  { chaser: [4, 4], zoner: [2, 2], dps: [2, 4], mobAir: [12, 12] },
-    boss:     { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
+    boss:     { chaser: [14, 18], zoner: [4, 6], dps: [12, 16], mobAir: [16, 20] },
     // A story room fields no enemies at all, by design (ORT-140).
     story:    { chaser: [0, 0], zoner: [0, 0], dps: [0, 0], mobAir: [0, 0] },
   };

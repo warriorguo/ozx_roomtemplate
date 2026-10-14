@@ -173,16 +173,22 @@ MobAir 早于第 2 组的 Chaser/DPS 落子，后者直接压在它上面。现�
 
 #### Boss 期 (boss)
 - **房间限制**：不能是 bridge
-- **门限制**：只能是对角 2 门组合或 1 门
-- **场地要求**：中间必须存在 6×6 空地，距离边缘 > 3
-- 无敌人（由 Boss 机制决定）
+- **门限制**：无（ORT-129 前只允许对角 2 门或 1 门）
+- DPS：12-16
+- Chaser：14-18
+- Zoner：4-6
+- MobAir：16-20
+- Static：3-4 块，分散到四周（StaticDisperse）
+
+ORT-129 起 boss 对齐出货的 `normal/all_boss_15_01`（16×10、四门、刷怪层满，实测
+static 4 / zoner 5 / chaser 14 / dps 14 / mobAir 16 spawn）。原先的「中间 6×6 空地、
+距离边缘 > 3」要求房间高 ≥ 14，默认 16×10 永远生成失败，已删除。
 
 ### 阶段验证流程
 
 1. 检查 roomType 是否在 allowedRoomTypes 中
 2. 检查门配置是否满足 DoorRestrictions
 3. 随机生成范围内的敌人数量
-4. Boss 阶段额外检查 6×6 空地
 
 **房间尺寸不再受限**（ORT-109）：ORT-102 曾为 pressure/peak 设置最小房间尺寸并直接
 拒绝过小的房间。ORT-108 改为下调这两个阶段的敌人数量，因此该限制已整体移除——任意
