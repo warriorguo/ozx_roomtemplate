@@ -195,7 +195,10 @@ var stageConfigs = map[string]StageConfig{
 	model.StagePeak: {
 		StageType:        model.StagePeak,
 		AllowedRoomTypes: []string{"full"}, // only full
-		DoorRestrictions: &DoorRestriction{ForbidCornerPair: true},
+		// Peak used to forbid corner door pairs (ORT-1, no reason recorded).
+		// ozx_base's vertical-trunk generator asks for peak TL/TR rooms every
+		// run (0.55-0.60 per run in chapter_3, ORT-127), and they could only be
+		// served by a 4-door room with two doorways walled up.
 		// Counts were cut back in ORT-108 (dps 12-24 -> 8-12, chaser 12-16 ->
 		// 8-10, zoner 4-6 -> 2-3, mobAir 18 -> 12-18) so peak stops engaging the
 		// relaxed fallback in small rooms.

@@ -245,7 +245,9 @@ mirrors of each other and must stay in sync.
 - Teaching: DPS (4-6) + Chaser (4-12) + Zoner (2-4) + MobAir (12)
 - Building: DPS (6-9) + Chaser (12-20) + Zoner (2-4) + MobAir (12-18)
 - Pressure: DPS (8-12) + Chaser (16-20) + Zoner (4-10) + MobAir (12-24), not bridge
-- Peak: DPS (8-12) + Chaser (16-20) + Zoner (4-6) + MobAir (24-36), full only
+- Peak: DPS (8-12) + Chaser (16-20) + Zoner (4-6) + MobAir (24-36), full only.
+  Corner door pairs are allowed since ORT-127: the ORT-1 ban had no recorded
+  reason, and ozx_base's vertical trunk asks for peak TL/TR rooms every run
 - Release: light mix — DPS (2-4) + Chaser (4) + Zoner (2) + MobAir (12)
 - Boss: DPS (12-16) + Chaser (14-18) + Zoner (4-6) + MobAir (16-20), static
   3–4 blocks dispersed to the perimeter, not bridge — see "boss follows the
@@ -369,9 +371,13 @@ never placed in the room's **visual bottom third** (`zonerEntryClearBand`, data
 x < width/3 — the canvas is rotated 90° CCW, so data x=0 is the bottom of the
 room as the player sees it). The player fires automatically, so walking through
 a doorway into a stationary area-denial spawn reads as unfair. `GenerateZonerLayer`
-also takes the **chaser layer**: zoner normally precedes chaser in the pipeline,
-but under fullroom's grouped placement (pressure/peak) group 2's zoner would
-otherwise land on group 1's chaser.
+also takes an **occupied layer** — the union of the chaser and dps layers placed
+so far: zoner normally precedes both in the pipeline, but under fullroom's
+grouped placement (pressure/peak) group 2's zoner would otherwise land on group
+1's spawns. It used to take only the chaser layer, so group 2's zoner still
+landed on group 1's dps — 131 of 2400 pressure/peak rooms in the ORT-127 batch,
+every one rejected by the frontend validator. roombatch's judge now fails any
+zoner/chaser/dps/static overlap.
 
 **No stage constrains room size** (ORT-109): ORT-102 gave pressure an 18×10
 minimum and peak a 20×12 one, rejecting smaller rooms up front — an undersized

@@ -124,6 +124,24 @@ batch of one-door boss rooms:
   floor broken into lanes or a corridor: the only shipped boss room is a solid
   floor, and the boss needs room to move.
 
+## Door-mask coverage (ORT-127)
+
+- **No entity overlap.** `judge.py` fails a room where zoner shares a cell with
+  chaser, dps or static, or chaser/dps with static — the frontend validator
+  rejects all of them. Grouped placement let group 2's zoner land on group 1's
+  dps in 5% of pressure/peak rooms; the generator is fixed, the rule keeps it
+  fixed.
+- **Corridors are a defect.** The rooms rejected by eye in this batch were
+  overwhelmingly the same shape: voids running down both sides, leaving a 4-wide
+  lane, usually with zoner placed at a third of its target. Not yet a hard rule.
+- **Check ozx_base's oil-tank rule before saving.**
+  `OilTankEntryDoorExclusionTests.OnTheShippedLibrary_OnlyOneRoomLosesItsLastLegalBlockToTheDoorRule`
+  fails when a new room has no 2×2 static block at least 6 units from one of its
+  doors (an oil tank would have nowhere to go on that approach). Two rooms in
+  the first ORT-127 selection tripped it and were replaced; 58 of 369 passing
+  building `TRL` candidates would have. Run the ozx_base dotnet tests after adding
+  templates — they are the game's own acceptance test for the library.
+
 ## Layout diversity (`--diverse`, ORT-132)
 
 Rooms sharing a `(stageType, openDoors)` family share the candidate pool the

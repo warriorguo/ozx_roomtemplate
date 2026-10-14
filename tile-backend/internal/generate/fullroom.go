@@ -292,7 +292,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 			regionFilter := &RegionFilter{MinY: minY, MaxY: maxY, MinX: minX, MaxX: maxX}
 
 			if group.ZonerCount > 0 {
-				GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, group.ZonerCount, regionFilter)
+				GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, unionLayers(chaserLayer, dpsLayer), doorPositions, mainPathData, req.Width, req.Height, group.ZonerCount, regionFilter)
 			}
 			if group.ChaserCount > 0 {
 				GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, group.ChaserCount, regionFilter)
@@ -328,7 +328,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 		// count places fewer and reports the shortfall.
 		// Zoner is counted in spawns, not cells — a 2x2 block is one enemy (ORT-103).
 		if remaining := req.ZonerCount - countZonerUnits(zonerLayer); remaining > 0 {
-			GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
+			GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, unionLayers(chaserLayer, dpsLayer), doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
 		}
 		if remaining := req.ChaserCount - countCells(chaserLayer); remaining > 0 {
 			GenerateChaserLayer(chaserLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, zonerLayer, doorPositions, mainPathData, req.Width, req.Height, remaining, nil)
@@ -363,7 +363,7 @@ func GenerateFullRoom(req FullRoomGenerateRequest) (*FullRoomGenerateResponse, e
 				cx, cy := req.Width/2, req.Height/2
 				zonerFilter = &RegionFilter{MinY: cy - 3, MaxY: cy + 3, MinX: cx - 3, MaxX: cx + 3}
 			}
-			zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, chaserLayer, doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount, zonerFilter)
+			zonerDebug := GenerateZonerLayer(zonerLayer, ground, softEdgeLayer, bridgeLayer, railLayer, staticLayer, unionLayers(chaserLayer, dpsLayer), doorPositions, mainPathData, req.Width, req.Height, req.ZonerCount, zonerFilter)
 			debugInfo.Zoner = zonerDebug
 		} else {
 			debugInfo.Zoner = &EnemyLayerDebugInfo{Skipped: true, SkipReason: "zonerCount is 0 or not specified"}

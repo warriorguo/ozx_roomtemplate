@@ -24,11 +24,13 @@ import (
 // cells exactly one spawn, the spacing ORT-93 needs. ORT-103's single-cell
 // fallback is gone (play-test feedback, 2026-09-14): a room with no 2x2 site
 // left now under-places and reports a shortfall.
-// chaserLayer may be nil. It is only populated when an earlier placement group
-// has already run (fullroom's grouped path): zoner normally precedes chaser in
-// the pipeline, but with grouping, group 2's zoner would otherwise be free to
-// land on group 1's chaser.
-func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer, chaserLayer [][]int,
+// occupied may be nil. It holds the ground enemies an earlier placement group
+// has already put down (fullroom's grouped path, chaser and dps together):
+// zoner normally precedes both in the pipeline, but with grouping, group 2's
+// zoner would otherwise be free to land on group 1's spawns. It used to carry
+// only the chaser layer, so group 2's zoner still landed on group 1's dps -
+// 131 of 2400 pressure/peak rooms in the ORT-127 batch.
+func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer, occupied [][]int,
 	doorPositions map[DoorPosition]Point, mainPath *MainPathData, width, height, targetCount int, regionFilter ...*RegionFilter) *EnemyLayerDebugInfo {
 
 	debug := &EnemyLayerDebugInfo{
@@ -58,8 +60,8 @@ func GenerateZonerLayer(zonerLayer, ground, softEdge, bridge, rail, staticLayer,
 				if x < minX {
 					continue
 				}
-				// Never share a cell with a chaser placed by an earlier group.
-				if chaserLayer != nil && chaserLayer[y][x] != 0 {
+				// Never share a cell with an enemy placed by an earlier group.
+				if occupied != nil && occupied[y][x] != 0 {
 					continue
 				}
 				pos := Point{x, y}
@@ -263,4 +265,20 @@ func lineHasStatic(from, to Point, staticLayer [][]int, width, height int) bool 
 	}
 
 	return false
+}
+
+// unionLayers returns a new layer set wherever any of the inputs is set.
+func unionLayers(layers ...[][]int) [][]int {
+	out := make([][]int, len(layers[0]))
+	for y := range out {
+		out[y] = make([]int, len(layers[0][y]))
+		for _, l := range layers {
+			for x, v := range l[y] {
+				if v != 0 {
+					out[y][x] = 1
+				}
+			}
+		}
+	}
+	return out
 }

@@ -155,6 +155,14 @@ def analyse(r):
                  if v.get(k) and any(any(r) for r in v[k])]
         if nonzero:
             fails.append(f"{p.get('stageType')} room must field no enemies, has {nonzero}")
+    # Zoner never shares a cell with a chaser, a dps or static, and neither do
+    # chaser/dps with static - the frontend validator rejects all of them.
+    # Grouped placement once let group 2's zoner land on group 1's dps
+    # (ORT-127); this catches it if it comes back.
+    for a_,b_ in (('zoner','chaser'),('zoner','dps'),('zoner','static'),('chaser','static'),('dps','static')):
+        if v.get(a_) and v.get(b_):
+            hit=[(y,x) for y in range(h) for x in range(w) if v[a_][y][x] and v[b_][y][x]]
+            if hit: fails.append(f"{a_} shares {len(hit)} cell(s) with {b_}")
     # An open wall must not present a one-cell slit: every walkable run along it
     # is at least 2 cells, and at least one run exists. That is all this repo can
     # honestly check - for a fullroom the whole wall line is walkable and *where*

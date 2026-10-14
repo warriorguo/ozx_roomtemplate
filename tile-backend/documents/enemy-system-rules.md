@@ -159,11 +159,11 @@ MobAir 早于第 2 组的 Chaser/DPS 落子，后者直接压在它上面。现�
 
 #### 峰值期 (peak)
 - **房间限制**：只能是 full
-- **门限制**：不能是 2 开门的对角组合（左上/左下/右上/右下）
+- **门限制**：无（ORT-127 前禁止 2 开门的对角组合；ozx_base 竖向主干每局都要 peak 的 TL/TR 拐角房）
 - DPS：8-12
-- Chaser：8-10
-- Zoner：2-3
-- MobAir：12-18
+- Chaser：16-20
+- Zoner：4-6
+- MobAir：24-36
 
 #### 释放期 (release)
 - DPS：2-4
