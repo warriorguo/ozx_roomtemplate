@@ -480,9 +480,23 @@ its 4 neighbours is reachable — so a corner erase or center pit could seal the
 doorway, and two erases on the same wall could remove that wall's whole edge
 line. `ensureGroundConnectivity` does not repair it (a void door cell is not an
 island). All three generators therefore call `ensureDoorsWalkable` once their
-ground layer is final: it re-opens each door anchor and reruns the connectivity
-repair. **Post-condition: every requested door is walkable and reachable from
-every other door**, so anything downstream may assume it.
+ground layer is final: it re-opens each door mouth and reruns the connectivity
+repair. **Post-condition: every requested door's mouth is ground and reachable
+from every other door**, so anything downstream may assume it.
+
+**The door is a 2-cell mouth, not an anchor cell** (ORT-149). The game opens a
+door as a 2-tile gap centred on the wall (`RoomInstanceView.DoorGapTiles`; the
+barrier leaves `[n/2-1, n/2+1)` open), and `getDoorCenterPositions` returns only
+one of those two cells. Re-opening the anchor alone left the other gap cell a
+pit in ~20% of fullroom rooms at 16×10, and three shipped: the player squeezed
+through a 1-wide slot. `doorMouthCells` is the gap span (2 cells on an even
+wall, the 3 it touches on an odd one) **2 cells deep** — every hand-authored
+room keeps its gap ground at least that far in. fullroom's carves keep off the
+mouths up front (`rectOverlapsDoorMouth`: a long corner brush is pulled back,
+a pit is skipped); `ensureDoorsWalkable` is the safety net for platform and
+bridge. Refilling a mouth after the cut was the first fix tried, and it bit an
+L-shaped notch out of the void — the cause of most "void region not a clean
+rectangle" rejections, which went from 193 to 0 per 1800 rooms.
 
 **MainPath is a hard requirement** (ORT-106): `ComputeMainPath` returns an
 `error` — a door with no walkable cell on its wall, or a door pair with no route
@@ -641,8 +655,9 @@ cuts holes in its floor, all in `fullroom.go`:
    that would come within `carveGap` (2) cells of an existing void. Every void
    region therefore stays its own clean rectangle: no L-shapes, no bands, and no
    1-cell ground necks between two holes (which is where the spur artefacts came
-   from). Residual non-rectangular voids come from `ensureDoorsWalkable` and
-   `ensureGroundConnectivity` filling cells back in afterwards.
+   from). Residual non-rectangular voids come from `ensureGroundConnectivity`
+   filling cells back in afterwards. Carves also keep off every door mouth
+   (ORT-149, see the door walkability invariant).
 3. **Per-stage carve probability** — `stageCarveChance` raises corner erase from
    0.40 to 0.85 and centre pits from 0.30 to 0.70 for teaching/building/release,
    which want an airier floor; pressure/peak keep the base rates because they

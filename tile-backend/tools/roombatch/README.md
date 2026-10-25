@@ -67,6 +67,16 @@ Three rules come from the rail chapter, all in `judge.py`:
   provenance: layers are always data-space, but `fsstore` rotates `doors` at the
   disk boundary (ORT-112/113). Pass `_doors_space='ozx'` for a payload read
   straight from a `.json`; the default assumes the API shape.
+- **the door mouth is ground** (ORT-149): the 2-cell door gap, 2 cells deep.
+  The game *does* say where the doorway is — `RoomInstanceView.DoorGapTiles = 2`,
+  and the barrier leaves `[n/2-1, n/2+1)` open, centred on the wall — so the
+  "not ours to know" above was wrong about position, though right that static
+  near a door is cover. Only `ground` is checked. The slit rule passed three
+  generated rooms whose wall was walkable except for half the gap, and they
+  shipped; every hand-authored room keeps the gap ground at least 2 deep
+  (547 of 586 shipped doors are 6+ deep). The generator now guarantees it
+  (fullroom's carves keep off the mouths, `ensureDoorsWalkable` re-opens any
+  that platform/bridge seal), so this rule is a regression guard.
 
 - **half-density gate lowered from 12 spawns to 10** — two rail rooms at 10 and
   11 spawns came out 9:1 and 8:3 and had to be redone by eye.
@@ -176,9 +186,13 @@ rejected for it. `judge.py` reports it as a soft note instead.
 Hard-rule pass rate at 16×10 with four doors, 25 rooms per stage: teaching
 12/25, building 12/25, pressure 22/25, peak 12/25, release 14/25 — so roughly
 2 attempts per accepted room, well inside the default `--attempts 20`. The
-dominant failures are non-rectangular voids (27) and ground spurs (21), both
+dominant failures were non-rectangular voids (27) and ground spurs (21), both
 left over from `ensureDoorsWalkable` and `ensureGroundConnectivity` filling
-cells back in after the carve.
+cells back in after the carve. ORT-149 moved the door-mouth guarantee into the
+carve itself, which removed nearly all of both: over 600 rooms each of
+teaching/5, building/15 and pressure/9, non-rectangular voids went 193 → 0 and
+spurs 206 → 24, and the 16×10 pass rate rose in every family measured (e.g.
+teaching/5 52% → 67%, building/15 44% → 71%).
 
 ## SOFT notes — reported, never a rejection
 

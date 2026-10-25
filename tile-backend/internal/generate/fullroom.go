@@ -516,6 +516,21 @@ func rectClearOfVoid(ground [][]int, x, y, w, h, width, height int) bool {
 	return true
 }
 
+// rectOverlapsDoorMouth reports whether a w x h rect at (x,y) covers any cell of
+// a requested door's mouth (ORT-149). Carves keep off the mouths rather than
+// letting ensureDoorsWalkable fill them back in afterwards: refilling bites a
+// notch out of the cut, which leaves an L-shaped or sliver void.
+func rectOverlapsDoorMouth(x, y, w, h, width, height int, doors []DoorPosition) bool {
+	for _, door := range doors {
+		for _, c := range doorMouthCells(door, width, height) {
+			if c.X >= x && c.X < x+w && c.Y >= y && c.Y < y+h {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // generateFullRoomCornerErase performs step 2: erase corners with 40% probability
 func generateFullRoomCornerErase(ground [][]int, width, height int, doors []DoorPosition, stageType string, debug *FullRoomGroundDebugInfo) {
 	cornerDebug := &CornerEraseDebugInfo{}
@@ -562,7 +577,22 @@ func generateFullRoomCornerErase(ground [][]int, width, height int, doors []Door
 
 	// Apply each corner erase
 	for _, corner := range selected.corners {
+		brushW, brushH := brushW, brushH
 		x, y := getCornerPosition(corner, width, height, brushW, brushH)
+
+		// A long brush can reach the middle of its wall, where the door is.
+		// Pull the long side back off the door mouth (ORT-149), never below
+		// minCornerBrush; a cut that still covers the mouth is skipped below.
+		for rectOverlapsDoorMouth(x, y, brushW, brushH, width, height, doors) {
+			if brushW >= brushH && brushW > minCornerBrush {
+				brushW--
+			} else if brushH > minCornerBrush {
+				brushH--
+			} else {
+				break
+			}
+			x, y = getCornerPosition(corner, width, height, brushW, brushH)
+		}
 
 		info := CornerEraseInfo{
 			Corner:   cornerIDToString(corner),
@@ -574,6 +604,12 @@ func generateFullRoomCornerErase(ground [][]int, width, height int, doors []Door
 		if !rectClearOfVoid(ground, x, y, brushW, brushH, width, height) {
 			info.RolledBack = true
 			info.Reason = "would merge with an existing void"
+			cornerDebug.Corners = append(cornerDebug.Corners, info)
+			continue
+		}
+		if rectOverlapsDoorMouth(x, y, brushW, brushH, width, height, doors) {
+			info.RolledBack = true
+			info.Reason = "would cut into a door mouth"
 			cornerDebug.Corners = append(cornerDebug.Corners, info)
 			continue
 		}
@@ -610,7 +646,7 @@ func generateFullRoomCornerErase(ground [][]int, width, height int, doors []Door
 			x2, y2 := getCornerPosition(corner, width, height, retryW, retryH)
 			eraseRect(ground, x2, y2, retryW, retryH, width, height)
 
-			if !areAllDoorsConnected(ground, width, height, doors) {
+			if !areAllDoorsConnected(ground, width, height, doors) || rectOverlapsDoorMouth(x2, y2, retryW, retryH, width, height, doors) {
 				// Rollback again and skip remaining corners
 				restoreLayer(ground, backup)
 				info.RolledBack = true
@@ -721,7 +757,10 @@ func generateFullRoomCenterPits(ground [][]int, width, height int, doors []DoorP
 			Position: fmt.Sprintf("(%d,%d)", pit1.x, pit1.y),
 			Size:     fmt.Sprintf("%dx%d", brushW, brushH),
 		}
-		if rectClearOfVoid(ground, pit1.x, pit1.y, brushW, brushH, width, height) {
+		if rectOverlapsDoorMouth(pit1.x, pit1.y, brushW, brushH, width, height, doors) {
+			info1.RolledBack = true
+			info1.Reason = "would cut into a door mouth"
+		} else if rectClearOfVoid(ground, pit1.x, pit1.y, brushW, brushH, width, height) {
 			eraseRect(ground, pit1.x, pit1.y, brushW, brushH, width, height)
 		} else {
 			info1.RolledBack = true
@@ -735,7 +774,10 @@ func generateFullRoomCenterPits(ground [][]int, width, height int, doors []DoorP
 				Position: fmt.Sprintf("(%d,%d)", pit2.x, pit2.y),
 				Size:     fmt.Sprintf("%dx%d", brushW, brushH),
 			}
-			if rectClearOfVoid(ground, pit2.x, pit2.y, brushW, brushH, width, height) {
+			if rectOverlapsDoorMouth(pit2.x, pit2.y, brushW, brushH, width, height, doors) {
+				info2.RolledBack = true
+				info2.Reason = "would cut into a door mouth"
+			} else if rectClearOfVoid(ground, pit2.x, pit2.y, brushW, brushH, width, height) {
 				eraseRect(ground, pit2.x, pit2.y, brushW, brushH, width, height)
 			} else {
 				info2.RolledBack = true

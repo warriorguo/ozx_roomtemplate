@@ -125,3 +125,86 @@ func reachableFromDoor(ground, bridge [][]int, from DoorPosition, w, h int) [][]
 	}
 	return visited
 }
+
+// TestDoorMouthFullyOpen verifies that every door's mouth — the game's 2-tile
+// door gap, doorMouthDepth cells deep — is walkable, for all three generators.
+//
+// Regression test for ORT-149: ensureDoorsWalkable re-opened only the anchor
+// cell, which is one of the two gap cells. A corner erase or centre pit that took
+// the other one shipped a door the player could only squeeze through 1 cell wide.
+func TestDoorMouthFullyOpen(t *testing.T) {
+	doorConfigs := [][]DoorPosition{
+		{DoorLeft, DoorRight},
+		{DoorTop, DoorBottom},
+		{DoorTop, DoorLeft},
+		{DoorBottom, DoorRight},
+		{DoorTop, DoorBottom, DoorLeft, DoorRight},
+		{DoorTop},
+	}
+	stageTypes := []string{"teaching", "building", "pressure", "peak", "release"}
+	sizes := [][2]int{{16, 10}, {16, 10}, {15, 9}, {20, 12}, {28, 10}}
+
+	for trial := 0; trial < 1500; trial++ {
+		doors := doorConfigs[trial%len(doorConfigs)]
+		size := sizes[trial%len(sizes)]
+		stage := stageTypes[trial%len(stageTypes)]
+		w, h := size[0], size[1]
+
+		var payload model.TemplatePayload
+		var name string
+		switch trial % 3 {
+		case 0:
+			name = "fullroom"
+			r, err := GenerateFullRoom(FullRoomGenerateRequest{Width: w, Height: h, Doors: doors, StageType: stage, SoftEdgeCount: 3})
+			if err != nil {
+				continue
+			}
+			payload = r.Payload
+		case 1:
+			name = "bridge"
+			r, err := GenerateBridgeRoom(BridgeGenerateRequest{Width: w, Height: h, Doors: doors})
+			if err != nil {
+				continue
+			}
+			payload = r.Payload
+		default:
+			name = "platform"
+			r, err := GeneratePlatformRoom(PlatformGenerateRequest{Width: w, Height: h, Doors: doors})
+			if err != nil {
+				continue
+			}
+			payload = r.Payload
+		}
+
+		for _, door := range doors {
+			for _, c := range doorMouthCells(door, w, h) {
+				if payload.Ground[c.Y][c.X] != 1 {
+					t.Fatalf("%s trial %d (size %dx%d, doors %v, stage %q): door %s mouth cell (%d,%d) is not ground",
+						name, trial, w, h, doors, stage, door, c.X, c.Y)
+				}
+			}
+		}
+	}
+}
+
+// TestDoorMouthCells pins the mouth to the game's door gap: the barrier leaves
+// [n/2-1, n/2+1) open on each wall (RoomInstanceView.DoorGapTiles = 2).
+func TestDoorMouthCells(t *testing.T) {
+	if got := doorGapSpan(10); len(got) != 2 || got[0] != 4 || got[1] != 5 {
+		t.Errorf("doorGapSpan(10) = %v, want [4 5]", got)
+	}
+	if got := doorGapSpan(9); len(got) != 3 || got[0] != 3 || got[2] != 5 {
+		t.Errorf("doorGapSpan(9) = %v, want [3 4 5]", got)
+	}
+	// 16x10: a data-left door (OZX bottom) sits on column 0, rows 4-5, two deep.
+	want := map[Point]bool{{0, 4}: true, {0, 5}: true, {1, 4}: true, {1, 5}: true}
+	got := doorMouthCells(DoorLeft, 16, 10)
+	if len(got) != len(want) {
+		t.Fatalf("doorMouthCells(left, 16, 10) = %v", got)
+	}
+	for _, c := range got {
+		if !want[c] {
+			t.Errorf("doorMouthCells(left, 16, 10) has unexpected cell %v", c)
+		}
+	}
+}

@@ -72,6 +72,18 @@ def data_space_doors(payload, space='data'):
         return {OZX_TO_DATA_SIDE[k]: v for k, v in doors.items() if k in OZX_TO_DATA_SIDE}
     return doors
 
+def gap_span(n):
+    """Indices along a wall of length n that the game's 2-tile door gap overlaps."""
+    return [i for i in range(n) if i+1 > n/2-1 and i < n/2+1]
+
+def door_mouth(side, h, w, depth=2):
+    """Data-space (y, x) cells of a door's mouth: the gap span, `depth` deep."""
+    if side in ('top','bottom'):
+        rows=[d if side=='top' else h-1-d for d in range(min(depth,h))]
+        return [(y,x) for y in rows for x in gap_span(w)]
+    cols=[d if side=='left' else w-1-d for d in range(min(depth,w))]
+    return [(y,x) for x in cols for y in gap_span(h)]
+
 def analyse(r):
     p=r['payload']
     v={k:rot(p[k]) for k in LAYERS if p.get(k)}
@@ -193,6 +205,20 @@ def analyse(r):
         if not runs or max(runs)<2 or 1 in runs:
             gate_bad.append(f"{side}{runs}")
     if gate_bad: fails.append(f"doorway narrower than 2 cells at {gate_bad}")
+    # ORT-149: the door mouth is ground. The game opens a door as a 2-tile gap
+    # centred on the wall (RoomInstanceView.DoorGapTiles = 2, the barrier leaves
+    # [n/2-1, n/2+1) open), so the gap cells are known after all; the rule above
+    # still passed rooms whose wall was walkable everywhere except half the gap,
+    # and three of them shipped. Every hand-authored room keeps the gap ground at
+    # least 2 cells deep, so that is the bar. Only ground is checked: static next
+    # to a doorway is cover (see above).
+    mouth_bad=[]
+    for side in ('top','bottom','left','right'):
+        if not gd.get(side): continue
+        for c in door_mouth(side, rh, rw):
+            if not raw[c[0]][c[1]]:
+                mouth_bad.append(side); break
+    if mouth_bad: fails.append(f"door mouth (2-wide gap, 2 deep) not all ground at {mouth_bad}")
     # ORT-138: a non-empty rail runs 35-45 cells - long enough for the cart to be
     # worth boarding, short enough not to turn the floor into a grid. The README
     # has listed this rule since ORT-138; it was never actually checked here.

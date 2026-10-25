@@ -110,6 +110,34 @@ door. Generation enforces this via `ensureDoorsWalkable`, and `ComputeMainPath`
 fails the request outright if it does not hold (ORT-106) — so a saved template
 that violates it came from hand editing, not the generator.
 
+**The whole door mouth must be ground** (ORT-149). The anchor is only one cell
+of the game's 2-tile door gap (`RoomInstanceView.DoorGapTiles`, centred on the
+wall: indices `i` with `i+1 > n/2-1 and i < n/2+1`). Check the gap span 2 cells
+deep into the room; a void cell there means the player squeezes through a
+1-wide slot:
+
+```python
+def gap_span(n):
+    return [i for i in range(n) if i + 1 > n / 2 - 1 and i < n / 2 + 1]
+
+def check_door_mouths(payload, width, height):
+    ground = payload['ground']
+    failures = []
+    for door in ('top', 'bottom', 'left', 'right'):
+        if payload['doors'][door] != 1:
+            continue
+        if door in ('top', 'bottom'):
+            rows = [0, 1] if door == 'top' else [height - 1, height - 2]
+            cells = [(x, y) for y in rows for x in gap_span(width)]
+        else:
+            cols = [0, 1] if door == 'left' else [width - 1, width - 2]
+            cells = [(x, y) for x in cols for y in gap_span(height)]
+        bad = [(x, y) for x, y in cells if ground[y][x] != 1]
+        if bad:
+            failures.append(f"door {door} mouth not ground at {bad}")
+    return failures
+```
+
 ---
 
 ## 2a. SoftEdge Anchoring (ORT-116)

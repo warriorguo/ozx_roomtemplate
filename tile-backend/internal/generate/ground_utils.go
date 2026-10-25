@@ -351,16 +351,74 @@ func ensureGroundConnectivity(ground [][]int, width, height int) {
 // ensureGroundConnectivity does not repair this either: it joins the islands
 // that exist, and a void door cell is not an island.
 //
-// So re-open each door cell explicitly and rerun the connectivity repair, which
+// So re-open each doorway explicitly and rerun the connectivity repair, which
 // L-paths any door cell that ended up isolated back to the main region.
+//
+// The doorway is the whole door mouth, not the anchor cell (ORT-149). The game
+// opens a door as a 2-tile gap centred on the wall (RoomInstanceView.DoorGapTiles),
+// and the anchor is only one of those two cells: re-opening it alone shipped
+// rooms whose other gap cell was a pit, so the player squeezed through a 1-wide
+// slot. Every hand-authored room keeps the gap ground at least 2 deep.
 func ensureDoorsWalkable(ground [][]int, doorPositions map[DoorPosition]Point, width, height int) {
-	for _, p := range doorPositions {
-		if p.X < 0 || p.X >= width || p.Y < 0 || p.Y >= height {
-			continue
+	for door, p := range doorPositions {
+		for _, c := range doorMouthCells(door, width, height) {
+			ground[c.Y][c.X] = 1
 		}
-		ground[p.Y][p.X] = 1
+		if p.X >= 0 && p.X < width && p.Y >= 0 && p.Y < height {
+			ground[p.Y][p.X] = 1
+		}
 	}
 	ensureGroundConnectivity(ground, width, height)
+}
+
+// doorGapTiles and doorMouthDepth describe the door mouth: the game's 2-tile
+// door gap, and how far into the room it must stay walkable at full width.
+const (
+	doorGapTiles   = 2
+	doorMouthDepth = 2
+)
+
+// doorGapSpan returns the indices along a wall of length n that the game's door
+// gap overlaps. The gap is [n/2-1, n/2+1) in tile units, so an even wall gives
+// the two middle cells and an odd wall the three cells the gap touches.
+func doorGapSpan(n int) []int {
+	var span []int
+	lo, hi := float64(n)/2-doorGapTiles/2.0, float64(n)/2+doorGapTiles/2.0
+	for i := 0; i < n; i++ {
+		if float64(i+1) > lo && float64(i) < hi {
+			span = append(span, i)
+		}
+	}
+	return span
+}
+
+// doorMouthCells returns the data-space cells of a door's mouth: the gap span on
+// the door's wall, doorMouthDepth cells deep into the room (clamped to the room).
+func doorMouthCells(door DoorPosition, width, height int) []Point {
+	var cells []Point
+	switch door {
+	case DoorTop, DoorBottom:
+		for d := 0; d < doorMouthDepth && d < height; d++ {
+			y := d
+			if door == DoorBottom {
+				y = height - 1 - d
+			}
+			for _, x := range doorGapSpan(width) {
+				cells = append(cells, Point{X: x, Y: y})
+			}
+		}
+	case DoorLeft, DoorRight:
+		for d := 0; d < doorMouthDepth && d < width; d++ {
+			x := d
+			if door == DoorRight {
+				x = width - 1 - d
+			}
+			for _, y := range doorGapSpan(height) {
+				cells = append(cells, Point{X: x, Y: y})
+			}
+		}
+	}
+	return cells
 }
 
 // selectByWeight selects a strategy index by weight
