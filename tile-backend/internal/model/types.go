@@ -108,7 +108,11 @@ type TemplatePayload struct {
 	RoomShape     *string         `json:"roomShape,omitempty"`     // "all", "bridge", or "platform"
 	RoomCategory  *string         `json:"roomCategory,omitempty"`  // "normal", "basement", "test", "cave"
 	OpenDoors     *int            `json:"openDoors,omitempty"`     // Bitmask: Top=1, Right=2, Bottom=4, Left=8
-	Meta          TemplateMeta    `json:"meta"`
+	// NoMirror keeps the template out of the game's mirror expansion (OZX-1467: the pool
+	// otherwise also draws it flipped left/right, top/bottom and rotated 180°). omitempty, so a
+	// template that never set it serialises exactly as before.
+	NoMirror bool         `json:"noMirror,omitempty"`
+	Meta     TemplateMeta `json:"meta"`
 }
 
 // Template represents a complete template record

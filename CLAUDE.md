@@ -421,6 +421,14 @@ regression from the size change — pass explicit dimensions for dense
 bridge/platform rooms. (Boss could not generate at either size until ORT-129
 dropped its 6×6 arena, which needed height ≥ 14.)
 
+**`noMirror` is all-or-nothing** (ORT-150): OZX expands every template into four
+orientations (authored, FlipX, FlipY, Rotate180 — OZX-1467, `RoomTilemapQuery.LoadPool`)
+unless the payload sets `noMirror: true`. It is one flag, not per axis, which is
+also why ORT's transposed data space does not matter here: the transpose swaps
+FlipX and FlipY and leaves Rotate180 alone, so the set of three is the same in
+either space. `omitempty` keeps it out of every file that never opted out;
+regenerating a room keeps the current value (the generators don't know it).
+
 **Basement is a category, not a rule set** (ORT-141/142): `roomCategory` only
 picks the folder OZX files a room under; the generators stamp it onto the
 output and read it nowhere else. A basement room gets the same default size and

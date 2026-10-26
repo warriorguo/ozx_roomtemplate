@@ -209,7 +209,7 @@ const CollapsiblePanel: React.FC<{
 };
 
 export const TileTemplateApp: React.FC = () => {
-  const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, setDoorWhitelist, loadTemplateFromJSON } = useNewTemplateStore();
+  const { uiState, template, apiState, setStageType, setRoomType, setRoomCategory, setNoMirror, setDoorWhitelist, loadTemplateFromJSON } = useNewTemplateStore();
   // Sides the user marked open but the ground doesn't connect — blocks save.
   const invalidDoors = getInvalidDoorSelections(template);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -397,7 +397,8 @@ export const TileTemplateApp: React.FC = () => {
       // Load the generated template
       await loadTemplateFromJSON({
         name: `generated-${template.roomType}-${template.width}x${template.height}`,
-        payload: response.payload,
+        // Regenerating redraws the layers; the mirror opt-out is the designer's call, not the generator's.
+        payload: { ...response.payload, noMirror: template.noMirror },
       });
     } catch (error) {
       let errorMessage = 'Failed to generate room';
@@ -834,6 +835,33 @@ export const TileTemplateApp: React.FC = () => {
                   </select>
                   <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
                     Used by OZX to bucket tilemaps (e.g. <code>basement</code> for basement rooms).
+                  </div>
+                </div>
+              </div>
+
+              {/* Mirror opt-out (ORT-150). OZX draws every template as authored AND flipped
+                  left/right, top/bottom and rotated 180° (OZX-1467); this keeps it to the first. */}
+              <div style={{ marginBottom: '15px' }}>
+                <strong>🪞 Mirroring:</strong>
+                <div style={{
+                  marginTop: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '13px'
+                }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={template.noMirror === true}
+                      onChange={(e) => setNoMirror(e.target.checked)}
+                    />
+                    No mirror (<code>noMirror</code>)
+                  </label>
+                  <div style={{ marginTop: '6px', fontSize: '11px', color: '#666' }}>
+                    OZX also draws this room flipped left/right, top/bottom and rotated 180°, doors
+                    remapped. Tick this when the layout's asymmetry is the point.
                   </div>
                 </div>
               </div>

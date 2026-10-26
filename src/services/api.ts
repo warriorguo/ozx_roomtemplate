@@ -87,6 +87,7 @@ export interface BackendTemplatePayload {
   stageType?: string;
   roomType?: 'full' | 'bridge' | 'platform';
   roomCategory?: 'normal' | 'basement' | 'test' | 'cave';
+  noMirror?: boolean;
   tileProperties?: (BackendTileProperties | null)[][];
   meta: {
     name: string;

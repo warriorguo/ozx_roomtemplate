@@ -50,6 +50,8 @@ export function frontendToBackendCreateRequest(
       stageType: template.stageType,
       roomType: template.roomType,
       roomCategory: template.roomCategory,
+      // Only written when set, so a template that never opted out exports unchanged.
+      ...(template.noMirror ? { noMirror: true } : {}),
       tileProperties: template.tileProperties,
       meta: {
         name,
@@ -100,6 +102,7 @@ export function backendToFrontendTemplate(
       backendTemplate.payload.roomCategory ||
       (backendTemplate.room_category as any) ||
       'normal',
+    noMirror: backendTemplate.payload.noMirror === true,
     tileProperties: backendTemplate.payload.tileProperties ||
       Array(backendTemplate.height).fill(null).map(() =>
         Array(backendTemplate.width).fill(null)
@@ -153,6 +156,7 @@ export function frontendToBackendPayload(
     stageType: template.stageType,
     roomType: template.roomType,
     roomCategory: template.roomCategory,
+    ...(template.noMirror ? { noMirror: true } : {}),
     tileProperties: template.tileProperties,
     meta: {
       name,

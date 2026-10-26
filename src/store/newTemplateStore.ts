@@ -89,6 +89,7 @@ interface NewTemplateStore {
   setStageType: (stageType: StageType) => void;
   setRoomType: (roomType: RoomType) => void;
   setRoomCategory: (roomCategory: RoomCategory) => void;
+  setNoMirror: (noMirror: boolean) => void;
   // Set the open-door whitelist to exactly `sides`. A non-empty whitelist makes
   // those the only open doors (others closed); an empty whitelist reverts to
   // ground-connectivity auto-detection. See ORT-89/91.
@@ -835,6 +836,11 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     });
   },
 
+  setNoMirror: (noMirror: boolean) => {
+    const { template } = get();
+    set({ template: { ...template, noMirror } });
+  },
+
   setDoorWhitelist: (sides: DoorSide[]) => {
     const { template } = get();
 
@@ -891,6 +897,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             stageType: payload.stageType,
             roomType: payload.roomType,
             roomCategory: payload.roomCategory,
+            noMirror: payload.noMirror,
             tileProperties: payload.tileProperties,
           },
           created_at: new Date().toISOString(),

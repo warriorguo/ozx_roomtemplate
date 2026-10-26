@@ -90,6 +90,8 @@ export interface Template {
   stageType: StageType;
   roomType: RoomType;
   roomCategory: RoomCategory;
+  // Keep this template out of the game's mirror expansion (ORT-150 / OZX-1467). Absent = false.
+  noMirror?: boolean;
   tileProperties: Grid<TileProperties | null>; // null if cell is not set (value=0)
 }
 

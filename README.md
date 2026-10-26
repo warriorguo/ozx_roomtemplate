@@ -80,6 +80,10 @@ The editor is a direct reader / writer of the OZX project's tilemap folder.
   so the frontend can still reference templates by ID.
 - **Categories**: each first-level subfolder is a `roomCategory`. New rooms
   are routed to `payload.roomCategory` (default `normal`).
+- **`noMirror`** (ORT-150): top-level bool, written only when true. OZX draws
+  every template as authored *and* flipped left/right, top/bottom and rotated
+  180° (OZX-1467); `noMirror: true` keeps it to the authored layout. Set it
+  with the **Mirroring** checkbox in the sidebar.
 - **`.meta` sidecars**: skipped on read, untouched on update, removed
   alongside the `.json` on delete so Unity regenerates them cleanly.
 

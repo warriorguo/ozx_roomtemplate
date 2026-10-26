@@ -642,3 +642,47 @@ func TestCreateGet_DoorMetadataRoundTripsToDataSpace(t *testing.T) {
 		t.Errorf("round-tripped doors = %+v, want top=1 right=1 (data space)", d)
 	}
 }
+
+// ORT-150: noMirror survives a save/load, and a template that never set it is
+// written without the key — the files OZX already ships must not change.
+func TestNoMirror_RoundTripsAndIsOmittedWhenFalse(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+
+	plain, err := s.Create(ctx, fixture("plain"))
+	if err != nil {
+		t.Fatalf("Create plain: %v", err)
+	}
+	raw, err := os.ReadFile(plain.Path)
+	if err != nil {
+		t.Fatalf("read %s: %v", plain.Path, err)
+	}
+	if strings.Contains(string(raw), "noMirror") {
+		t.Errorf("a template without noMirror wrote the key:\n%s", raw)
+	}
+
+	opted := fixture("opted")
+	opted.Payload.NoMirror = true
+	saved, err := s.Create(ctx, opted)
+	if err != nil {
+		t.Fatalf("Create opted: %v", err)
+	}
+	raw, err = os.ReadFile(saved.Path)
+	if err != nil {
+		t.Fatalf("read %s: %v", saved.Path, err)
+	}
+	var onDisk map[string]any
+	if err := json.Unmarshal(raw, &onDisk); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if onDisk["noMirror"] != true {
+		t.Errorf("noMirror on disk = %v, want true (top level, where OZX reads it)", onDisk["noMirror"])
+	}
+	got, err := s.Get(ctx, saved.ID.String())
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if !got.Payload.NoMirror {
+		t.Error("noMirror lost on load")
+	}
+}
