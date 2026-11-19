@@ -52,6 +52,8 @@ export function frontendToBackendCreateRequest(
       roomCategory: template.roomCategory,
       // Only written when set, so a template that never opted out exports unchanged.
       ...(template.noMirror ? { noMirror: true } : {}),
+      // Same rule for tags (ORT-158): an untagged template exports exactly as before.
+      ...(template.tags && template.tags.length > 0 ? { tags: [...template.tags] } : {}),
       tileProperties: template.tileProperties,
       meta: {
         name,
@@ -103,6 +105,7 @@ export function backendToFrontendTemplate(
       (backendTemplate.room_category as any) ||
       'normal',
     noMirror: backendTemplate.payload.noMirror === true,
+    tags: Array.isArray(backendTemplate.payload.tags) ? [...backendTemplate.payload.tags] : undefined,
     tileProperties: backendTemplate.payload.tileProperties ||
       Array(backendTemplate.height).fill(null).map(() =>
         Array(backendTemplate.width).fill(null)
@@ -157,6 +160,7 @@ export function frontendToBackendPayload(
     roomType: template.roomType,
     roomCategory: template.roomCategory,
     ...(template.noMirror ? { noMirror: true } : {}),
+    ...(template.tags && template.tags.length > 0 ? { tags: [...template.tags] } : {}),
     tileProperties: template.tileProperties,
     meta: {
       name,

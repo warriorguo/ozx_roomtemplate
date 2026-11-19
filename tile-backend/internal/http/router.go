@@ -58,6 +58,9 @@ func SetupRouter(templateStore store.Store, cfgHandler *ConfigHandler, logger *z
 		// Stage config endpoint
 		r.Get("/stage-configs", templateHandler.GetStageConfigs)
 
+		// Tilemap tag registry of the current project (ORT-158)
+		r.Get("/tilemap-tags", templateHandler.GetTilemapTags)
+
 		// Local-mode runtime config (ORT-67/ORT-69). Optional in tests.
 		if cfgHandler != nil {
 			r.Get("/config", cfgHandler.GetConfig)

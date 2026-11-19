@@ -88,6 +88,7 @@ export interface BackendTemplatePayload {
   roomType?: 'full' | 'bridge' | 'platform';
   roomCategory?: 'normal' | 'basement' | 'test' | 'cave';
   noMirror?: boolean;
+  tags?: string[];
   tileProperties?: (BackendTileProperties | null)[][];
   meta: {
     name: string;
@@ -191,6 +192,18 @@ export interface LocalConfig {
   templates_dir: string;
   config_path: string;
   uses_fallback: boolean;
+}
+
+/**
+ * The current project's tilemap tag registry, GET /api/v1/tilemap-tags (ORT-158).
+ * `tags` is in registry order (index = bit). `found` is false when the project has no
+ * tilemap_tags.json; `error` is set when the file exists but the game would reject it.
+ */
+export interface TilemapTagRegistry {
+  tags: string[];
+  found: boolean;
+  path?: string;
+  error?: string;
 }
 
 /** Partial-update shape for PUT /api/v1/config. */
@@ -363,6 +376,13 @@ export class TemplateApiService {
       method: 'POST',
       body: JSON.stringify(payload),
     });
+  }
+
+  /**
+   * The tag names a template may carry, from the current project's registry (ORT-158).
+   */
+  async getTilemapTags(): Promise<TilemapTagRegistry> {
+    return this.makeRequest<TilemapTagRegistry>('/tilemap-tags');
   }
 
   /**

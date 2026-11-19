@@ -92,6 +92,10 @@ export interface Template {
   roomCategory: RoomCategory;
   // Keep this template out of the game's mirror expansion (ORT-150 / OZX-1467). Absent = false.
   noMirror?: boolean;
+  // Names from OZX's tilemap tag registry, TilemapData/tilemap_tags.json (ORT-158 / OZX-2152).
+  // The game throws on an unregistered name, so the editor only ever picks from the registry.
+  // Absent = untagged; order is kept as authored.
+  tags?: string[];
   tileProperties: Grid<TileProperties | null>; // null if cell is not set (value=0)
 }
 

@@ -64,3 +64,9 @@ func (s *SwappableStore) List(ctx context.Context, params model.ListTemplatesQue
 func (s *SwappableStore) HealthCheck(ctx context.Context) error {
 	return s.Current().HealthCheck(ctx)
 }
+
+// TilemapTags reads the registry of whichever store is current, so a project
+// switch (PUT /config) switches registries with it.
+func (s *SwappableStore) TilemapTags() TagRegistry {
+	return TilemapTagsOf(s.Current())
+}

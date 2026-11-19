@@ -145,3 +145,11 @@ for cat, shapes in sorted(by_category.items()):
 - `stageType`: `default`, `start`, `teaching`, `building`, `pressure`, `peak`, `release`, `boss`
 - `openDoors`: bitmask int — Top=1, Right=2, Bottom=4, Left=8 (e.g. 15 = all doors)
 - `seq`: two-digit auto-increment per prefix
+
+### Fields carried verbatim
+
+The script remaps only `doors` / `openDoors`; every other payload key is written
+as the API returned it. That includes `noMirror` (ORT-150) and `tags` (ORT-158):
+`tags` keeps its authored order, and its names are only meaningful against the
+target project's `tilemap_tags.json` — the script does not copy that registry,
+and OZX throws on load at a tag it does not list.

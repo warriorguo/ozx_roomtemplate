@@ -90,6 +90,8 @@ interface NewTemplateStore {
   setRoomType: (roomType: RoomType) => void;
   setRoomCategory: (roomCategory: RoomCategory) => void;
   setNoMirror: (noMirror: boolean) => void;
+  // Replace the template's tags (ORT-158). Callers pick names from the registry only.
+  setTags: (tags: string[]) => void;
   // Set the open-door whitelist to exactly `sides`. A non-empty whitelist makes
   // those the only open doors (others closed); an empty whitelist reverts to
   // ground-connectivity auto-detection. See ORT-89/91.
@@ -841,6 +843,11 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
     set({ template: { ...template, noMirror } });
   },
 
+  setTags: (tags: string[]) => {
+    const { template } = get();
+    set({ template: { ...template, tags: tags.length > 0 ? [...tags] : undefined } });
+  },
+
   setDoorWhitelist: (sides: DoorSide[]) => {
     const { template } = get();
 
@@ -898,6 +905,7 @@ export const useNewTemplateStore = create<NewTemplateStore>((set, get) => {
             roomType: payload.roomType,
             roomCategory: payload.roomCategory,
             noMirror: payload.noMirror,
+            tags: payload.tags,
             tileProperties: payload.tileProperties,
           },
           created_at: new Date().toISOString(),

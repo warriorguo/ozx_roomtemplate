@@ -111,8 +111,13 @@ type TemplatePayload struct {
 	// NoMirror keeps the template out of the game's mirror expansion (OZX-1467: the pool
 	// otherwise also draws it flipped left/right, top/bottom and rotated 180°). omitempty, so a
 	// template that never set it serialises exactly as before.
-	NoMirror bool         `json:"noMirror,omitempty"`
-	Meta     TemplateMeta `json:"meta"`
+	NoMirror bool `json:"noMirror,omitempty"`
+	// Tags name entries of OZX's tilemap tag registry (TilemapData/tilemap_tags.json, ORT-158 /
+	// OZX-2152); the game builds the template's TagMask from them and throws on a name the
+	// registry does not list. Order is kept as authored. omitempty, so an untagged template
+	// serialises exactly as before.
+	Tags []string     `json:"tags,omitempty"`
+	Meta TemplateMeta `json:"meta"`
 }
 
 // Template represents a complete template record

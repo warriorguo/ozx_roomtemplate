@@ -84,6 +84,13 @@ The editor is a direct reader / writer of the OZX project's tilemap folder.
   every template as authored *and* flipped left/right, top/bottom and rotated
   180° (OZX-1467); `noMirror: true` keeps it to the authored layout. Set it
   with the **Mirroring** checkbox in the sidebar.
+- **`tags`** (ORT-158): top-level array of names, written only when non-empty,
+  in authored order. The names come from the project's tag registry,
+  `tilemap_tags.json` at the root of the templates folder (OZX-2152: an ordered
+  array, index = bit, at most 32). OZX throws on a name the registry does not
+  list, so the **Tags** panel offers only registered names and a save carrying
+  any other is refused. The registry file sits beside the category folders and
+  is never listed as a template.
 - **`.meta` sidecars**: skipped on read, untouched on update, removed
   alongside the `.json` on delete so Unity regenerates them cleanly.
 
@@ -140,6 +147,7 @@ random free port chosen by the Swift launcher).
 | `POST` | `/templates/validate?strict=true` | validation only |
 | `POST` | `/generate/{fullroom\|bridge\|platform}` | room generators |
 | `GET` | `/stage-configs` | enemy count ranges per stage |
+| `GET` | `/tilemap-tags` | the project's tag registry (`tags` in bit order, `found`, `error`) |
 
 ## Project layout
 

@@ -686,3 +686,58 @@ func TestNoMirror_RoundTripsAndIsOmittedWhenFalse(t *testing.T) {
 		t.Error("noMirror lost on load")
 	}
 }
+
+// ORT-158: tags survive a save/load in authored order, an untagged template is
+// written without the key, and the registry beside the category folders is
+// read as the registry and never listed as a template.
+func TestTags_RoundTripInOrderAndRegistryIsNotATemplate(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	if err := os.WriteFile(filepath.Join(s.RootDir(), store.TilemapTagsFile), []byte(`["wide","dark"]`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	plain, err := s.Create(ctx, fixture("plain"))
+	if err != nil {
+		t.Fatalf("Create plain: %v", err)
+	}
+	raw, err := os.ReadFile(plain.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), `"tags"`) {
+		t.Errorf("an untagged template wrote the key:\n%s", raw)
+	}
+
+	tagged := fixture("tagged")
+	tagged.Payload.Tags = []string{"dark", "wide"}
+	saved, err := s.Create(ctx, tagged)
+	if err != nil {
+		t.Fatalf("Create tagged: %v", err)
+	}
+	raw, err = os.ReadFile(saved.Path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"tags":["dark","wide"]`) {
+		t.Errorf("tags not at the top level in authored order:\n%s", raw)
+	}
+	got, err := s.Get(ctx, saved.ID.String())
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if strings.Join(got.Payload.Tags, ",") != "dark,wide" {
+		t.Errorf("tags on load = %v, want [dark wide]", got.Payload.Tags)
+	}
+
+	_, total, err := s.List(ctx, model.ListTemplatesQueryParams{Limit: 100})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if total != 2 {
+		t.Errorf("List total = %d, want 2 (the registry is not a template)", total)
+	}
+	if reg := s.TilemapTags(); strings.Join(reg.Tags, ",") != "wide,dark" || !reg.Found {
+		t.Errorf("registry = %+v, want [wide dark] in file order", reg)
+	}
+}

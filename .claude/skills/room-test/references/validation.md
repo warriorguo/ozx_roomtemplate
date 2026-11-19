@@ -33,6 +33,16 @@ assert payload.meta.height == 12
 assert payload.meta.version == 1
 ```
 
+### 1.4 Tags (ORT-158)
+A generated room carries no `tags` (the generators never set them). A saved one
+may; every name must be in the project's registry, with no repeats:
+```
+reg = GET /api/v1/tilemap-tags          # {"tags": [...], "found": bool, "error"?: str}
+tags = payload.get("tags") or []
+assert len(tags) == len(set(tags))
+assert all(t in reg["tags"] for t in tags)   # OZX throws on load otherwise
+```
+
 ---
 
 ## 2. Ground Connectivity

@@ -47,7 +47,7 @@ func (h *TemplateHandler) CreateTemplate(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Validate template payload
-	validationResult := validate.ValidateTemplate(&req.Payload, false)
+	validationResult := h.validatePayload(&req.Payload, false)
 	if !validationResult.Valid {
 		h.respondValidationError(w, validationResult)
 		return
@@ -272,7 +272,7 @@ func (h *TemplateHandler) UpdateTemplate(w http.ResponseWriter, r *http.Request)
 		name = req.Payload.Meta.Name
 	}
 
-	validationResult := validate.ValidateTemplate(&req.Payload, false)
+	validationResult := h.validatePayload(&req.Payload, false)
 	if !validationResult.Valid {
 		h.respondValidationError(w, validationResult)
 		return
@@ -352,7 +352,7 @@ func (h *TemplateHandler) ValidateTemplate(w http.ResponseWriter, r *http.Reques
 	strict := r.URL.Query().Get("strict") == "true"
 
 	// Validate template
-	validationResult := validate.ValidateTemplate(&payload, strict)
+	validationResult := h.validatePayload(&payload, strict)
 
 	respondJSON(w, h.logger, http.StatusOK, validationResult)
 }
@@ -393,6 +393,27 @@ func isValidTemplateID(id string) bool {
 }
 
 // respondValidationError sends a validation error response
+// validatePayload runs the layer validation and then checks the payload's tags
+// against the current project's registry (ORT-158). The game throws on a tag
+// name its registry does not list, so a save must never write one.
+func (h *TemplateHandler) validatePayload(payload *model.TemplatePayload, strict bool) *model.ValidationResult {
+	result := validate.ValidateTemplate(payload, strict)
+	problems := store.CheckTags(payload.Tags, store.TilemapTagsOf(h.store))
+	for i, p := range problems {
+		result.Errors = append(result.Errors, model.ValidationError{Layer: "tags", X: i, Reason: p})
+	}
+	if len(problems) > 0 {
+		result.Valid = false
+	}
+	return result
+}
+
+// GetTilemapTags handles GET /api/v1/tilemap-tags: the names a template may be
+// tagged with, in registry (bit) order (ORT-158).
+func (h *TemplateHandler) GetTilemapTags(w http.ResponseWriter, r *http.Request) {
+	respondJSON(w, h.logger, http.StatusOK, store.TilemapTagsOf(h.store))
+}
+
 func (h *TemplateHandler) respondValidationError(w http.ResponseWriter, result *model.ValidationResult) {
 	response := model.ErrorResponse{
 		Error:   "Validation Failed",

@@ -233,6 +233,10 @@ The API returns this JSON structure:
     "roomShape": "all"|"bridge"|"platform",
     "roomCategory": "normal"|"basement"|"test"|"cave",
     "stageType": "default"|"start"|"teaching"|"building"|"pressure"|"peak"|"release"|"boss",
+    // Not produced by the generators — set in the editor and carried through saves:
+    // "noMirror": true,          // ORT-150, written only when true
+    // "tags": ["name", ...],     // ORT-158, names from TilemapData/tilemap_tags.json only
+    //                            //   (GET /api/v1/tilemap-tags); written only when non-empty
     "meta": {
       "name": "full-20x12",
       "version": 1,

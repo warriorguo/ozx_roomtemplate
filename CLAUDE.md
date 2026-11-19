@@ -137,6 +137,7 @@ internal/
 - `POST /templates/validate?strict` - Validate payload
 - `POST /generate/{fullroom|bridge|platform}` - Generate a room
 - `GET /stage-configs` - Stage type configurations
+- `GET /tilemap-tags` - The current project's tilemap tag registry (ORT-158)
 - `GET /config` - Resolved user config (project_root, template_subdir, templates_dir, ...)
 - `PUT /config` - Update config; hot-swaps the filesystem store to a new project folder
 - `GET /health` - Health check
@@ -428,6 +429,22 @@ also why ORT's transposed data space does not matter here: the transpose swaps
 FlipX and FlipY and leaves Rotate180 alone, so the set of three is the same in
 either space. `omitempty` keeps it out of every file that never opted out;
 regenerating a room keeps the current value (the generators don't know it).
+
+**`tags` come from OZX's registry, never free text** (ORT-158 / OZX-2152). OZX
+reads `tags: ["name", ...]` into `RoomTilemapData.TagMask`, where a name's bit is
+its index in `TilemapData/tilemap_tags.json` (an ordered array, at most 32,
+unique and non-empty), and throws on load at a name the registry does not list.
+So the registry is the only source of names: `store.LoadTagRegistry` applies the
+game's rules to the file, `GET /tilemap-tags` hands it to the editor, the Tags
+panel (`TemplateTagsPanel`) offers its names as checkboxes, and
+`TemplateHandler.validatePayload` refuses a save (create, update or validate)
+carrying any other name or a duplicate. The registry is read on every request
+because it belongs to the OZX project, not to the editor. It lives at the root of
+the templates folder, beside the category folders; `fsstore.walk` only descends
+into folders, so it is never read as a template. Tags keep their authored order
+through save, load and room-sync (which writes the API payload verbatim); an
+untagged template omits the key and is written byte-for-byte as before.
+Regenerating keeps the current tags, like `noMirror`.
 
 **Basement is a category, not a rule set** (ORT-141/142): `roomCategory` only
 picks the folder OZX files a room under; the generators stamp it onto the

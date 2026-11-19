@@ -9,6 +9,7 @@ import { ROOM_TYPES, ROOM_CATEGORIES } from '../../types/newTemplate';
 import type { DoorSide } from '../../types/newTemplate';
 import { getInvalidDoorSelections, dataToVisual, visualToData, VISUAL_DOOR_SIDES } from '../../utils/newTemplateUtils';
 import { templateApi, ApiError, type DoorPosition, type PlacementShortfall } from '../../services/api';
+import { TemplateTagsPanel } from './TemplateTagsPanel';
 
 const layerConfigs: Array<{
   layer: LayerType;
@@ -397,8 +398,8 @@ export const TileTemplateApp: React.FC = () => {
       // Load the generated template
       await loadTemplateFromJSON({
         name: `generated-${template.roomType}-${template.width}x${template.height}`,
-        // Regenerating redraws the layers; the mirror opt-out is the designer's call, not the generator's.
-        payload: { ...response.payload, noMirror: template.noMirror },
+        // Regenerating redraws the layers; the mirror opt-out and the tags (ORT-158) are the designer's call, not the generator's.
+        payload: { ...response.payload, noMirror: template.noMirror, tags: template.tags },
       });
     } catch (error) {
       let errorMessage = 'Failed to generate room';
@@ -865,6 +866,9 @@ export const TileTemplateApp: React.FC = () => {
                   </div>
                 </div>
               </div>
+
+              {/* Tilemap tags (ORT-158): picked from the project's registry only. */}
+              <TemplateTagsPanel />
 
               {/* Door States — read-only status. Edit via "Select Doors to
                   Connect" below; this just shows the resulting open/closed +

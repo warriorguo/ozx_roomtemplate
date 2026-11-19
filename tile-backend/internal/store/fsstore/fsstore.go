@@ -89,6 +89,12 @@ func New(rootDir string) (*Store, error) {
 // RootDir returns the resolved absolute path the store reads and writes.
 func (s *Store) RootDir() string { return s.rootDir }
 
+// TilemapTags reads the project's tag registry, which sits beside the category
+// folders (ORT-158). walk only descends into folders, so the registry file is
+// never mistaken for a template. Read on every call: the file belongs to the
+// OZX project and may change while the editor runs.
+func (s *Store) TilemapTags() store.TagRegistry { return store.LoadTagRegistry(s.rootDir) }
+
 // Create writes a new template. The destination filename is derived from the
 // payload's roomCategory / roomShape / stageType / openDoors, with the next
 // free numeric sequence appended.
